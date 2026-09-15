@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  :root{
+    --ink:#2a2119;
+    --charcoal:#3b3128;
+    --paper:#f4ede0;
+    --surface:#fffbf3;
+    --teal:#2c6e62;
+    --teal-dark:#1e4f46;
+    --rust:#b5432b;
+    --ochre:#a5721c;
+    --gold:#c9922e;
+    --line: rgba(42,33,25,0.14);
+    --line-soft: rgba(42,33,25,0.08);
+    --danger:#a5342b;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+    background: #d8cdb8;
+    background-image:
+      radial-gradient(circle at 20% 15%, rgba(181,67,43,0.10), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(44,110,98,0.14), transparent 50%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+  }
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+  #phone{
+    width:412px;
+    height:860px;
+    max-height:96vh;
+    background:var(--paper);
+    border-radius:34px;
+    box-shadow: 0 30px 60px -20px rgba(20,15,10,0.45), 0 0 0 8px #17120d;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+  @media (max-width: 460px){
+    body{ background: var(--paper); }
+    #phone{
+      width:100vw; height:100vh; max-height:100vh;
+      border-radius:0; box-shadow:none;
+    }
+  }
+  #app{ display:flex; flex-direction:column; height:100%; min-height:0; }
+
+  /* ---- top bar ---- */
+  .topbar{
+    padding:18px 20px 14px;
+    display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+    flex:0 0 auto;
+  }
+  .brand{ display:flex; align-items:center; gap:9px; }
+  .brand .mark{
+    width:26px;height:26px;border-radius:7px;
+    background:linear-gradient(135deg,var(--rust),var(--ochre));
+    display:flex;align-items:center;justify-content:center;
+    color:#fff8ee;font-family:'Space Grotesk';font-weight:700;font-size:13px;
+  }
+  .brand .word{font-family:'Space Grotesk';font-weight:700;font-size:18px;letter-spacing:0.2px;}
+  .role-pill{
+    font-size:11.5px; padding:4px 10px; border-radius:99px;
+    background:var(--charcoal); color:#f4ede0; font-weight:600;
+    text-transform:capitalize;
+  }
+  .icon-btn{
+    border:none;background:transparent;color:var(--ink);opacity:0.6;
+    cursor:pointer;font-size:13px;font-weight:600;font-family:'Inter';
+  }
+  .icon-btn:hover{opacity:1;}
+
+  /* ---- content ---- */
+  #content{
+    flex:1 1 auto; overflow-y:auto; padding:16px 18px 20px;
+    -webkit-overflow-scrolling:touch;
+  }
+  #content::-webkit-scrollbar{width:6px;}
+  #content::-webkit-scrollbar-thumb{background:rgba(42,33,25,0.18);border-radius:6px;}
+
+  /* ---- bottom nav ---- */
+  .bottomnav{
+    display:flex; border-top:1px solid var(--line); background:var(--surface);
+    flex:0 0 auto; padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+  }
+  .navbtn{
+    flex:1; border:none; background:transparent; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:8px 2px 6px; color:var(--ink); opacity:0.45;
+    font-family:'Inter'; font-size:10.5px; font-weight:600;
+  }
+  .navbtn .dot{width:5px;height:5px;border-radius:50%;background:var(--rust);opacity:0;margin-bottom:1px;}
+  .navbtn.active{ opacity:1; }
+  .navbtn.active .dot{ opacity:1; }
+
+  /* ---- generic elements ---- */
+  .card{
+    background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius); padding:14px 15px; margin-bottom:12px;
+  }
+  .section-title{
+    font-family:'Space Grotesk'; font-weight:600; font-size:15px;
+    margin:4px 0 10px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .subtabs{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .subtab{
+    border:1px solid var(--line); background:var(--surface); color:var(--ink);
+    padding:6px 12px; border-radius:99px; font-size:12.5px; font-weight:600;
+    cursor:pointer; opacity:0.55;
+  }
+  .subtab.active{ background:var(--charcoal); color:#f4ede0; border-color:var(--charcoal); opacity:1; }
+
+  .btn{
+    border:none; border-radius:10px; padding:9px 14px; font-weight:600;
+    font-size:13px; cursor:pointer; font-family:'Inter';
+  }
+  .btn-primary{ background:var(--teal); color:#fff; }
+  .btn-primary:hover{ background:var(--teal-dark); }
+  .btn-ghost{ background:transparent; border:1px solid var(--line); color:var(--ink); }
+  .btn-danger{ background:transparent; border:1px solid rgba(165,52,43,0.4); color:var(--danger); }
+  .btn-sm{ padding:6px 10px; font-size:12px; }
+  .btn[disabled]{ opacity:0.5; cursor:default; }
+  .btn.active{ background:var(--rust); color:#fff; }
+  .full{ width:100%; }
+  input, textarea{
+    width:100%; border:1px solid var(--line); border-radius:10px;
+    padding:9px 11px; font-family:'Inter'; font-size:13.5px; background:#fff;
+    color:var(--ink); margin-bottom:10px;
+  }
+  select{ width:100%; border:1px solid var(--line); border-radius:10px; padding:9px 11px;
+    font-family:'Inter'; font-size:13.5px; background:#fff; color:var(--ink); margin-bottom:10px; }
+  label{ font-size:12px; font-weight:600; opacity:0.65; display:block; margin-bottom:4px; }
+  .field{ margin-bottom:12px; }
+  .row{ display:flex; gap:8px; }
+  .row > *{ flex:1; }
+  .muted{ opacity:0.6; font-size:12.5px; }
+  .chip{
+    display:inline-block; font-size:11px; font-weight:600; padding:3px 9px;
+    border-radius:99px; background:var(--paper); border:1px solid var(--line);
+    margin:0 5px 5px 0;
+  }
+  .chip.gold{ background:rgba(201,146,46,0.18); border-color:transparent; color:#8a5f14; }
+  .chip.teal{ background:rgba(44,110,98,0.14); border-color:transparent; color:var(--teal-dark); }
+  .chip.rust{ background:rgba(181,67,43,0.14); border-color:transparent; color:var(--rust); }
+  .empty{ text-align:center; padding:40px 10px; opacity:0.55; font-size:13.5px; }
+  .error-banner{
+    background:rgba(165,52,43,0.1); border:1px solid rgba(165,52,43,0.3);
+    color:var(--danger); padding:9px 12px; border-radius:10px; font-size:12.5px; margin-bottom:12px;
+  }
+  .loading{ text-align:center; padding:60px 0; opacity:0.5; font-size:13px; }
+  #toast{
+    position:absolute; left:50%; bottom:78px; transform:translateX(-50%);
+    background:var(--charcoal); color:#f4ede0; padding:9px 16px; border-radius:99px;
+    font-size:12.5px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;
+    white-space:nowrap; z-index:50; max-width:88%; text-overflow:ellipsis; overflow:hidden;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+</style>
+</head>
+<body>
+  <div id="phone">
+    <div id="app"></div>
+    <div id="toast"></div>
+  </div>
+<script>
+/* ====================== application code follows ====================== */
+
+/* ------------------------------------------------------------------ logo */
+const LOGO_MARK = `
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2.5l1.15 3.1L16.5 7l-3.35 1.4L12 11.5l-1.15-3.1L7.5 7l3.35-1.4L12 2.5z" fill="currentColor"/>
+    <path d="M2.5 14.8h6.2l1.1-1.6h4.4l1.1 1.6h6.2v1.9c0 .6-.45 1-1 1H3.5c-.55 0-1-.4-1-1v-1.9z" fill="currentColor"/>
+    <rect x="9.5" y="17.7" width="5" height="2.8" rx="0.4" fill="currentColor"/>
+  </svg>`;
+
+/* --------------------------------------------------------- icon set --- */
+/* Plain outline SVGs, not emoji — render identically across every OS/    */
+/* browser instead of falling back to inconsistent emoji glyphs.          */
+const ICON_EYE_OPEN = `
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>
+  </svg>`;
+const ICON_EYE_CLOSED = `
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3.5 3.5l17 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M6.7 6.9C4 8.6 1.5 12 1.5 12s3.5 7 10.5 7c1.9 0 3.5-.4 4.9-1.1M10.2 5.3c.6-.1 1.2-.2 1.8-.2 7 0 10.5 7 10.5 7-.5 1-1.6 2.6-3.2 4"
+      stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M9.9 10.2A3 3 0 0014.1 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`;
+const ICON_BELL = `
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 10.5a6 6 0 0112 0c0 4 1.3 5.2 1.3 5.2H4.7S6 14.5 6 10.5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M10 18.8a2 2 0 004 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`;
+const ICON_VIDEO = `
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:4px;">
+    <rect x="2.5" y="6" width="13" height="12" rx="1.6" stroke="currentColor" stroke-width="1.6"/>
+    <path d="M15.5 10l6-3.2v10.4l-6-3.2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+  </svg>`;
+/* One-letter badge per notification type — a colour cue without an emoji.*/
+const NOTIF_BADGE = {
+  applicant: ['A', '#2c6e62'], approval: ['A', '#1e4f46'], verification: ['V', '#a5721c'],
+  connection: ['C', '#2c6e62'], testimonial: ['T', '#b5432b'], profile_view: ['P', '#6b6b6b'],
+  job_match: ['M', '#b5432b'], event: ['E', '#a5721c'], announcement: ['N', '#1e4f46'],
+  security: ['S', '#3a332c'],
+};
+function notifBadge(type) {
+  const [letter, color] = NOTIF_BADGE[type] || ['•', '#6b6b6b'];
+  return `<span style="flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:${color};
+    color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">${letter}</span>`;
+}
+
+/* ---------------------------------------------------------------- state */
+const state = {
+  user: null,
+  view: 'feed',
+  discoverTab: 'opportunities',
+  adminTab: 'queue',
+  businessTab: 'listings',
+  msgSlug: null,
+  authMode: 'login',
+  authError: '',
+  authBusy: false,
+  unreadCount: 0,
+  viewUserId: null,
+  onboarding: null,
+  onboardingDismissed: false,
+  notes: [],
+};
+
+/* ------------------------------------------------------------- helpers */
+function passwordField(name, label, required, autocomplete) {
+  const id = 'pw_' + name + '_' + Math.random().toString(36).slice(2, 8);
+  return `
+    <div class="field">
+      <label>${esc(label)}</label>
+      <div style="position:relative;">
+        <input name="${esc(name)}" id="${id}" type="password"
+          autocomplete="${esc(autocomplete || 'current-password')}" ${required ? 'required' : ''}
+          style="padding-right:36px;width:100%;box-sizing:border-box;"/>
+        <button type="button" class="icon-btn" onclick="togglePasswordVisibility('${id}', this)"
+          style="position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:4px;line-height:0;color:var(--ink,#3a332c);"
+          title="Show password" aria-label="Show password">${ICON_EYE_CLOSED}</button>
+      </div>
+    </div>`;
+}
+
+function togglePasswordVisibility(id, btn) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  const nowShowing = input.type === 'password';
+  input.type = nowShowing ? 'text' : 'password';
+  // Closed eye = "hidden, tap to reveal"; open eye = "visible, tap to hide".
+  btn.innerHTML = nowShowing ? ICON_EYE_OPEN : ICON_EYE_CLOSED;
+  btn.title = nowShowing ? 'Hide password' : 'Show password';
+  btn.setAttribute('aria-label', btn.title);
+}
+
+function updateEmailHint(role) {
+  const input = document.getElementById('registerEmail');
+  const hint = document.getElementById('emailHint');
+  if (!input || !hint) return;
+  if (role === 'business') {
+    input.placeholder = 'name@yourcompany.co.za';
+    hint.innerHTML = 'Any business email works — no institutional domain required.';
+  } else {
+    input.placeholder = 'name@my.richfield.ac.za';
+    hint.innerHTML = 'Students &amp; current trades need a Richfield or AAA institutional email. ' +
+      'Lapsed alumni can leave email blank and verify identity later from Profile.';
+  }
+}
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+  ));
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  let body = null;
+  try { body = await res.json(); } catch (e) { /* no body */ }
+  if (!res.ok) throw { status: res.status, body };
+  return body;
+}
+
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+function renderError(e) {
+  const msg = (e && e.body && e.body.error) ? e.body.error : 'Could not load this right now.';
+  return `<div class="error-banner">${esc(msg)}</div>`;
+}
+
+/* Inline SVG sparkline — no charting library needed. */
+function sparkline(series, color) {
+  if (!series || !series.length) return '<div class="muted">No data yet.</div>';
+  const w = 320, h = 64, pad = 4;
+  const max = Math.max(1, ...series.map(p => p.count));
+  const stepX = (w - pad * 2) / Math.max(1, series.length - 1);
+  const pts = series.map((p, i) => {
+    const x = pad + i * stepX;
+    const y = h - pad - (p.count / max) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const last = series[series.length - 1];
+  return `
+    <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;">
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <div class="muted" style="display:flex;justify-content:space-between;">
+      <span>${esc(series[0].date.slice(5))}</span><span>${esc(last.date.slice(5))} · ${last.count} today</span>
+    </div>`;
+}
+
+/* Horizontal bar chart for the analytics dashboards. */
+function barChart(items, color) {
+  if (!items || !items.length) return '<div class="muted">No data yet.</div>';
+  const max = Math.max(1, ...items.map(i => i[1]));
+  return items.map(([label, val]) => `
+    <div style="margin-bottom:9px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:75%;">${esc(label)}</span><b>${esc(String(val))}</b>
+      </div>
+      <div style="background:var(--paper);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="width:${Math.max(3, Math.round(100 * val / max))}%;height:100%;background:${color || 'var(--teal)'};"></div>
+      </div>
+    </div>`).join('');
+}
+
+/* --------------------------------------------------------------- socket */
+let socket = null;
+
+function initSocket() {
+  if (socket || !state.user) return;
+  socket = io();
+  socket.on('connect', () => {
+    socket.emit('join', { userId: state.user.id, role: state.user.role });
+  });
+  socket.on('new_comment', () => {
+    toast('New comment on a post');
+    if (state.view === 'feed') loadView();
+  });
+  socket.on('new_message', (data) => {
+    toast('New message from ' + (data.conversation ? data.conversation.name : 'a contact'));
+    if (state.view === 'messages') loadView();
+  });
+  socket.on('job_match', (data) => {
+    toast('New opportunity: ' + data.title);
+    if (state.view === 'discover' && state.discoverTab === 'opportunities') loadView();
+  });
+  socket.on('notification', (note) => {
+    state.unreadCount += 1;
+    toast(note.text);
+    refreshNavBadge();
+    if (state.view === 'notifications') loadView();
+  });
+  socket.on('new_applicant', () => {
+    if (state.view === 'listings' && state.businessTab === 'analytics') loadView();
+  });
+}
+
+async function refreshUnreadCount() {
+  try {
+    const res = await api('/api/notifications');
+    state.unreadCount = res.unreadCount;
+    refreshNavBadge();
+  } catch (e) { /* ignore */ }
+}
+
+function refreshNavBadge() {
+  const badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  if (state.unreadCount > 0) { badge.textContent = state.unreadCount > 9 ? '9+' : state.unreadCount; badge.hidden = false; }
+  else badge.hidden = true;
+}
+
+/* ----------------------------------------------------------------- init */
+async function init() {
+  // A real reset email links to /?resetToken=... — land straight on the
+  // reset form with the code filled in, instead of making someone copy
+  // a token out of the address bar by hand.
+  const params = new URLSearchParams(location.search);
+  const linkToken = params.get('resetToken');
+  if (linkToken) {
+    state.resetToken = linkToken;
+    state.authMode = 'reset';
+    history.replaceState(null, '', location.pathname);
+  }
+  try {
+    const user = await api('/api/auth/me');
+    if (user) {
+      state.user = user;
+      initSocket();
+      await Promise.all([refreshUnreadCount(), refreshOnboarding()]);
+    }
+  } catch (e) { /* not logged in */ }
+  renderApp();
+}
+
+async function refreshOnboarding() {
+  try { state.onboarding = await api('/api/onboarding'); } catch (e) { state.onboarding = null; }
+}
+
+function renderApp() {
+  const app = document.getElementById('app');
+  if (!state.user) {
+    app.innerHTML = renderAuth();
+    return;
+  }
+  app.innerHTML = renderShell() + renderOnboardingOverlay();
+  refreshNavBadge();
+  loadView();
+}
+
+/* ==================================================================== */
+/*  ONBOARDING WALKTHROUGH                                              */
+/* ==================================================================== */
+const ONBOARDING_COPY = {
+  welcome: ['Welcome to Forge', 'A quick look around before you dive in — this takes about 30 seconds.'],
+  'add-photo': ['Add a project photo', 'Profiles with a photo get noticed by businesses roughly 3x more often.'],
+  'add-skills': ['List your skills', 'Specific skills (not just a trade title) drive better job matches.'],
+  'upload-cv': ['Upload your CV', 'Forge pulls out your skills automatically from a pasted CV.'],
+  'explore-feed': ['Explore the feed', "See what your cohort and connections are posting."],
+  'company-profile': ['Complete your company profile', 'Complete profiles get roughly 2x the applicant volume.'],
+  'post-listing': ['Post your first listing', 'Listings go to admin for a quick approval before students see them.'],
+  'explore-candidates': ['Explore candidates', 'Browse matched applicants once your listing is live.'],
+  'review-queue': ['Review the approval queue', 'New listings and alumni verifications land here first.'],
+  'explore-dashboard': ['Explore the admin dashboard', 'Track platform health from the Analytics tab.'],
+};
+
+function renderOnboardingOverlay() {
+  const ob = state.onboarding;
+  if (!ob || ob.complete || state.onboardingDismissed) return '';
+  const key = ob.steps[ob.step] || ob.steps[ob.steps.length - 1];
+  const copy = ONBOARDING_COPY[key] || ['Welcome', ''];
+  const isLast = ob.step >= ob.steps.length - 1;
+  return `
+  <div style="position:absolute;inset:0;background:rgba(20,15,10,0.55);display:flex;align-items:flex-end;z-index:60;">
+    <div style="background:var(--surface);width:100%;border-radius:20px 20px 0 0;padding:22px 20px calc(20px + env(safe-area-inset-bottom));">
+      <div class="muted" style="margin-bottom:6px;">Step ${ob.step + 1} of ${ob.steps.length}</div>
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;margin-bottom:6px;">${esc(copy[0])}</div>
+      <p style="font-size:13.5px;line-height:1.5;margin:0 0 16px;">${esc(copy[1])}</p>
+      <div class="row">
+        <button class="btn btn-ghost" onclick="skipOnboarding()">Skip</button>
+        <button class="btn btn-primary" onclick="advanceOnboarding()">${isLast ? "Let's go" : 'Next'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function advanceOnboarding() {
+  try { state.onboarding = await api('/api/onboarding/advance', { method: 'POST', body: JSON.stringify({}) }); }
+  catch (e) { /* ignore */ }
+  renderApp();
+}
+
+async function skipOnboarding() {
+  try { await api('/api/onboarding/skip', { method: 'POST' }); } catch (e) { /* ignore */ }
+  state.onboardingDismissed = true;
+  if (state.onboarding) state.onboarding.complete = true;
+  renderApp();
+}
+
+/* ==================================================================== */
+/*  AUTH SCREENS                                                        */
+/* ==================================================================== */
+function renderAuth() {
+  const mode = state.authMode;
+  return `
+  <div style="display:flex;flex-direction:column;height:100%;padding:34px 26px 26px;overflow-y:auto;">
+    <div class="brand" style="margin-bottom:26px;">
+      <div class="mark">${LOGO_MARK}</div>
+      <div class="word">Forge</div>
+    </div>
+    <h1 style="font-size:23px;margin:0 0 4px;">${
+      mode === 'login' ? 'Welcome back' :
+      mode === 'forgot' ? 'Reset your password' :
+      mode === 'reset' ? 'Choose a new password' : 'Create your account'}</h1>
+    <p class="muted" style="margin:0 0 22px;">
+      ${mode === 'login' ? 'Sign in to your trade, graduate, business or campus account.'
+        : mode === 'forgot' ? 'Enter your username and we\u2019ll send reset instructions to the email on file.'
+        : mode === 'reset' ? 'Paste the reset code from your email (or the dev link below) and set a new password.'
+        : 'Students and alumni, businesses, all start here.'}
+    </p>
+    ${state.authError ? `<div class="error-banner">${esc(state.authError)}</div>` : ''}
+    ${mode === 'login' || mode === 'register' ? `
+    <div class="subtabs" style="margin-bottom:20px;">
+      <button class="subtab ${mode === 'login' ? 'active' : ''}" onclick="setAuthMode('login')">Sign in</button>
+      <button class="subtab ${mode === 'register' ? 'active' : ''}" onclick="setAuthMode('register')">Register</button>
+    </div>` : ''}
+    ${mode === 'login' ? renderLoginForm()
+      : mode === 'forgot' ? renderForgotForm()
+      : mode === 'reset' ? renderResetForm()
+      : renderRegisterForm()}
+    <div style="margin-top:auto;padding-top:22px;">
+      <p class="muted" style="margin-bottom:8px;">Quick look, any role:</p>
+      <div class="row" style="flex-wrap:wrap;gap:6px;">
+        ${['trade','grad','business','admin'].map(r =>
+          `<button class="btn btn-ghost btn-sm" style="flex:1 1 44%;" onclick="demoLogin('${r}')">${r === 'trade' ? 'Tradesperson' : r[0].toUpperCase()+r.slice(1)}</button>`
+        ).join('')}
+      </div>
+      <p class="muted" style="margin-top:8px;font-size:11px;">
+        C's & T's applied, demo accounts are reset every 24 hours.
+      </p>
+    </div>
+  </div>`;
+}
+
+function renderLoginForm() {
+  return `
+  <form onsubmit="return submitLogin(event)">
+    <div class="field"><label>Username</label><input name="username" autocomplete="username" required/></div>
+    ${passwordField('password', 'Password', true, 'current-password')}
+    <p class="muted" style="margin:-8px 0 14px;text-align:right;">
+      <a href="#" onclick="setAuthMode('forgot');return false;" style="color:inherit;">Forgot password?</a>
+    </p>
+    <button class="btn btn-primary full" ${state.authBusy ? 'disabled' : ''}>${state.authBusy ? 'Signing in…' : 'Sign in'}</button>
+  </form>`;
+}
+
+function renderRegisterForm() {
+  return `
+  <form onsubmit="return submitRegister(event)">
+    <div class="field">
+      <label>I am a</label>
+      <select name="role" onchange="updateEmailHint(this.value)">
+        <option value="trade">Tradesperson / current student</option>
+        <option value="grad">Graduate / alumni</option>
+        <option value="business">Business</option>
+      </select>
+    </div>
+    <div class="field"><label>Full name</label><input name="name" required/></div>
+    <div class="field"><label>Username</label><input name="username" required/></div>
+    <div class="field">
+      <label>Email</label>
+      <input name="email" type="email" id="registerEmail" placeholder="name@my.richfield.ac.za"/>
+    </div>
+    ${passwordField('password', 'Password', true, 'new-password')}
+    <p class="muted" id="emailHint" style="margin:-4px 0 14px;">
+      Students &amp; current trades need a Richfield or AAA institutional email. Lapsed alumni can leave
+      email blank and verify identity later from Profile.
+    </p>
+    <button class="btn btn-primary full" ${state.authBusy ? 'disabled' : ''}>${state.authBusy ? 'Creating…' : 'Create account'}</button>
+  </form>`;
+}
+
+function renderForgotForm() {
+  return `
+  <form onsubmit="return submitForgotPassword(event)">
+    <div class="field"><label>Username</label><input name="username" autocomplete="username" required/></div>
+    <button class="btn btn-primary full" ${state.authBusy ? 'disabled' : ''}>${state.authBusy ? 'Sending…' : 'Send reset instructions'}</button>
+    <p class="muted" style="margin:14px 0 0;text-align:center;">
+      <a href="#" onclick="setAuthMode('login');return false;" style="color:inherit;">Back to sign in</a>
+    </p>
+  </form>`;
+}
+
+function renderResetForm() {
+  return `
+  <form onsubmit="return submitResetPassword(event)">
+    <div class="field"><label>Reset code</label><input name="token" value="${esc(state.resetToken || '')}" required/></div>
+    ${passwordField('newPassword', 'New password', true, 'new-password')}
+    <button class="btn btn-primary full" ${state.authBusy ? 'disabled' : ''}>${state.authBusy ? 'Updating…' : 'Update password'}</button>
+    <p class="muted" style="margin:14px 0 0;text-align:center;">
+      <a href="#" onclick="setAuthMode('login');return false;" style="color:inherit;">Back to sign in</a>
+    </p>
+  </form>`;
+}
+
+async function submitForgotPassword(ev) {
+  ev.preventDefault();
+  const username = new FormData(ev.target).get('username');
+  state.authBusy = true; state.authError = ''; renderApp();
+  try {
+    const r = await api('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ username }) });
+    state.authBusy = false;
+    if (r.devResetToken) {
+      // No email service in this demo build — jump straight to reset with the token filled in.
+      state.resetToken = r.devResetToken;
+      toast('Dev mode: no email service configured, reset code filled in below.');
+      setAuthMode('reset');
+    } else {
+      toast(r.message || 'If that account exists, check your email.');
+      setAuthMode('login');
+    }
+  } catch (e) {
+    state.authBusy = false;
+    state.authError = (e.body && e.body.error) || 'Could not process that request.';
+    renderApp();
+  }
+  return false;
+}
+
+async function submitResetPassword(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  const payload = { token: f.get('token'), newPassword: f.get('newPassword') };
+  state.authBusy = true; state.authError = ''; renderApp();
+  try {
+    await api('/api/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) });
+    state.authBusy = false;
+    state.resetToken = null;
+    toast('Password updated — sign in with your new password.');
+    setAuthMode('login');
+  } catch (e) {
+    state.authBusy = false;
+    state.authError = (e.body && e.body.error) || 'Could not reset password.';
+    renderApp();
+  }
+  return false;
+}
+
+function setAuthMode(mode) { state.authMode = mode; state.authError = ''; renderApp(); }
+
+async function submitLogin(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  state.authBusy = true; state.authError = ''; renderApp();
+  try {
+    const user = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({
+      username: f.get('username'), password: f.get('password'),
+    })});
+    state.user = user; state.authBusy = false; initSocket(); state.view = 'feed'; renderApp();
+  } catch (e) {
+    state.authBusy = false;
+    state.authError = (e.body && e.body.error) || 'Could not sign in.';
+    renderApp();
+  }
+  return false;
+}
+
+async function submitRegister(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  state.authBusy = true; state.authError = ''; renderApp();
+  try {
+    const user = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({
+      role: f.get('role'), name: f.get('name'), username: f.get('username'),
+      email: f.get('email'), password: f.get('password'),
+    })});
+    state.user = user; state.authBusy = false; initSocket(); state.view = 'feed'; renderApp();
+  } catch (e) {
+    state.authBusy = false;
+    state.authError = (e.body && e.body.error) || 'Could not create that account.';
+    renderApp();
+  }
+  return false;
+}
+
+async function demoLogin(role) {
+  try {
+    const user = await api('/api/auth/demo-login', { method: 'POST', body: JSON.stringify({ role }) });
+    state.user = user; initSocket(); state.view = 'feed'; renderApp();
+  } catch (e) {
+    toast('Demo login is off — sign in as demo_' + role + ' / demo123');
+  }
+}
+
+async function logout() {
+  try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+  state.user = null; socket = null;
+  state.view = 'feed';
+  renderApp();
+}
+
+/* ==================================================================== */
+/*  SHELL / NAV                                                         */
+/* ==================================================================== */
+const NAV_BY_ROLE = {
+  trade:    [['feed','Feed'],['discover','Discover'],['network','Network'],['messages','Messages'],['coach','Coach'],['profile','Profile']],
+  grad:     [['feed','Feed'],['discover','Discover'],['network','Network'],['messages','Messages'],['coach','Coach'],['profile','Profile']],
+  business: [['feed','Feed'],['listings','Listings'],['network','Network'],['messages','Messages'],['coach','Coach'],['profile','Profile']],
+  admin:    [['feed','Feed'],['admin','Admin'],['network','Network'],['messages','Messages'],['coach','Coach'],['profile','Profile']],
+};
+
+function renderShell() {
+  const role = state.user.role;
+  const nav = NAV_BY_ROLE[role] || NAV_BY_ROLE.trade;
+  return `
+  <div class="topbar">
+    <div class="brand"><div class="mark">${LOGO_MARK}</div><div class="word">Forge</div></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="role-pill">${role === 'trade' ? 'trade' : role}</span>
+      <button class="icon-btn" style="position:relative;" onclick="goto('notifications')" title="Notifications">
+        ${ICON_BELL}<span id="notif-badge" hidden style="position:absolute;top:-4px;right:-8px;background:var(--rust);color:#fff;
+          font-size:9.5px;font-weight:700;border-radius:99px;min-width:14px;height:14px;line-height:14px;
+          text-align:center;padding:0 3px;"></span>
+      </button>
+      <button class="icon-btn" onclick="logout()">Log out</button>
+    </div>
+  </div>
+  <div id="content"><div class="loading">Loading…</div></div>
+  <div class="bottomnav">
+    ${nav.map(([key,label]) => `
+      <button class="navbtn ${state.view === key ? 'active' : ''}" data-view="${key}" onclick="goto('${key}')">
+        <span class="dot"></span>${label}
+      </button>`).join('')}
+  </div>`;
+}
+
+// Switching tabs used to tear down and rebuild the whole shell (topbar +
+// bottom nav + content), which is why every tap looked like a full page
+// reload. Now only the active-tab highlight and the content pane change.
+function updateNavHighlight() {
+  document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
+}
+
+function goto(view) {
+  state.view = view;
+  updateNavHighlight();
+  loadView();
+}
+
+async function loadView() {
+  const content = document.getElementById('content');
+  if (!content) return;
+  // Don't blank the screen the instant a request starts — most of these
+  // calls resolve in well under 200ms on the demo backend, and clearing
+  // the content first is exactly what produced the "everything blinks"
+  // flash on every tap. Only show a loading state if it's genuinely slow.
+  const showSpinner = setTimeout(() => {
+    content.innerHTML = '<div class="loading">Loading…</div>';
+  }, 200);
+  const requestedView = state.view;
+  try {
+    let html;
+    switch (requestedView) {
+      case 'feed': html = await renderFeedView(); break;
+      case 'discover': html = await renderDiscoverView(); break;
+      case 'network': html = await renderNetworkView(); break;
+      case 'messages': html = await renderMessagesView(); break;
+      case 'coach': html = await renderCoachView(); break;
+      case 'profile': html = await renderProfileView(); break;
+      case 'listings': html = await renderListingsView(); break;
+      case 'admin': html = await renderAdminView(); break;
+      case 'notifications': html = await renderNotificationsView(); break;
+      case 'user': html = await renderUserProfileView(); break;
+      default: html = await renderFeedView();
+    }
+    clearTimeout(showSpinner);
+    // If the user navigated again while this was in flight, don't stomp
+    // on the newer view with a stale response.
+    if (state.view !== requestedView) return;
+    content.innerHTML = html;
+  } catch (e) {
+    clearTimeout(showSpinner);
+    if (state.view !== requestedView) return;
+    content.innerHTML = renderError(e);
+  }
+}
+
+/* ==================================================================== */
+/*  FEED — composer + posts + video upload                              */
+/* ==================================================================== */
+async function renderFeedView() {
+  const posts = await api('/api/feed');
+  const canVideo = state.user.role === 'trade' || state.user.role === 'grad';
+  return `
+    <div class="card">
+      <form onsubmit="return submitPost(event)">
+        <textarea name="body" rows="2" placeholder="Share an update, a win, or a project…" style="margin-bottom:8px;"></textarea>
+        <div class="row">
+          <button type="button" class="btn btn-ghost btn-sm" ${canVideo ? '' : 'disabled title="Students and alumni only"'}
+                  onclick="document.getElementById('video-input').click()">${ICON_VIDEO}Video</button>
+          <button class="btn btn-primary btn-sm" style="flex:0 0 auto;">Post</button>
+        </div>
+        <input type="file" id="video-input" accept="video/*" hidden onchange="uploadVideo(this)"/>
+        <div class="muted" id="video-status" style="margin-top:6px;"></div>
+      </form>
+    </div>
+    ${posts.length ? posts.map(p => postCard(p)).join('')
+      : '<div class="empty">Nothing in your feed yet. Follow a few people from Network to see their updates here.</div>'}`;
+}
+
+function postCard(p) {
+  const role = state.user.role;
+  return `
+  <div class="card">
+    <div style="display:flex;gap:10px;margin-bottom:8px;">
+      <span style="width:34px;height:34px;border-radius:10px;background:${esc(p.color)};flex:0 0 auto;"></span>
+      <div style="min-width:0;">
+        <div style="font-weight:600;font-size:13.5px;">
+          ${esc(p.name)}
+          ${p.pick ? '<span class="chip gold" style="margin-left:6px;">Editor pick</span>' : ''}
+        </div>
+        <div class="muted">${esc(p.role)}</div>
+      </div>
+    </div>
+    <p style="font-size:13.5px;line-height:1.5;margin:0 0 10px;">${esc(p.body)}</p>
+    ${p.videoUrl ? `
+      <video controls preload="metadata" poster="${esc(p.thumbUrl || '')}"
+             style="width:100%;border-radius:10px;margin-bottom:10px;background:#000;">
+        <source src="${esc(p.videoUrl)}"/>
+      </video>` : (p.media ? '<div class="chip teal">Media attached</div>' : '')}
+    ${p.flagged ? '<div class="chip rust">Flagged for review</div>' : ''}
+    <div class="row" style="margin-top:10px;gap:6px;">
+      <button class="btn btn-ghost btn-sm ${p.likedByMe ? 'active' : ''}" onclick="likePost(${p.id})">♥ ${p.likeCount}</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleComments(${p.id})">${p.comments.length} comment${p.comments.length===1?'':'s'}</button>
+      ${role !== 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="flagPost(${p.id})">Flag</button>` : ''}
+      ${role === 'admin' ? `<button class="btn btn-danger btn-sm" onclick="removePost(${p.id})">Remove</button>` : ''}
+    </div>
+    <div id="comments-${p.id}" hidden style="margin-top:10px;border-top:1px solid var(--line-soft);padding-top:10px;">
+      ${p.comments.map(c => `<div style="font-size:12.5px;margin-bottom:6px;"><b>${esc(c.who)}</b> — ${esc(c.text)}</div>`).join('')}
+      <form onsubmit="return submitComment(event, ${p.id})" style="display:flex;gap:6px;margin-top:6px;">
+        <input name="text" placeholder="Write a comment" style="margin-bottom:0;" required/>
+        <button class="btn btn-primary btn-sm">Send</button>
+      </form>
+    </div>
+  </div>`;
+}
+
+function toggleComments(id) {
+  const el = document.getElementById('comments-' + id);
+  if (el) el.hidden = !el.hidden;
+}
+
+async function submitPost(ev) {
+  ev.preventDefault();
+  const body = new FormData(ev.target).get('body');
+  if (!body || !body.trim()) return false;
+  try { await api('/api/posts', { method: 'POST', body: JSON.stringify({ body }) }); loadView(); }
+  catch (e) { toast('Could not post that.'); }
+  return false;
+}
+
+async function uploadVideo(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const status = document.getElementById('video-status');
+  if (status) status.textContent = `Uploading ${file.name} (${(file.size/1048576).toFixed(1)} MB) — compressing…`;
+  const fd = new FormData();
+  fd.append('video', file);
+  fd.append('caption', `${state.user.name} shared a video`);
+  try {
+    const res = await fetch('/api/posts/video', { method: 'POST', body: fd, credentials: 'same-origin' });
+    if (!res.ok) throw { body: await res.json().catch(() => ({})) };
+    toast('Video processed and posted.');
+    loadView();
+  } catch (e) {
+    if (status) status.textContent = '';
+    toast((e.body && e.body.error) || 'Video upload failed.');
+  }
+}
+
+async function likePost(id) {
+  try { await api(`/api/posts/${id}/like`, { method: 'POST' }); loadView(); }
+  catch (e) { toast('Could not update like.'); }
+}
+
+async function flagPost(id) {
+  try { await api(`/api/posts/${id}/flag`, { method: 'POST' }); toast('Flagged for admin review.'); loadView(); }
+  catch (e) { toast('Could not flag that post.'); }
+}
+
+async function removePost(id) {
+  if (!confirm('Remove this post from the feed?')) return;
+  try { await api(`/api/posts/${id}`, { method: 'DELETE' }); toast('Post removed.'); loadView(); }
+  catch (e) { toast('Could not remove that post.'); }
+}
+
+async function submitComment(ev, id) {
+  ev.preventDefault();
+  const text = new FormData(ev.target).get('text');
+  try { await api(`/api/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }); loadView(); }
+  catch (e) { toast('Could not post that comment.'); }
+  return false;
+}
+
+/* ==================================================================== */
+/*  NOTIFICATIONS                                                       */
+/* ==================================================================== */
+async function renderNotificationsView() {
+  const res = await api('/api/notifications');
+  state.unreadCount = res.unreadCount;
+  refreshNavBadge();
+  const notes = res.notifications;
+  state.notes = notes;   // cached so openNotification can route on click
+  const header = notes.length ? `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="markAllNotificationsRead()">Mark all read</button>
+    </div>` : '';
+  if (!notes.length) return header + '<div class="empty">No notifications yet.</div>';
+  return header + notes.map(n => `
+    <div class="card" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;${n.read ? 'opacity:0.62;' : ''}"
+         onclick="openNotification(${n.id})">
+      ${notifBadge(n.type)}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;line-height:1.4;">${esc(n.text)}</div>
+        <div class="muted" style="font-size:11px;margin-top:2px;">${new Date(n.createdAt).toLocaleString()}</div>
+      </div>
+      ${!n.read ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--rust);flex:0 0 auto;margin-top:5px;"></span>' : ''}
+    </div>`).join('');
+}
+
+function routeNotification(note) {
+  if (!note || !note.link) return false;
+  let [view, tab] = note.link.split(':');
+  if (view === 'business') view = 'listings';
+  const known = ['feed','discover','network','messages','coach','profile','listings','admin','notifications'];
+  if (!known.includes(view)) return false;
+  state.view = view;
+  if (tab) {
+    if (view === 'discover') state.discoverTab = tab;
+    if (view === 'listings') state.businessTab = tab;
+    if (view === 'admin') state.adminTab = tab;
+  }
+  return true;
+}
+
+async function openNotification(id) {
+  try { await api(`/api/notifications/${id}/read`, { method: 'POST' }); } catch (e) { /* ignore */ }
+  const note = (state.notes || []).find(n => n.id === id);
+  if (!routeNotification(note)) { loadView(); return; }
+  state.unreadCount = Math.max(0, state.unreadCount - 1);
+  refreshNavBadge();
+  updateNavHighlight();
+  loadView();
+}
+
+async function markAllNotificationsRead() {
+  try { await api('/api/notifications/read-all', { method: 'POST' }); state.unreadCount = 0; refreshNavBadge(); loadView(); }
+  catch (e) { toast('Could not clear notifications.'); }
+}
+
+/* ==================================================================== */
+/*  DISCOVER: opportunities / events / pathways                         */
+/* ==================================================================== */
+async function renderDiscoverView() {
+  const tab = state.discoverTab;
+  const tabsHtml = `
+    <div class="subtabs">
+      <button class="subtab ${tab==='opportunities'?'active':''}" onclick="setDiscoverTab('opportunities')">Opportunities</button>
+      <button class="subtab ${tab==='events'?'active':''}" onclick="setDiscoverTab('events')">Events</button>
+      <button class="subtab ${tab==='pathways'?'active':''}" onclick="setDiscoverTab('pathways')">Pathways</button>
+    </div>`;
+  let body = '';
+  if (tab === 'opportunities') body = await opportunitiesHtml();
+  else if (tab === 'events') body = await eventsHtml();
+  else body = await pathwaysHtml();
+  return tabsHtml + body;
+}
+
+function setDiscoverTab(tab) { state.discoverTab = tab; loadView(); }
+
+async function opportunitiesHtml() {
+  const opps = await api('/api/opportunities');
+  if (!opps.length) return `<div class="empty">No opportunities posted yet.</div>`;
+  return opps.map(o => `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-weight:600;font-size:14px;">${esc(o.title)}</div>
+          <div class="muted">${esc(o.co)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:var(--teal-dark);">${o.match}%</div>
+          <div class="muted" style="font-size:10.5px;">${o.matchIsFallback ? 'estimated' : 'skill match'}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;">${o.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+      <button class="btn ${o.applied ? 'btn-ghost' : 'btn-primary'} btn-sm" style="margin-top:6px;" onclick="applyOpp(${o.id})">
+        ${o.applied ? 'Applied — withdraw' : 'Apply'}
+      </button>
+    </div>`).join('');
+}
+
+async function applyOpp(id) {
+  try { await api(`/api/opportunities/${id}/apply`, { method: 'POST' }); loadView(); }
+  catch (e) { toast('Could not update your application.'); }
+}
+
+async function eventsHtml() {
+  const events = await api('/api/events');
+  if (!events.length) return `<div class="empty">No events on the calendar yet.</div>`;
+  return events.map(e => `
+    <div class="card" style="display:flex;gap:12px;align-items:center;">
+      <div style="text-align:center;flex:0 0 auto;width:46px;">
+        <div style="font-family:'Space Grotesk';font-weight:700;font-size:18px;line-height:1;color:var(--rust);">${esc(e.day)}</div>
+        <div class="muted" style="font-size:11px;">${esc(e.mon)}</div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13.5px;">${esc(e.title)}</div>
+        <div class="muted">${esc(e.place)}</div>
+      </div>
+      <button class="btn ${e.interested ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="toggleInterest(${e.id})">
+        ${e.interested ? 'Going' : 'Interested'}
+      </button>
+    </div>`).join('');
+}
+
+async function toggleInterest(id) {
+  try { await api(`/api/events/${id}/interest`, { method: 'POST' }); loadView(); }
+  catch (e) { toast('Could not update that.'); }
+}
+
+async function pathwaysHtml() {
+  const paths = await api('/api/pathways');
+  if (!paths.length) return `<div class="empty">No career pathways published yet.</div>`;
+  return paths.map(p => `
+    <div class="card">
+      <div class="section-title" style="margin-bottom:8px;">${esc(p.prog)}</div>
+      ${p.rows.map((r,i) => {
+        const [role, co] = r.split(' — ');
+        return `<div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:${i===p.rows.length-1?0:8}px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--teal);margin-top:5px;flex:0 0 auto;"></span>
+          <div style="font-size:13px;"><b>${esc(role||r)}</b>${co ? ' — ' + esc(co) : ''}</div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+/* ==================================================================== */
+/*  NETWORK                                                             */
+/* ==================================================================== */
+async function renderNetworkView() {
+  const net = await api('/api/network');
+  const parts = [];
+
+  parts.push(`<div class="section-title">Requests</div>`);
+  parts.push(net.requests.length ? net.requests.map(r => `
+    <div class="card" style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:9px;background:${esc(r.color)};flex:0 0 auto;"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;">${esc(r.name)}</div>
+        <div class="muted">${esc(r.role)}</div>
+      </div>
+      ${r.status === 'pending'
+        ? `<div style="display:flex;gap:6px;">
+             <button class="btn btn-primary btn-sm" onclick="reqAction(${r.id},'accept')">Accept</button>
+             <button class="btn btn-ghost btn-sm" onclick="reqAction(${r.id},'ignore')">Ignore</button>
+           </div>`
+        : `<span class="chip">${esc(r.status)}</span>`}
+    </div>`).join('') : `<div class="empty">No pending requests.</div>`);
+
+  parts.push(`<div class="section-title">Suggested for you</div>`);
+  parts.push(net.suggested.map(s => `
+    <div class="card" style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:9px;background:${esc(s.color)};flex:0 0 auto;"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;">${esc(s.name)}</div>
+        <div class="muted">${esc(s.role)}</div>
+      </div>
+      <button class="btn ${s.status==='pending'?'btn-ghost':'btn-primary'} btn-sm" ${s.status==='pending'?'disabled':''} onclick="connectSuggested(${s.id})">
+        ${s.status === 'pending' ? 'Requested' : 'Connect'}
+      </button>
+    </div>`).join(''));
+
+  parts.push(`<div class="section-title">Your connections</div>`);
+  parts.push(net.connections.length ? net.connections.map(c => `
+    <div class="card" style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:9px;background:${esc(c.color)};flex:0 0 auto;"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;">${esc(c.name)}</div>
+        <div class="muted">${esc(c.role)} · ${esc(c.skill)} · ${c.endorsements} endorsement${c.endorsements===1?'':'s'}</div>
+      </div>
+      <button class="btn ${c.endorsedByMe ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="endorse(${c.id})">
+        ${c.endorsedByMe ? 'Endorsed' : 'Endorse'}
+      </button>
+    </div>`).join('') : `<div class="empty">No connections yet.</div>`);
+
+  return parts.join('');
+}
+
+async function reqAction(id, action) {
+  try { await api(`/api/network/requests/${id}/${action}`, { method: 'POST' }); loadView(); }
+  catch (e) { toast('Could not update that request.'); }
+}
+async function connectSuggested(id) {
+  try { await api(`/api/network/suggested/${id}/connect`, { method: 'POST' }); toast('Connection request sent.'); loadView(); }
+  catch (e) { toast('Could not send that request.'); }
+}
+async function endorse(id) {
+  try { await api(`/api/network/connections/${id}/endorse`, { method: 'POST' }); loadView(); }
+  catch (e) { toast('Could not update endorsement.'); }
+}
+
+/* ==================================================================== */
+/*  PUBLIC PROFILE (another user's portfolio + testimonials)            */
+/* ==================================================================== */
+function openUserProfile(id) { state.viewUserId = id; state.view = 'user'; updateNavHighlight(); loadView(); }
+
+async function renderUserProfileView() {
+  let u;
+  try { u = await api(`/api/users/${state.viewUserId}`); }
+  catch (e) { return `<button class="btn btn-ghost btn-sm" style="margin-bottom:12px;" onclick="goto('network')">← Back</button>` + renderError(e); }
+  const links = Object.entries(u.portfolio || {}).filter(([, v]) => v);
+  return `
+    <button class="btn btn-ghost btn-sm" style="margin-bottom:12px;" onclick="goto('network')">← Back</button>
+    <div class="card" style="text-align:center;padding:22px 16px;">
+      <span style="display:inline-block;width:56px;height:56px;border-radius:16px;background:${esc(u.color)};margin-bottom:10px;"></span>
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;">${esc(u.name)}</div>
+      ${u.headline ? `<div class="muted" style="margin-top:2px;">${esc(u.headline)}</div>` : ''}
+      <div class="muted" style="text-transform:capitalize;margin-top:2px;">${esc(u.role)}</div>
+      ${u.programme ? `<div class="muted">${esc(u.programme)}${u.year ? ' · ' + esc(u.year) : ''}</div>` : ''}
+      ${u.campus ? `<div class="muted">${esc(u.campus)}</div>` : ''}
+      ${u.email ? `<div class="muted">${esc(u.email)}</div>` : ''}
+      ${u.bio ? `<p style="font-size:13px;margin-top:10px;">${esc(u.bio)}</p>` : ''}
+    </div>
+    ${links.length ? `
+    <div class="card">
+      <div class="section-title">Links</div>
+      ${links.map(([k, v]) => `<div style="margin-bottom:6px;font-size:13px;"><b style="text-transform:capitalize;">${esc(k)}:</b> <a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--teal-dark);">${esc(v)}</a></div>`).join('')}
+    </div>` : ''}
+    ${u.skills ? `
+    <div class="card">
+      <div class="section-title">Skills</div>
+      ${u.skills.length ? u.skills.map(s => `<span class="chip teal">${esc(s)}</span>`).join('') : '<div class="muted">Not shared.</div>'}
+    </div>` : ''}
+    <div class="card">
+      <div class="section-title">Testimonials</div>
+      ${u.testimonials.length ? u.testimonials.map(t => `
+        <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-soft);">
+          <p style="font-size:13px;margin:0 0 4px;">"${esc(t.text)}"</p>
+          <div class="muted">— ${esc(t.authorName)}</div>
+        </div>`).join('') : '<div class="muted" style="margin-bottom:10px;">No testimonials yet.</div>'}
+      <form onsubmit="return submitTestimonial(event, ${u.id})">
+        <textarea name="text" rows="2" placeholder="Leave a short testimonial" required></textarea>
+        <button class="btn btn-primary btn-sm">Post testimonial</button>
+      </form>
+    </div>`;
+}
+
+async function submitTestimonial(ev, userId) {
+  ev.preventDefault();
+  const text = new FormData(ev.target).get('text');
+  try {
+    await api(`/api/users/${userId}/testimonials`, { method: 'POST', body: JSON.stringify({ text }) });
+    toast('Testimonial posted.');
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not post that testimonial.'); }
+  return false;
+}
+
+/* ==================================================================== */
+/*  MESSAGES                                                            */
+/* ==================================================================== */
+async function renderMessagesView() {
+  if (state.msgSlug) return await threadHtml(state.msgSlug);
+  const convos = await api('/api/conversations');
+  if (!convos.length) return `<div class="empty">No conversations yet.</div>`;
+  return convos.map(c => {
+    const last = c.messages[c.messages.length - 1];
+    return `
+    <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openThread('${c.id}')">
+      <span style="width:36px;height:36px;border-radius:10px;background:${esc(c.color)};flex:0 0 auto;position:relative;">
+        ${c.unread ? '<span style="position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:var(--rust);border:2px solid var(--paper);"></span>' : ''}
+      </span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13.5px;">${esc(c.name)}</div>
+        <div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${last ? esc(last.text) : 'No messages yet'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openThread(slug) { state.msgSlug = slug; loadView(); }
+function closeThread() { state.msgSlug = null; loadView(); }
+
+async function threadHtml(slug) {
+  const c = await api(`/api/conversations/${slug}`);
+  return `
+    <button class="btn btn-ghost btn-sm" style="margin-bottom:12px;" onclick="closeThread()">← All conversations</button>
+    <div style="font-weight:600;font-size:14.5px;margin-bottom:12px;">${esc(c.name)}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      ${c.messages.map(m => `
+        <div style="align-self:${m.who==='me'?'flex-end':'flex-start'};max-width:80%;
+                    background:${m.who==='me'?'var(--teal)':'var(--surface)'};
+                    color:${m.who==='me'?'#fff':'var(--ink)'};
+                    border:1px solid ${m.who==='me'?'transparent':'var(--line)'};
+                    padding:8px 12px;border-radius:14px;font-size:13px;">
+          ${esc(m.text)}
+        </div>`).join('')}
+    </div>
+    <form onsubmit="return sendMessage(event,'${slug}')" style="display:flex;gap:6px;">
+      <input name="text" placeholder="Write a message" style="margin-bottom:0;" required/>
+      <button class="btn btn-primary btn-sm">Send</button>
+    </form>`;
+}
+
+async function sendMessage(ev, slug) {
+  ev.preventDefault();
+  const text = new FormData(ev.target).get('text');
+  try { await api(`/api/conversations/${slug}/messages`, { method: 'POST', body: JSON.stringify({ text }) }); loadView(); }
+  catch (e) { toast('Could not send that message.'); }
+  return false;
+}
+
+/* ==================================================================== */
+/*  COACH                                                               */
+/* ==================================================================== */
+async function renderCoachView() {
+  const msgs = await api('/api/coach/chat');
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      ${msgs.map(m => `
+        <div style="align-self:${m.who==='user'?'flex-end':'flex-start'};max-width:82%;
+                    background:${m.who==='user'?'var(--teal)':'var(--surface)'};
+                    color:${m.who==='user'?'#fff':'var(--ink)'};
+                    border:1px solid ${m.who==='user'?'transparent':'var(--line)'};
+                    padding:9px 12px;border-radius:14px;font-size:13px;line-height:1.45;">
+          ${esc(m.text)}
+        </div>`).join('') || '<div class="empty">Your coach is ready when you are.</div>'}
+    </div>
+    <form onsubmit="return sendCoach(event)" style="display:flex;gap:6px;">
+      <input name="text" placeholder="Ask your career coach anything" style="margin-bottom:0;" required/>
+      <button class="btn btn-primary btn-sm">Send</button>
+    </form>`;
+}
+
+async function sendCoach(ev) {
+  ev.preventDefault();
+  const text = new FormData(ev.target).get('text');
+  try { await api('/api/coach/chat', { method: 'POST', body: JSON.stringify({ text }) }); loadView(); }
+  catch (e) { toast('Could not reach the coach.'); }
+  return false;
+}
+
+/* ==================================================================== */
+/*  PROFILE — student/alumni portfolio OR business company profile      */
+/* ==================================================================== */
+async function renderProfileView() {
+  const u = await api('/api/auth/me');
+  state.user = u;
+  const showAlumniVerify = u.role === 'grad' && !u.alumniVerified;
+  const isStudent = u.role === 'trade' || u.role === 'grad';
+  let analyticsHtml = '';
+  if (isStudent) {
+    try { analyticsHtml = await studentAnalyticsHtml(); } catch (e) { /* analytics optional */ }
+  }
+  return `
+    <div class="card" style="text-align:center;padding:22px 16px;">
+      <span style="display:inline-block;width:56px;height:56px;border-radius:16px;background:${esc(u.color)};margin-bottom:10px;"></span>
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;">${esc(u.name)}</div>
+      <div class="muted" style="margin-bottom:10px;text-transform:capitalize;">${esc(u.role)} · @${esc(u.username)}</div>
+      <div style="background:var(--paper);border-radius:99px;height:6px;overflow:hidden;margin-bottom:4px;">
+        <div style="width:${u.completion}%;height:100%;background:var(--teal);"></div>
+      </div>
+      <div class="muted">${u.completion}% profile complete</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="openUserProfile(${u.id})">Preview public profile</button>
+    </div>
+
+    ${analyticsHtml}
+
+    ${isStudent ? `
+    <div class="card">
+      <div class="section-title">Skills</div>
+      <div style="margin-bottom:10px;">
+        ${u.skills.length
+          ? u.skills.map(s => `<span class="chip teal" style="display:inline-flex;align-items:center;gap:5px;">
+              ${esc(s)}
+              <button type="button" onclick="removeSkill('${esc(s).replace(/'/g, "\\'")}')"
+                style="border:none;background:none;color:inherit;cursor:pointer;font-size:12px;line-height:1;opacity:0.7;padding:0;"
+                title="Remove skill" aria-label="Remove ${esc(s)}">✕</button>
+            </span>`).join('')
+          : '<div class="muted">No skills yet — add one below or upload a CV to auto-fill this.</div>'}
+      </div>
+      <form onsubmit="return addSkill(event)" style="display:flex;gap:6px;">
+        <input name="skill" placeholder="Add a skill (e.g. Python)" style="flex:1;" required/>
+        <button class="btn btn-primary btn-sm">Add</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="section-title">CV${u.cvUploaded ? ' <span class="chip gold">Uploaded</span>' : ''}</div>
+      <p class="muted" style="margin-top:-4px;">Paste your CV text — Forge extracts recognised skills automatically (NLP).</p>
+      <form onsubmit="return submitCv(event)">
+        <textarea name="cvText" rows="4" placeholder="Paste CV text here (optional)"></textarea>
+        <button class="btn btn-primary full">Upload CV</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Portfolio</div>
+      <form onsubmit="return submitPortfolio(event)">
+        <div class="field"><label>Professional headline</label><input name="headline" value="${esc(u.headline || '')}" placeholder="Aspiring full-stack developer"/></div>
+        <div class="row">
+          <div class="field"><label>Programme / field</label><input name="programme" value="${esc(u.programme || '')}" placeholder="Diploma in Software Engineering"/></div>
+          <div class="field"><label>Year</label><input name="year" value="${esc(u.year || '')}" placeholder="2nd year / Class of 2021"/></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Campus</label><input name="campus" value="${esc(u.campus || '')}" placeholder="Durban Campus"/></div>
+          <div class="field"><label>Website</label><input name="website" value="${esc(u.portfolio.website || '')}" placeholder="https://you.dev"/></div>
+        </div>
+        <div class="field"><label>Bio</label><textarea name="bio" rows="2" placeholder="A line about you">${esc(u.bio || '')}</textarea></div>
+        <div class="field"><label>GitHub</label><input name="github" value="${esc(u.portfolio.github || '')}" placeholder="https://github.com/you"/></div>
+        <div class="field"><label>LinkedIn</label><input name="linkedin" value="${esc(u.portfolio.linkedin || '')}" placeholder="https://linkedin.com/in/you"/></div>
+        <div class="field"><label>Credly</label><input name="credly" value="${esc(u.portfolio.credly || '')}" placeholder="https://credly.com/users/you"/></div>
+        <button class="btn btn-primary full">Save portfolio</button>
+      </form>
+    </div>` : u.role === 'business' ? `
+    <div class="card">
+      <div class="section-title">Company profile</div>
+      ${u.businessApproved ? '' : '<div class="error-banner">Pending admin verification — listings are blocked until your business is approved.</div>'}
+      <form onsubmit="return submitPortfolio(event)">
+        <div class="field"><label>Tagline</label><input name="headline" value="${esc(u.headline || '')}" placeholder="We hire makers and fixers"/></div>
+        <div class="field"><label>About the company</label><textarea name="companyDescription" rows="3" placeholder="What you do and who you hire">${esc((u.company && u.company.description) || '')}</textarea></div>
+        <div class="row">
+          <div class="field"><label>Industry</label><input name="industry" value="${esc((u.company && u.company.industry) || '')}" placeholder="Manufacturing"/></div>
+          <div class="field"><label>Location</label><input name="location" value="${esc((u.company && u.company.location) || '')}" placeholder="Durban, KZN"/></div>
+        </div>
+        <div class="field"><label>Talent sought</label><input name="talentSought" value="${esc((u.company && u.company.talentSought) || '')}" placeholder="Welders, junior developers…"/></div>
+        <div class="field"><label>Website</label><input name="website" value="${esc(u.portfolio.website || '')}" placeholder="https://company.co.za"/></div>
+        <button class="btn btn-primary full">Save company profile</button>
+      </form>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="section-title">Profile visibility</div>
+      <p class="muted" style="margin-top:-4px;">Control what others see when they open your public profile.</p>
+      ${visibilityToggle('profileVisible', 'Profile visible to others', u.visibility.profileVisible)}
+      ${visibilityToggle('showEmail', 'Show email on public profile', u.visibility.showEmail)}
+      ${visibilityToggle('showSkills', 'Show skills on public profile', u.visibility.showSkills)}
+      <div style="margin-top:12px;">
+        <a class="btn btn-ghost btn-sm" href="/api/profile/export" style="text-decoration:none;display:inline-block;">⬇ Download my data (POPIA)</a>
+      </div>
+    </div>
+
+    ${showAlumniVerify ? `
+    <div class="card">
+      <div class="section-title">Verify alumni status</div>
+      <p class="muted" style="margin-top:-4px;">No live institutional email? Submit proof of graduation for an admin to review.</p>
+      <form onsubmit="return submitAlumniVerify(event)">
+        <div class="field"><label>Document reference (filename or link)</label><input name="documentRef" required/></div>
+        <div class="field"><label>Note (optional)</label><input name="note"/></div>
+        <button class="btn btn-primary full">Submit for review</button>
+      </form>
+    </div>` : ''}
+  `;
+}
+
+function visibilityToggle(key, label, on) {
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line-soft);">
+      <span style="font-size:13px;">${esc(label)}</span>
+      <button class="btn ${on ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="toggleVisibility('${key}', ${!on})">${on ? 'On' : 'Off'}</button>
+    </div>`;
+}
+
+async function toggleVisibility(key, next) {
+  try {
+    const u = await api('/api/profile/visibility', { method: 'PATCH', body: JSON.stringify({ [key]: next }) });
+    state.user = u;
+    loadView();
+  } catch (e) { toast('Could not update that setting.'); }
+}
+
+async function submitPortfolio(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  const payload = {};
+  for (const key of ['headline','programme','year','campus','bio','github','linkedin','credly','website',
+                     'industry','companyDescription','location','talentSought']) {
+    if (f.has(key)) payload[key] = f.get(key);
+  }
+  try {
+    const u = await api('/api/profile/portfolio', { method: 'PATCH', body: JSON.stringify(payload) });
+    state.user = u;
+    toast('Saved.');
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not save.'); }
+  return false;
+}
+
+async function addSkill(ev) {
+  ev.preventDefault();
+  const skill = new FormData(ev.target).get('skill');
+  ev.target.reset();
+  try {
+    const u = await api('/api/profile/skills', { method: 'PATCH', body: JSON.stringify({ action: 'add', skill }) });
+    state.user = u;
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not add skill.'); }
+  return false;
+}
+
+async function removeSkill(skill) {
+  try {
+    const u = await api('/api/profile/skills', { method: 'PATCH', body: JSON.stringify({ action: 'remove', skill }) });
+    state.user = u;
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not remove skill.'); }
+}
+
+async function submitCv(ev) {
+  ev.preventDefault();
+  const cvText = new FormData(ev.target).get('cvText');
+  try {
+    const u = await api('/api/profile/cv-upload', { method: 'POST', body: JSON.stringify({ cvText: cvText || '' }) });
+    state.user = u;
+    toast(u.skills.length ? `CV saved — detected: ${u.skills.slice(0, 3).join(', ')}` : 'CV saved.');
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not save CV.'); }
+  return false;
+}
+
+async function submitAlumniVerify(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  try {
+    await api('/api/alumni/verify', { method: 'POST', body: JSON.stringify({
+      documentRef: f.get('documentRef'), note: f.get('note'),
+    })});
+    toast('Submitted — an admin will review your proof of graduation.');
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not submit.'); }
+  return false;
+}
+
+/* ---- trade/grad analytics (embedded in Profile) ---- */
+async function studentAnalyticsHtml() {
+  const a = await api('/api/analytics/student');
+  const peers = a.peerComparison || {};
+  return `
+    <div class="card">
+      <div class="section-title">Your insights</div>
+      ${statRow([
+        ['Profile views (14d)', a.profileViews.total],
+        ['Connections', a.connections.total],
+        ['Likes received', a.engagement.likes],
+        ['Comments received', a.engagement.comments],
+      ])}
+      <div class="muted" style="margin:10px 0 4px;">Profile views — last 14 days</div>
+      ${sparkline(a.profileViews.series, 'var(--rust)')}
+      <div class="muted" style="margin:12px 0 4px;">Connection growth</div>
+      ${sparkline(a.connections.series, 'var(--teal)')}
+    </div>
+    <div class="card">
+      <div class="section-title">Profile vs peers</div>
+      ${barChart([['You', peers.me || 0],
+                  [(peers.programme || 'Programme') + ' avg', peers.programmeAvg || 0]])}
+      <div class="muted">Average completeness across ${esc(peers.programme || 'your programme')}: ${peers.programmeAvg == null ? '—' : peers.programmeAvg + '%'}</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Most-searched skills you have</div>
+      ${(a.topSearchedSkills || []).length
+        ? a.topSearchedSkills.map(s => `<span class="chip gold">${esc(s.skill)} · ${s.count} search${s.count===1?'':'es'}</span>`).join('')
+        : '<div class="muted">No business searches matched your skills yet.</div>'}
+    </div>`;
+}
+
+function statRow(items) {
+  return `<div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+    ${items.map(([label, value]) => `
+      <div style="flex:1 1 40%;">
+        <div style="font-family:'Space Grotesk';font-weight:700;font-size:19px;color:var(--teal-dark);">${value == null ? '—' : esc(String(value))}</div>
+        <div class="muted" style="font-size:11px;">${esc(label)}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+/* ==================================================================== */
+/*  BUSINESS VIEW — Listings | Candidates | Analytics                   */
+/* ==================================================================== */
+async function renderListingsView() {
+  const tab = state.businessTab;
+  const tabsHtml = `
+    <div class="subtabs">
+      <button class="subtab ${tab==='listings'?'active':''}" onclick="setBusinessTab('listings')">Listings</button>
+      <button class="subtab ${tab==='candidates'?'active':''}" onclick="setBusinessTab('candidates')">Candidates</button>
+      <button class="subtab ${tab==='analytics'?'active':''}" onclick="setBusinessTab('analytics')">Analytics</button>
+    </div>`;
+  let body = '';
+  if (tab === 'listings') body = await businessListingsHtml();
+  else if (tab === 'candidates') body = await candidatesHtml();
+  else body = await businessAnalyticsHtml();
+  return tabsHtml + body;
+}
+
+function setBusinessTab(tab) { state.businessTab = tab; loadView(); }
+
+async function businessListingsHtml() {
+  const listings = await api('/api/business/listings');
+  const approved = state.user.businessApproved !== false;
+  return `
+    ${!approved ? `<div class="error-banner">Your business account is pending admin verification — you can prepare listings but they'll only go live once your account is approved.</div>` : ''}
+    <div class="card">
+      <div class="section-title">Post an opportunity</div>
+      <form onsubmit="return submitListing(event)">
+        <div class="field"><label>Job title</label><input name="title" placeholder="Junior Welder (6-month contract)" required/></div>
+        <div class="field"><label>Skill tags (comma-separated)</label><input name="tags" placeholder="MIG welding, blueprint reading" required/></div>
+        <button class="btn btn-primary full" ${!approved ? 'disabled' : ''}>Submit for approval</button>
+      </form>
+      <p class="muted" style="margin:8px 0 0;">Listings go to the admin approval queue first; students see them once approved.</p>
+    </div>
+    ${listings.length ? listings.map(l => `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-weight:600;">${esc(l.title)}</div>
+            <div style="margin-top:4px;">${l.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+          </div>
+          <span class="chip ${l.status==='live'?'teal':l.status==='pending'?'gold':'rust'}">${esc(l.status)}</span>
+        </div>
+        <div class="muted" style="margin-top:6px;">${l.pipeline} applicant${l.pipeline===1?'':'s'} · ${esc(l.engagement)} engagement</div>
+      </div>`).join('') : '<div class="empty">No listings yet — post your first opportunity above.</div>'}`;
+}
+
+async function submitListing(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  try {
+    await api('/api/business/listings', { method: 'POST', body: JSON.stringify({
+      title: f.get('title'), tags: f.get('tags'),
+    })});
+    toast('Submitted — pending admin approval.');
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not submit listing.'); }
+  return false;
+}
+
+async function candidatesHtml() {
+  return `
+    <div class="card">
+      <div class="section-title">Find talent</div>
+      <form onsubmit="return searchCandidates(event)">
+        <div class="field"><label>Skills</label><input name="skills" placeholder="e.g. Python, SQL, TIG welding"/></div>
+        <button class="btn btn-primary full">Search candidates</button>
+      </form>
+      <p class="muted" style="margin:8px 0 0;">Searches are logged — students can see which of their skills businesses look for most.</p>
+    </div>
+    <div id="candidate-results"><div class="muted">Search to see matching students and alumni.</div></div>`;
+}
+
+async function searchCandidates(ev) {
+  ev.preventDefault();
+  const skills = new FormData(ev.target).get('skills');
+  try {
+    const res = await api('/api/search/candidates?skills=' + encodeURIComponent(skills));
+    const el = document.getElementById('candidate-results');
+    if (!el) return false;
+    el.innerHTML = res.candidates.length ? res.candidates.map(c => `
+      <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openUserProfile(${c.id})">
+        <span style="width:32px;height:32px;border-radius:9px;background:${esc(c.color)};flex:0 0 auto;"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13px;">${esc(c.name)}</div>
+          <div class="muted">${esc(c.programme || c.role)} · matched: ${c.matchedSkills.map(s => esc(s)).join(', ')}</div>
+        </div>
+        <span class="chip teal">${c.completion}%</span>
+      </div>`).join('') : '<div class="empty">No candidates match those skills yet.</div>';
+  } catch (e) { toast((e.body && e.body.error) || 'Search failed.'); }
+  return false;
+}
+
+async function businessAnalyticsHtml() {
+  const a = await api('/api/analytics/business');
+  return `
+    <div class="card">
+      <div class="section-title">Hiring dashboard</div>
+      ${statRow([
+        ['Total applicants', a.engagement.applications],
+        ['Listing views', a.engagement.impressions],
+        ['Engagement rate', a.engagement.rate],
+        ['Profile views', a.reach.profileViews],
+      ])}
+    </div>
+    <div class="card">
+      <div class="section-title">Applicant pipeline</div>
+      ${a.pipeline.length ? barChart(a.pipeline.map(p => [p.title + ' (' + p.status + ')', p.applicants])) : '<div class="muted">Post a listing to start building a pipeline.</div>'}
+    </div>
+    <div class="card">
+      <div class="section-title">Candidate skills</div>
+      ${a.skillDistribution.length ? barChart(a.skillDistribution.map(s => [s.skill, s.count]), 'var(--rust)') : '<div class="muted">No applicants yet.</div>'}
+    </div>
+    <div class="card">
+      <div class="section-title">Applicants by programme</div>
+      ${a.demographics.byProgramme.length ? barChart(a.demographics.byProgramme.map(d => [d.label, d.count]), 'var(--ochre)') : '<div class="muted">No applicants yet.</div>'}
+      <div class="section-title" style="margin-top:14px;">By year of study</div>
+      ${a.demographics.byYear.length ? barChart(a.demographics.byYear.map(d => [d.label, d.count]), 'var(--ochre)') : ''}
+    </div>`;
+}
+
+/* ==================================================================== */
+/*  ADMIN VIEW — Queue | Alumni | Events | Users | Announce | Analytics */
+/* ==================================================================== */
+async function renderAdminView() {
+  const tab = state.adminTab;
+  const tabs = [['queue','Queue'],['alumni','Alumni'],['events','Events'],['users','Users'],['announce','Announce'],['analytics','Analytics']];
+  const tabsHtml = `<div class="subtabs" style="flex-wrap:wrap;">${tabs.map(([k,l]) =>
+    `<button class="subtab ${tab===k?'active':''}" onclick="setAdminTab('${k}')">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (tab === 'queue') body = await adminQueueHtml();
+  else if (tab === 'alumni') body = await adminAlumniHtml();
+  else if (tab === 'events') body = await adminEventsHtml();
+  else if (tab === 'users') body = await adminUsersHtml();
+  else if (tab === 'announce') body = await adminAnnounceHtml();
+  else body = await adminAnalyticsHtml();
+  return tabsHtml + body;
+}
+
+function setAdminTab(tab) { state.adminTab = tab; loadView(); }
+
+async function adminQueueHtml() {
+  const items = await api('/api/admin/queue');
+  const pending = items.filter(i => i.status === 'pending');
+  const done = items.filter(i => i.status !== 'pending');
+  return `
+    <div class="section-title">Opportunity approvals</div>
+    ${pending.length ? pending.map(i => `
+      <div class="card">
+        <div style="font-weight:600;">${esc(i.title)}</div>
+        <div class="muted">${esc(i.co)}</div>
+        <div style="margin-top:6px;">${i.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+        <div class="row" style="margin-top:10px;">
+          <button class="btn btn-primary btn-sm" onclick="queueAction(${i.id},'approve')">Approve &amp; publish</button>
+          <button class="btn btn-danger btn-sm" onclick="queueAction(${i.id},'reject')">Reject</button>
+        </div>
+      </div>`).join('') : '<div class="empty">Queue is clear. New business listings land here.</div>'}
+    ${done.length ? `<div class="section-title" style="margin-top:16px;">Recent decisions</div>` + done.map(i => `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+        <div><div style="font-weight:600;font-size:13px;">${esc(i.title)}</div><div class="muted">${esc(i.co)}</div></div>
+        <span class="chip ${i.status==='approved'?'teal':'rust'}">${esc(i.status)}</span>
+      </div>`).join('') : ''}`;
+}
+
+async function queueAction(id, action) {
+  try {
+    await api(`/api/admin/queue/${id}/${action}`, { method: 'POST' });
+    toast(action === 'approve' ? 'Approved — live for students now.' : 'Rejected.');
+    loadView();
+  } catch (e) { toast('Could not update that item.'); }
+}
+
+async function adminAlumniHtml() {
+  const items = await api('/api/admin/alumni-verifications');
+  const pending = items.filter(v => v.status === 'pending');
+  const done = items.filter(v => v.status !== 'pending');
+  return `
+    <div class="section-title">Alumni identity verification</div>
+    ${pending.length ? pending.map(v => `
+      <div class="card">
+        <div style="font-weight:600;">${esc(v.name)}</div>
+        <div class="muted" style="margin-bottom:6px;">Submitted ${new Date(v.submittedAt).toLocaleDateString()} · proof: ${esc(v.documentRef)}</div>
+        ${v.note ? `<div class="muted" style="font-size:12px;margin-bottom:6px;">"${esc(v.note)}"</div>` : ''}
+        <div class="row">
+          <button class="btn btn-primary btn-sm" onclick="alumniAction(${v.id},'approve')">Approve — verify alumni</button>
+          <button class="btn btn-danger btn-sm" onclick="alumniAction(${v.id},'reject')">Reject</button>
+        </div>
+      </div>`).join('') : '<div class="empty">No alumni verifications waiting.</div>'}
+    ${done.length ? `<div class="section-title" style="margin-top:16px;">Decided</div>` + done.map(v => `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:600;font-size:13px;">${esc(v.name)}</div>
+        <span class="chip ${v.status==='approved'?'teal':'rust'}">${esc(v.status)}</span>
+      </div>`).join('') : ''}`;
+}
+
+async function alumniAction(id, action) {
+  try {
+    await api(`/api/admin/alumni-verifications/${id}/${action}`, { method: 'POST' });
+    toast(action === 'approve' ? 'Alumni verified.' : 'Verification rejected.');
+    loadView();
+  } catch (e) { toast('Could not update that verification.'); }
+}
+
+async function adminEventsHtml() {
+  const events = await api('/api/events');
+  return `
+    <div class="card">
+      <div class="section-title">Publish institutional event</div>
+      <form onsubmit="return submitEvent(event)">
+        <div class="field"><label>Title</label><input name="title" placeholder="Richfield Career Fair 2026" required/></div>
+        <div class="field"><label>Place</label><input name="place" placeholder="Durban Campus Atrium" required/></div>
+        <div class="row">
+          <div class="field"><label>Day</label><input name="day" placeholder="14" required/></div>
+          <div class="field"><label>Month</label><input name="mon" placeholder="Mar" required/></div>
+        </div>
+        <div class="field"><label>Target programmes (blank = everyone)</label><input name="programmes" placeholder="Diploma in Software Engineering"/></div>
+        <button class="btn btn-primary full">Publish to all feeds</button>
+      </form>
+      <p class="muted" style="margin:8px 0 0;">Students in targeted programmes get a real-time notification.</p>
+    </div>
+    ${events.length ? `<div class="section-title">Published events</div>` + events.map(e => `
+      <div class="card" style="display:flex;gap:12px;align-items:center;">
+        <div style="text-align:center;flex:0 0 auto;width:40px;">
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;color:var(--rust);">${esc(e.day)}</div>
+          <div class="muted" style="font-size:10.5px;">${esc(e.mon)}</div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13px;">${esc(e.title)}</div>
+          <div class="muted">${esc(e.place)}${e.programmes ? ' · ' + esc(e.programmes) : ''}</div>
+        </div>
+      </div>`).join('') : ''}`;
+}
+
+async function submitEvent(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  try {
+    await api('/api/admin/events', { method: 'POST', body: JSON.stringify({
+      title: f.get('title'), place: f.get('place'),
+      day: f.get('day'), mon: f.get('mon'), programmes: f.get('programmes'),
+    })});
+    toast('Event published — students notified.');
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not publish.'); }
+  return false;
+}
+
+async function adminUsersHtml() {
+  const users = await api('/api/admin/users');
+  return `<div class="section-title">User management</div>` + users.map(u => `
+    <div class="card" style="display:flex;align-items:center;gap:10px;${u.suspended ? 'opacity:0.55;' : ''}">
+      <span style="width:32px;height:32px;border-radius:9px;background:${esc(u.color)};flex:0 0 auto;"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;">
+          ${esc(u.name)}
+          ${u.suspended ? '<span class="chip rust">suspended</span>' : ''}
+        </div>
+        <div class="muted">${esc(u.role)} · @${esc(u.username)}${u.pendingBusiness ? ' · <b>awaiting verification</b>' : ''}${u.alumniVerified ? ' · alumni ✓' : ''}</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+        ${u.pendingBusiness ? `<button class="btn btn-primary btn-sm" onclick="userAction(${u.id},'approve-business')">Verify</button>` : ''}
+        ${u.role !== 'admin' ? `<button class="btn ${u.suspended ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="userAction(${u.id},'${u.suspended ? 'unsuspend' : 'suspend'}')">${u.suspended ? 'Restore' : 'Suspend'}</button>` : ''}
+        ${u.role !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="userAction(${u.id},'remove')">Remove</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function userAction(id, action) {
+  try {
+    const r = await api(`/api/admin/users/${id}/${action}`, { method: 'POST' });
+    toast(r.note || 'Done.');
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not do that.'); }
+}
+
+async function adminAnnounceHtml() {
+  return `
+    <div class="card">
+      <div class="section-title">Broadcast an announcement</div>
+      <form onsubmit="return submitAnnouncement(event)">
+        <div class="field"><label>Message</label><textarea name="text" rows="3" placeholder="Richfield graduation details are live on the portal…" required></textarea></div>
+        <div class="field"><label>Audience</label>
+          <select name="audience">
+            <option value="all">Everyone</option>
+            <option value="trade">Current students</option>
+            <option value="grad">Alumni</option>
+            <option value="business">Businesses</option>
+          </select>
+        </div>
+        <button class="btn btn-primary full">Send</button>
+      </form>
+      <p class="muted" style="margin:8px 0 0;">Delivered instantly over WebSockets and kept in each user's notification bell.</p>
+    </div>`;
+}
+
+async function submitAnnouncement(ev) {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  try {
+    const r = await api('/api/admin/announce', { method: 'POST', body: JSON.stringify({
+      text: f.get('text'), audience: f.get('audience'),
+    })});
+    toast(`Delivered to ${r.delivered} user${r.delivered===1?'':'s'}.`);
+    loadView();
+  } catch (e) { toast((e.body && e.body.error) || 'Could not send.'); }
+  return false;
+}
+
+async function adminAnalyticsHtml() {
+  const a = await api('/api/analytics/admin');
+  return `
+    <div class="card">
+      <div class="section-title">Platform health</div>
+      ${statRow([
+        ['Total users', a.totals.users],
+        ['Monthly active', a.totals.mau],
+        ['Flagged content', a.totals.flagged],
+        ['Pending approvals', a.totals.pendingApprovals],
+      ])}
+    </div>
+    <div class="card">
+      <div class="section-title">Users by type</div>
+      ${barChart(a.usersByType.map(u => [u.label, u.count]))}
+    </div>
+    <div class="card">
+      <div class="section-title">New registrations — last 14 days</div>
+      ${sparkline(a.registrationSeries, 'var(--teal)')}
+    </div>
+    <div class="card">
+      <div class="section-title">Content volume</div>
+      ${statRow([
+        ['Posts', a.content.posts], ['Videos', a.content.videos],
+        ['Opportunities', a.content.opportunities], ['Events', a.content.events],
+      ])}
+    </div>`;
+}
+
+/* ----------------------------------------------------------------- go -- */
+init();
+</script>
+</body>
+</html>
