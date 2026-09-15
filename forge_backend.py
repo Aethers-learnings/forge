@@ -1927,6 +1927,16 @@ def index():
     return send_from_directory(app.static_folder, "forge_demo.html")
 
 
+@app.get("/manifest.webmanifest")
+def manifest():
+    return send_from_directory(app.static_folder, "manifest.webmanifest")
+
+
+@app.get("/icons/<path:name>")
+def icons(name):
+    return send_from_directory(os.path.join(app.static_folder, "icons"), name)
+
+
 # ----------------------------------------------------------------- seed --
 def seed_demo_data(force=False):
     """Populate an empty database so the demo logins, dashboards, queues
