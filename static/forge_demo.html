@@ -373,7 +373,7 @@ function initSocket() {
   if (socket || !state.user) return;
   socket = io();
   socket.on('connect', () => {
-    socket.emit('join', { userId: state.user.id, role: state.user.role });
+    socket.emit('join');
   });
   socket.on('new_comment', () => {
     toast('New comment on a post');

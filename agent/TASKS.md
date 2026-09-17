@@ -5,8 +5,8 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 ## P0
 
 - [x] T-001 — Fail closed when `FORGE_SECRET_KEY` is missing/default; define production cookie security configuration and a test. Depends on: none. Classification: SAFE_INCREMENTAL. Completed 2026-09-17: production startup rejects absent, default, and short secrets; production session cookies are Secure, HttpOnly, and SameSite=Lax; isolated Flask test harness added.
-- [ ] T-002 — Bind Socket.IO room joins exclusively to authenticated session identity/role; restrict origins; add cross-user subscription regression tests. Depends on: T-001 test harness. Classification: SAFE_INCREMENTAL.
-- [ ] T-003 — Add CSRF/origin protection for state-changing cookie routes and test valid/invalid requests. Depends on: T-001. Classification: SAFE_INCREMENTAL.
+- [x] T-002 — Bind Socket.IO room joins exclusively to authenticated session identity/role; restrict origins; add cross-user subscription regression tests. Depends on: T-001 test harness. Classification: SAFE_INCREMENTAL. Completed: authenticated session-derived user/role rooms; anonymous/suspended connections rejected; client identity claims ignored; default same-origin checking restored; frontend join payload removed; `tests/test_socket_security.py` added. Verified host suite: 15 passed in 1.86s, 17 non-blocking deprecation warnings.
+- [ ] T-003 — **Next P0.** Add CSRF/origin protection for state-changing cookie routes and test valid/invalid requests. Depends on: T-001. Classification: SAFE_INCREMENTAL.
 - [ ] T-004 — Make mobile production navigation HTTPS-only and allowlisted; disable cleartext/mixed content; add configuration tests. Depends on: T-001. Classification: SAFE_INCREMENTAL.
 - [ ] T-005 — Disable debug/demo login outside local development and add deployment configuration checks. Depends on: T-001. Classification: SAFE_INCREMENTAL.
 

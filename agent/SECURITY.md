@@ -1,16 +1,16 @@
 # Security
 
-Status: discovery findings. “Verified” means observed in code; it does not claim exploitation testing.
+Status: discovery findings with T-002 completion synchronized on 2026-09-18. Historical findings are identified below; regression evidence is recorded separately from inspection.
 
 ## P0 — verified findings
 
 1. **Predictable fallback Flask secret.** `SECRET_KEY` defaults to the literal `dev-secret-change-me` when `FORGE_SECRET_KEY` is unset. A deployed instance with that fallback permits forged signed session cookies and therefore account/role impersonation. Require a non-default secret at startup and set secure cookie attributes in the production configuration. Classification: SAFE_INCREMENTAL.
 
-2. **Unauthenticated Socket.IO room selection and permissive CORS.** Socket.IO is configured with `cors_allowed_origins="*"`; its `join` event accepts arbitrary `userId` and `role` values and joins rooms without consulting the Flask session. Any connected client can subscribe to another user’s notifications or a role’s events by choosing those values. Bind room membership to `current_user()`/the authenticated session and restrict allowed origins before exposing the service. Classification: SAFE_INCREMENTAL.
+2. **Resolved — T-002: Socket.IO room selection and permissive CORS.** Connections reject anonymous and suspended sessions. User and role rooms derive exclusively from `current_user()` / authenticated Flask session identity; client-supplied `userId` and `role` claims are ignored. Removed wildcard `cors_allowed_origins` to restore default same-origin checking. `static/forge_demo.html` emits `join` without identity claims. Added `tests/test_socket_security.py` for connection rejection, user/role isolation, forged join claims, and absence of wildcard origins. Full host suite: 15 passed in 1.86s, 17 non-blocking deprecation warnings. The origin test checks configuration; it is not a browser handshake integration test. Classification: SAFE_INCREMENTAL.
 
 3. **Mobile WebView accepts arbitrary origins and insecure transport.** The wrapper persists an editable server address, permits `http://`, uses `originWhitelist={['*']}`, enables Android cleartext traffic, and enables mixed content. A user can be led to an attacker-controlled endpoint or expose session traffic on an untrusted network. Production mobile builds need an HTTPS allowlist, no mixed/cleartext content, and explicit navigation controls. Classification: SAFE_INCREMENTAL.
 
-4. **No CSRF defense is present for cookie-authenticated state-changing routes.** The web client sends cookies (`credentials: same-origin`); Flask session cookies are `SameSite=Lax`, but the server has no CSRF token/origin validation and the Socket.IO CORS policy is wide open. Add a coherent CSRF/origin policy before production deployment. This is security hardening within the current authentication architecture; a fundamental auth replacement remains HUMAN_APPROVAL_REQUIRED.
+4. **No CSRF defense is present for cookie-authenticated state-changing routes.** The web client sends cookies (`credentials: same-origin`); Flask session cookies are `SameSite=Lax`, but the server has no CSRF token/origin validation and T-002’s Socket.IO same-origin checking does not protect HTTP mutations. T-003 is the next P0: add a coherent CSRF/origin policy before production deployment. This is security hardening within the current authentication architecture; a fundamental auth replacement remains HUMAN_APPROVAL_REQUIRED.
 
 ## High-priority verified concerns
 

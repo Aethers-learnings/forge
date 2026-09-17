@@ -1,5 +1,16 @@
 # Session log
 
+## 2026-09-18 — T-002 completion record synchronization
+
+- Updated only STATE, TASKS, SECURITY, TEST_RESULTS, and SESSION_LOG to reflect completed T-002, using the verified host terminal output and current implementation.
+- Socket.IO rejects anonymous/suspended connections and derives user/role rooms exclusively from authenticated Flask session identity, ignoring client-supplied `userId`/`role` claims.
+- Wildcard `cors_allowed_origins` removed for default same-origin checking; static frontend emits `join` without identity claims.
+- `tests/test_socket_security.py` added; verified original host suite: 15 passed in 1.86s with 17 non-blocking deprecation warnings (`datetime.utcnow()` and SQLAlchemy `Query.get()`).
+- Confirmed `.venv-host/` is ignored locally via `.gitignore`. T-003 CSRF/origin protection is next P0.
+- Pre-existing mobile and sandbox changes must remain untouched; no commit made. Existing backend diff includes line-ending normalization from the earlier implementation, which this documentation task does not alter.
+
+Verification: fresh `.venv-host/bin/python -m pytest -q` passed (15 passed, 17 warnings in 2.19s) after approved filesystem access for the temporary test database. `git diff --check` passed and the documentation diff was reviewed. Baseline hashes confirm only the five intended agent records changed, including byte-for-byte preservation of `mobile/src/app/index.tsx` and `sandbox/Dockerfile`. No commit created.
+
 ## 2026-09-17 — IMPLEMENTATION_1 T-001: session configuration and isolated test harness
 
 Scope: completed the highest-priority approved safe-incremental task only; no commit created.

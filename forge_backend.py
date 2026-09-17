@@ -89,7 +89,10 @@ app = Flask(__name__, static_folder="static")
 app.config.update(build_app_config())
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
+# Flask-SocketIO's default origin policy is same-origin. Do not use a wildcard:
+# browser sockets carry the authenticated Flask session and receive private
+# user/role notifications.
+socketio = SocketIO(app, async_mode="threading")
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -581,13 +584,29 @@ def notify_job_match(opportunity):
                               link="discover:opportunities")
 
 
+def _join_authenticated_socket_rooms():
+    """Join only rooms derived from the authenticated Flask session."""
+    user = current_user()
+    if not user or user.suspended:
+        return False
+    join_room(f"user:{user.id}")
+    join_room(f"role:{user.role}")
+    return True
+
+
+@socketio.on("connect")
+def _socket_connect():
+    # Reject anonymous and suspended clients before they can subscribe to
+    # private realtime events.
+    if not _join_authenticated_socket_rooms():
+        return False
+
+
 @socketio.on("join")
-def _socket_join(data):
-    data = data or {}
-    if data.get("userId"):
-        join_room(f"user:{data['userId']}")
-    if data.get("role"):
-        join_room(f"role:{data['role']}")
+def _socket_join(data=None):
+    # Kept as a compatibility event for existing clients. Client-supplied
+    # identity/role claims are deliberately ignored.
+    return _join_authenticated_socket_rooms()
 
 
 def daily_series(datetimes, days=14):

@@ -40,3 +40,5 @@ ios/App/Pods/
 tests/tmp*.db
 tests/tmp*.db-shm
 tests/tmp*.db-wal
+
+.venv-host/
