@@ -35,3 +35,9 @@ SQLite is the currently verified persistence technology. PostgreSQL is a future 
 Status: accepted
 
 The present signed-cookie/session mechanism remains the baseline only while P0 hardening is performed. Any fundamental authentication change (identity provider, token model, account model, or session replacement) requires human approval. Classification: HUMAN_APPROVAL_REQUIRED.
+
+## D-007: Environment-derived session configuration
+
+Status: accepted (2026-09-17)
+
+Forge retains Flask's signed-cookie session model. `FORGE_ENV=production` is the explicit production boundary: it requires a non-default `FORGE_SECRET_KEY` of at least 32 characters and enables `Secure`, `HttpOnly`, `SameSite=Lax` session cookies. Development/test environments never use the historical predictable fallback; if no secret is supplied they receive a process-local random key. `FORGE_DATABASE_URI` is a supported configuration override solely to isolate tests and deployment configuration from the repository's default SQLite path. Classification: SAFE_INCREMENTAL.

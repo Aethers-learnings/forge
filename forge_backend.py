@@ -43,11 +43,50 @@ from werkzeug.utils import secure_filename
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
 
+
+# Keep local development convenient without ever giving a deployed process a
+# predictable signing key.  Tests also use this seam to point SQLAlchemy at a
+# throw-away SQLite database instead of the project instance database.
+INSECURE_SECRET_KEYS = frozenset({"dev-secret-change-me", "change-me", "secret"})
+PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod"})
+
+
+def build_app_config(environ=None):
+    """Return Forge's environment-derived Flask configuration.
+
+    A production process must receive an explicit, high-entropy signing
+    secret. Local development gets a process-local random secret, which keeps
+    the demo usable but never falls back to a value an attacker can know.
+    """
+    environ = os.environ if environ is None else environ
+    environment = environ.get("FORGE_ENV", "development").strip().lower()
+    production = environment in PRODUCTION_ENVIRONMENTS
+    secret_key = (environ.get("FORGE_SECRET_KEY") or "").strip()
+    invalid_secret = not secret_key or secret_key.lower() in INSECURE_SECRET_KEYS
+
+    if production and (invalid_secret or len(secret_key) < 32):
+        raise RuntimeError(
+            "FORGE_SECRET_KEY must be a non-default value of at least 32 characters "
+            "when FORGE_ENV is production."
+        )
+    if invalid_secret:
+        secret_key = secrets.token_urlsafe(48)
+
+    return {
+        "SQLALCHEMY_DATABASE_URI": environ.get(
+            "FORGE_DATABASE_URI",
+            "sqlite:///" + os.path.join(BASE_DIR, "instance", "forge.db"),
+        ),
+        "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+        "SECRET_KEY": secret_key,
+        "SESSION_COOKIE_HTTPONLY": True,
+        "SESSION_COOKIE_SAMESITE": "Lax",
+        "SESSION_COOKIE_SECURE": production,
+    }
+
+
 app = Flask(__name__, static_folder="static")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(BASE_DIR, "instance", "forge.db")
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = os.environ.get("FORGE_SECRET_KEY", "dev-secret-change-me")
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config.update(build_app_config())
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")

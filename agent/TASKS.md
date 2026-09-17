@@ -4,7 +4,7 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 
 ## P0
 
-- [ ] T-001 — Fail closed when `FORGE_SECRET_KEY` is missing/default; define production cookie security configuration and a test. Depends on: none. Classification: SAFE_INCREMENTAL.
+- [x] T-001 — Fail closed when `FORGE_SECRET_KEY` is missing/default; define production cookie security configuration and a test. Depends on: none. Classification: SAFE_INCREMENTAL. Completed 2026-09-17: production startup rejects absent, default, and short secrets; production session cookies are Secure, HttpOnly, and SameSite=Lax; isolated Flask test harness added.
 - [ ] T-002 — Bind Socket.IO room joins exclusively to authenticated session identity/role; restrict origins; add cross-user subscription regression tests. Depends on: T-001 test harness. Classification: SAFE_INCREMENTAL.
 - [ ] T-003 — Add CSRF/origin protection for state-changing cookie routes and test valid/invalid requests. Depends on: T-001. Classification: SAFE_INCREMENTAL.
 - [ ] T-004 — Make mobile production navigation HTTPS-only and allowlisted; disable cleartext/mixed content; add configuration tests. Depends on: T-001. Classification: SAFE_INCREMENTAL.

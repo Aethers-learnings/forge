@@ -35,3 +35,8 @@ ios/App/Pods/
 
 # Local agent runtime state
 .sandbox-state/
+
+# Test-generated temporary SQLite databases
+tests/tmp*.db
+tests/tmp*.db-shm
+tests/tmp*.db-wal

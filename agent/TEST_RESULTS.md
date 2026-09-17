@@ -2,6 +2,17 @@
 
 Date: 2026-09-17
 
+## IMPLEMENTATION_1 — T-001 session configuration and test isolation
+
+| Check | Result | Evidence / scope |
+| --- | --- | --- |
+| Isolated Flask harness | PASS | `tests/conftest.py` sets a temporary `FORGE_DATABASE_URI` before app import; each test creates and drops its SQLite schema, leaving `instance/forge.db` unused. |
+| Production secret fail-closed | PASS | 6 tests verify missing, historical/default, and short secrets are rejected. A subprocess test verifies actual `import forge_backend` fails with `FORGE_ENV=production` and no secret. |
+| Production cookie configuration | PASS | Regression test and direct production import verify `Secure=True`, `HttpOnly=True`, `SameSite=Lax`. |
+| Full available test suite | PASS | `.venv/bin/pytest -q`: 9 passed in 1.52s. |
+
+Test environment note: the host Python lacked Forge dependencies and disallowed global package installation (PEP 668). A project-local `.venv` was used to install `requirements.txt` and run the suite; it is not application source.
+
 ## Verified discovery baseline
 
 | Check | Result | Evidence / scope |
@@ -21,4 +32,4 @@ Date: 2026-09-17
 
 ## Required next evidence
 
-P0 fixes must add regression tests for secret/configuration fail-closed behavior, Socket.IO identity-bound rooms, CSRF/origin policy, and mobile HTTPS allowlisting. Run those tests before claiming an implementation release baseline.
+P0 fixes must add regression tests for Socket.IO identity-bound rooms, CSRF/origin policy, and mobile HTTPS allowlisting. Run those tests before claiming an implementation release baseline.

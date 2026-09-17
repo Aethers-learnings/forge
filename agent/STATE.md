@@ -18,11 +18,18 @@ Establish a secure, tested baseline around the existing Flask/web/WebView protot
 
 ## Immediate gates
 
-1. Resolve the P0 findings in `SECURITY.md`, beginning with production-safe session configuration and authenticated Socket.IO rooms.
-2. Add regression coverage for authentication/authorization, tenant ownership, and upload boundaries before refactoring those paths.
+1. Resolve the remaining P0 findings in `SECURITY.md`, beginning with authenticated Socket.IO rooms.
+2. Extend the new isolated Flask regression harness to authentication/authorization, tenant ownership, and upload boundaries before refactoring those paths.
 3. Keep the prototype architecture in place while extracting only tested seams.
 
 ## Deliberate non-decisions
 
 - PostgreSQL is a future migration, not current project state, and requires human approval.
 - A backend, web-framework, or authentication replacement is not authorized by discovery alone.
+
+## IMPLEMENTATION_1 progress
+
+- T-001 is complete: `build_app_config()` rejects missing, default, or short `FORGE_SECRET_KEY` values in `FORGE_ENV=production`; local development receives a process-local random key instead of a predictable fallback.
+- Production session cookies are explicitly `Secure`, `HttpOnly`, and `SameSite=Lax`.
+- `tests/` now provides an isolated temporary-SQLite Flask harness. It sets `FORGE_DATABASE_URI` before importing the application, creates/drops schema per test, and never uses `instance/forge.db`.
+- T-002 (Socket.IO identity-bound rooms and origin restriction) is now the highest-priority eligible task.

@@ -2,7 +2,8 @@
 
 ## Verified defects / limitations
 
-- P0 security defects are tracked in `SECURITY.md`: predictable secret fallback, unauthenticated Socket.IO rooms/wildcard CORS, permissive/insecure mobile WebView transport, and absent CSRF protection.
+- Remaining P0 security defects are tracked in `SECURITY.md`: unauthenticated Socket.IO rooms/wildcard CORS, permissive/insecure mobile WebView transport, and absent CSRF protection. The predictable secret fallback was resolved by T-001.
+- Production operators must set `FORGE_ENV=production` and supply a unique `FORGE_SECRET_KEY` of at least 32 characters. Non-production processes receive an ephemeral random signing key, so their sessions do not survive a restart; this is intentional and unsuitable for multi-process production deployment.
 - Network, suggestion, connection, and conversation tables are seeded/shared demo state rather than per-user relationships. Any logged-in user can view or mutate the same rows.
 - `Conversation` and `Message` do not identify participants; message sender is stored only as `me`/`them`. This cannot support secure multi-user messaging.
 - `Comment`, `Post`, and `Testimonial` persist display names rather than author foreign keys, limiting ownership enforcement, renames, deletion, and auditing.
