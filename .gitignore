@@ -27,3 +27,11 @@ android/local.properties      # contains a local absolute SDK path, machine-spec
 android/*.iml
 ios/App/Pods/
 .~lock.*#
+
+# Autonomous agent artifacts
+.project_inspection_*
+**inspection*.tar.gz
+*.agent-backup
+
+# Local agent runtime state
+.sandbox-state/
