@@ -1,5 +1,35 @@
-# TASKS
+# Tasks
 
-Status: NOT STARTED
+Status: prioritized, dependency-aware implementation backlog. Classification identifies scope governance, not urgency.
 
-This file will be populated during Forge discovery.
+## P0
+
+- [ ] T-001 — Fail closed when `FORGE_SECRET_KEY` is missing/default; define production cookie security configuration and a test. Depends on: none. Classification: SAFE_INCREMENTAL.
+- [ ] T-002 — Bind Socket.IO room joins exclusively to authenticated session identity/role; restrict origins; add cross-user subscription regression tests. Depends on: T-001 test harness. Classification: SAFE_INCREMENTAL.
+- [ ] T-003 — Add CSRF/origin protection for state-changing cookie routes and test valid/invalid requests. Depends on: T-001. Classification: SAFE_INCREMENTAL.
+- [ ] T-004 — Make mobile production navigation HTTPS-only and allowlisted; disable cleartext/mixed content; add configuration tests. Depends on: T-001. Classification: SAFE_INCREMENTAL.
+- [ ] T-005 — Disable debug/demo login outside local development and add deployment configuration checks. Depends on: T-001. Classification: SAFE_INCREMENTAL.
+
+## P1
+
+- [ ] T-101 — Create a Flask regression suite for registration/login, role gates, notification ownership, profile visibility, and approval actions. Depends on: T-001. Classification: SAFE_INCREMENTAL.
+- [ ] T-102 — Add request-size preflight, media content validation, upload authorization/retention policy, and upload tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
+- [ ] T-103 — Hash password-reset tokens; establish non-debug reset delivery behavior and avoid sensitive logging. Depends on: T-101. Classification: SAFE_INCREMENTAL.
+- [ ] T-104 — Define ownership and authorization rules for network, suggestions, endorsements, and conversations; introduce a migration plan before code changes. Depends on: T-101. Classification: MAJOR_REVIEW.
+- [ ] T-105 — Ensure only approved/live listings produce student-visible opportunities; cover lifecycle with tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
+- [ ] T-106 — Correct business/admin analytics scope and document metric semantics. Depends on: T-101. Classification: SAFE_INCREMENTAL.
+
+## P2
+
+- [ ] T-201 — Add reversible schema migration tooling and explicit indexes/constraints appropriate to verified access patterns. Depends on: T-104 data design. Classification: MAJOR_REVIEW.
+- [ ] T-202 — Add stable API contract documentation and request/response tests before route extraction. Depends on: T-101. Classification: SAFE_INCREMENTAL.
+- [ ] T-203 — Incrementally extract Flask blueprints/services around identity, workflows, media, and analytics. Depends on: T-101, T-202. Classification: SAFE_INCREMENTAL.
+- [ ] T-204 — Improve web accessibility, responsive behavior, error handling, CSP/security headers, and client tests without replacing the static frontend. Depends on: T-003, T-202. Classification: SAFE_INCREMENTAL.
+- [ ] T-205 — Implement native Expo workflows in priority order while WebView stays available. Depends on: T-004, T-202. Classification: SAFE_INCREMENTAL.
+
+## P3
+
+- [ ] T-301 — Evaluate a proven incremental web migration path; do not replace the existing frontend until parity evidence exists. Depends on: T-202, T-204. Classification: MAJOR_REVIEW.
+- [ ] T-302 — Evaluate PostgreSQL, backup/restore, migration/rollback, and operations. Depends on: T-201 and documented data ownership. Classification: HUMAN_APPROVAL_REQUIRED.
+- [ ] T-303 — Consider backend replacement only with a human-approved architecture decision and migration plan. Depends on: Phase 2/3 evidence. Classification: HUMAN_APPROVAL_REQUIRED.
+- [ ] T-304 — Consider a fundamental authentication change only with human approval, threat model, migration, and rollback. Depends on: P0 completion. Classification: HUMAN_APPROVAL_REQUIRED.
