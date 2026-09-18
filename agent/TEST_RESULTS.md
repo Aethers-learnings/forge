@@ -70,3 +70,22 @@ Socket.IO identity-bound rooms and authenticated HTTP CSRF/origin regressions ar
 - Initial sandbox run could not create the temporary test database; rerun with approved host filesystem access passed.
 - `git diff --check` passed after the documentation edits. Reviewed the five-file documentation diff and compared file hashes with the pre-edit baseline: only the intended five agent records changed. `mobile/src/app/index.tsx` and `sandbox/Dockerfile` remain byte-for-byte unchanged.
 - Existing `.gitignore`, backend, frontend, and untracked socket test changes are preserved. The backend already had line-ending normalization in its diff; it was not modified here. No commit created.
+
+## 2026-09-18 — T-004 SAFE_INCREMENTAL
+
+Implemented in `/home/pablo/Documents/Programming/04-Projects/forge` at starting HEAD `ea8ffc3`; the stale mirror was not used. Exact HTTPS origins come from build-time configuration with no production default. Missing configuration permits no connection. Persisted URL, Connect/save, initial WebView source and navigation share the pure policy; invalid saved values remain visible in recoverable settings without loading or automatic replacement. Existing mobile error handling is preserved. Popups and subframe navigation are blocked, mixed content is never allowed, Android cleartext is disabled through an Expo manifest plugin, and iOS ATS has no arbitrary-load/local-network exceptions.
+
+Verified: 33 mobile tests; mobile lint, TypeScript, native preview/production config introspection and diff check pass. Isolated Forge suite: 56 passed, 179 existing deprecation warnings in 6.60s. Signed release-device tests remain a release gate (see MOBILE_PLAN.md). No commit or push. T-005 is next P0.
+
+Preservation: Dockerfile hash matches the starting baseline. The static frontend changed concurrently during this session; this task never wrote it and leaves its current contents intact. The pre-existing mobile error handling remains. No existing locked dependency versions changed or entries were removed.
+
+### Reproduction and limits
+
+- `npm --prefix mobile test`: 33 passed, 0 failed in 2.39s. Node built-in runner and existing TypeScript transpilation; no test-framework dependency. Covers URL attacks, explicit ports/IPs, config defaults/isolation, persisted settings, Connect/save validation and storage errors, initial source, navigation and popup callbacks/props.
+- Two tests run actual Expo `config --type introspect --json` for preview/production with development override variables set. Assert origins, development exclusion, Android cleartext false/no network-security override, and restrictive iOS ATS/no exception domains. Default-empty configuration was separately introspected successfully.
+- `npm --prefix mobile run lint`: PASS without warnings. Added missing ESLint/Expo lint dev dependencies and configuration. Initial lint found two pre-existing issues: an apostrophe in the mobile error heading and the web theme hydration effect. Escaped the apostrophe without visible text changes and used useSyncExternalStore for server/client hydration snapshots.
+- `mobile/node_modules/.bin/tsc --project mobile/tsconfig.json --noEmit`: PASS.
+- `.venv-host/bin/python -m pytest -q`: 56 passed, 179 existing datetime/SQLAlchemy deprecation warnings in 6.60s; temporary SQLite harness only, no real application database use.
+- `git diff --check`: PASS.
+- Install warnings: 14 moderate npm audit vulnerabilities, deprecated ESLint 9.39.5 and pending/unapproved unrs-resolver postinstall script. No broad audit fix or script approval was applied; lint passed. Dependency remediation is separate work.
+- Screen tests use mocked React/native components; installed WebView native handlers were inspected but not exercised on devices. No signed native build/device tests or final packaged native config inspection. HTTPS subresource/CSP restrictions are outside this navigation policy.

@@ -2,7 +2,7 @@
 
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
-Last updated: 2026-09-18 (T-003 CSRF/origin protection verified)
+Last updated: 2026-09-18 (T-004 verified; release-device checks pending)
 
 ## Verified current state
 
@@ -18,7 +18,7 @@ Establish a secure, tested baseline around the existing Flask/web/WebView protot
 
 ## Immediate gates
 
-1. Resolve the remaining P0 findings in `SECURITY.md`, beginning with T-004 mobile HTTPS/navigation allowlisting.
+1. Resolve the remaining P0 findings in `SECURITY.md`, beginning with T-005 debug/demo configuration.
 2. Extend the new isolated Flask regression harness to authentication/authorization, tenant ownership, and upload boundaries before refactoring those paths.
 3. Keep the prototype architecture in place while extracting only tested seams.
 
@@ -42,3 +42,11 @@ Establish a secure, tested baseline around the existing Flask/web/WebView protot
 - Same-origin checks use the direct request scheme and Host, with no ProxyFix or forwarded-header trust. Deployment must present the browser origin to Flask directly; proxy integration remains separate work.
 - Full host-venv suite: 56 passed, 179 non-blocking deprecation warnings in 10.49s, including Node-based frontend helper regressions. `git diff --check` passed.
 - T-004 is the next P0 task. Pre-existing `mobile/src/app/index.tsx` and `sandbox/Dockerfile` changes remain byte-for-byte unchanged; no commit created.
+
+## 2026-09-18 — T-004 SAFE_INCREMENTAL
+
+Implemented in `/home/pablo/Documents/Programming/04-Projects/forge` at starting HEAD `ea8ffc3`; the stale mirror was not used. Exact HTTPS origins come from build-time configuration with no production default. Missing configuration permits no connection. Persisted URL, Connect/save, initial WebView source and navigation share the pure policy; invalid saved values remain visible in recoverable settings without loading or automatic replacement. Existing mobile error handling is preserved. Popups and subframe navigation are blocked, mixed content is never allowed, Android cleartext is disabled through an Expo manifest plugin, and iOS ATS has no arbitrary-load/local-network exceptions.
+
+Verified: 33 mobile tests; mobile lint, TypeScript, native preview/production config introspection and diff check pass. Isolated Forge suite: 56 passed, 179 existing deprecation warnings in 6.60s. Signed release-device tests remain a release gate (see MOBILE_PLAN.md). No commit or push. T-005 is next P0.
+
+Preservation: Dockerfile hash matches the starting baseline. The static frontend changed concurrently during this session; this task never wrote it and leaves its current contents intact. The pre-existing mobile error handling remains. No existing locked dependency versions changed or entries were removed.

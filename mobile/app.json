@@ -18,8 +18,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.mrpickle.forgemobile",
-      "usesCleartextTraffic": true
+      "package": "com.mrpickle.forgemobile"
     },
     "web": {
       "output": "static",

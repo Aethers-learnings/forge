@@ -5,23 +5,34 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import { allowedUrl, runtimeOrigins } from '../security/url-policy';
 
 const STORAGE_KEY = 'forge_server_url';
-const DEFAULT_URL = 'http://192.168.100.9:5000'; // fallback only — always editable below
+const ALLOWED_ORIGINS = runtimeOrigins(Constants.expoConfig?.extra?.forgeSecurity, __DEV__);
+const POLICY_ERROR = 'Enter an approved HTTPS server address. If none is configured, rebuild the app with approved origins.';
 
 export default function Index() {
   const webviewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const [ready, setReady] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
-      const url = saved || DEFAULT_URL;
+      setInputValue(saved ?? '');
+      const url = allowedUrl(saved, ALLOWED_ORIGINS);
       setServerUrl(url);
-      setInputValue(url);
-    });
+      setEditing(!url);
+      if (!url) setSettingsError(POLICY_ERROR);
+    }).catch(() => {
+      setEditing(true);
+      setSettingsError('Could not read the saved address. Enter an approved HTTPS address to retry.');
+    }).finally(() => setReady(true));
   }, []);
 
   useEffect(() => {
@@ -38,14 +49,21 @@ export default function Index() {
   }, [canGoBack]);
 
   const saveUrl = async () => {
-    let url = inputValue.trim();
-    if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
-    await AsyncStorage.setItem(STORAGE_KEY, url);
-    setServerUrl(url);
-    setEditing(false);
+    const url = allowedUrl(inputValue.trim(), ALLOWED_ORIGINS);
+    if (!url) { setSettingsError(POLICY_ERROR); return; }
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, url);
+      setServerUrl(url);
+      setCanGoBack(false);
+      setLastError(null);
+      setSettingsError(null);
+      setEditing(false);
+    } catch {
+      setSettingsError('Could not save the address. Please try again.');
+    }
   };
 
-  if (!serverUrl) return null; // brief splash while reading storage
+  if (!ready) return null;
 
   if (editing) {
     return (
@@ -57,15 +75,33 @@ export default function Index() {
             style={styles.input}
             value={inputValue}
             onChangeText={setInputValue}
-            placeholder="http://192.168.x.x:5000"
+            placeholder="https://your-approved-server"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
           />
+          {settingsError && <Text style={styles.errorText}>{settingsError}</Text>}
           <TouchableOpacity style={styles.button} onPress={saveUrl}>
             <Text style={styles.buttonText}>Connect</Text>
           </TouchableOpacity>
         </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  const sourceUrl = allowedUrl(serverUrl, ALLOWED_ORIGINS);
+
+  if (lastError || !sourceUrl) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f4ede0" />
+        <View style={styles.settingsBox}>
+          <Text style={styles.label}>Couldn&apos;t load Forge</Text>
+          <Text style={styles.errorText}>{lastError || POLICY_ERROR}</Text>
+          <TouchableOpacity style={styles.button} onPress={() => { setLastError(null); setEditing(true); }}>
+            <Text style={styles.buttonText}>Edit server address</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -75,10 +111,30 @@ export default function Index() {
       <StatusBar barStyle="dark-content" backgroundColor="#f4ede0" />
       <WebView
         ref={webviewRef}
-        source={{ uri: serverUrl }}
+        source={{ uri: sourceUrl }}
+        onShouldStartLoadWithRequest={(request) =>
+          request.isTopFrame !== false && !!allowedUrl(request.url, ALLOWED_ORIGINS)
+        }
+        onOpenWindow={() => { /* Discard all target=_blank and window.open attempts. */ }}
+        javaScriptCanOpenWindowsAutomatically={false}
+        setSupportMultipleWindows={true}
         style={styles.webview}
         onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
-        mixedContentMode="always"
+        onError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          setLastError(
+            `code: ${nativeEvent.code}\ndescription: ${nativeEvent.description}\nurl: ${nativeEvent.url}`
+          );
+        }}
+        onHttpError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          setLastError(
+            `HTTP status: ${nativeEvent.statusCode}\nurl: ${nativeEvent.url}`
+          );
+        }}
+        mixedContentMode="never"
+        // Route every scheme through our exact-origin guard; narrower patterns can
+        // cause react-native-webview to open rejected URLs via OS Linking.
         originWhitelist={['*']}
         javaScriptEnabled
         domStorageEnabled
@@ -98,6 +154,7 @@ const styles = StyleSheet.create({
   webview: { flex: 1 },
   settingsBox: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
   label: { fontSize: 16, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
+  errorText: { fontSize: 13, color: '#5a5248', marginBottom: 20, fontFamily: Platform.OS === 'android' ? 'monospace' : 'Menlo' },
   input: {
     borderWidth: 1, borderColor: '#b5432b', borderRadius: 8,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,

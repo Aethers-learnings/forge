@@ -47,3 +47,13 @@ Findings recorded:
 - Pre-existing dirty file observed: `mobile/src/app/index.tsx`; preserved unchanged.
 
 Outcome: project state advanced from DISCOVERY to IMPLEMENTATION_1, with P0 containment and regression baseline as the next work.
+
+## 2026-09-18 — T-004 SAFE_INCREMENTAL
+
+Implemented in `/home/pablo/Documents/Programming/04-Projects/forge` at starting HEAD `ea8ffc3`; the stale mirror was not used. Exact HTTPS origins come from build-time configuration with no production default. Missing configuration permits no connection. Persisted URL, Connect/save, initial WebView source and navigation share the pure policy; invalid saved values remain visible in recoverable settings without loading or automatic replacement. Existing mobile error handling is preserved. Popups and subframe navigation are blocked, mixed content is never allowed, Android cleartext is disabled through an Expo manifest plugin, and iOS ATS has no arbitrary-load/local-network exceptions.
+
+Verified: 33 mobile tests; mobile lint, TypeScript, native preview/production config introspection and diff check pass. Isolated Forge suite: 56 passed, 179 existing deprecation warnings in 6.60s. Signed release-device tests remain a release gate (see MOBILE_PLAN.md). No commit or push. T-005 is next P0.
+
+Preservation: Dockerfile hash matches the starting baseline. The static frontend changed concurrently during this session; this task never wrote it and leaves its current contents intact. The pre-existing mobile error handling remains. No existing locked dependency versions changed or entries were removed.
+
+Added missing lint tooling and repaired two small existing lint issues (apostrophe and web hydration). npm reported 14 moderate vulnerabilities, ESLint deprecation and a pending resolver script; no broad upgrades/script approvals. Updated all six requested agent records. Remaining release work is in MOBILE_PLAN.md; T-005 is next P0.
