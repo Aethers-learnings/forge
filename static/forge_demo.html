@@ -577,17 +577,6 @@ function renderAuth() {
       : mode === 'forgot' ? renderForgotForm()
       : mode === 'reset' ? renderResetForm()
       : renderRegisterForm()}
-    <div style="margin-top:auto;padding-top:22px;">
-      <p class="muted" style="margin-bottom:8px;">Quick look, any role:</p>
-      <div class="row" style="flex-wrap:wrap;gap:6px;">
-        ${['trade','grad','business','admin'].map(r =>
-          `<button class="btn btn-ghost btn-sm" style="flex:1 1 44%;" onclick="demoLogin('${r}')">${r === 'trade' ? 'Tradesperson' : r[0].toUpperCase()+r.slice(1)}</button>`
-        ).join('')}
-      </div>
-      <p class="muted" style="margin-top:8px;font-size:11px;">
-        C's & T's applied, demo accounts are reset every 24 hours.
-      </p>
-    </div>
   </div>`;
 }
 
@@ -730,15 +719,6 @@ async function submitRegister(ev) {
     renderApp();
   }
   return false;
-}
-
-async function demoLogin(role) {
-  try {
-    const user = await api('/api/auth/demo-login', { method: 'POST', body: JSON.stringify({ role }) });
-    setCurrentUser(user, true); initSocket(); state.view = 'feed'; renderApp();
-  } catch (e) {
-    toast('Demo login is off — sign in as demo_' + role + ' / demo123');
-  }
 }
 
 async function logout() {
