@@ -1,16 +1,22 @@
 # Security
 
-Status: discovery findings with T-002 completion synchronized on 2026-09-18. Historical findings are identified below; regression evidence is recorded separately from inspection.
+Status: discovery findings with T-001/T-002/T-003 resolutions verified as of 2026-09-18. Open findings and implementation evidence are distinguished below.
 
 ## P0 — verified findings
 
-1. **Predictable fallback Flask secret.** `SECRET_KEY` defaults to the literal `dev-secret-change-me` when `FORGE_SECRET_KEY` is unset. A deployed instance with that fallback permits forged signed session cookies and therefore account/role impersonation. Require a non-default secret at startup and set secure cookie attributes in the production configuration. Classification: SAFE_INCREMENTAL.
+1. **Resolved — T-001: predictable fallback Flask secret.** Production startup rejects absent, historical/default, and short secrets; development uses a process-local random key. Production session cookies are Secure, HttpOnly, and SameSite=Lax. Configuration regressions remain passing in the full suite. Classification: SAFE_INCREMENTAL.
 
 2. **Resolved — T-002: Socket.IO room selection and permissive CORS.** Connections reject anonymous and suspended sessions. User and role rooms derive exclusively from `current_user()` / authenticated Flask session identity; client-supplied `userId` and `role` claims are ignored. Removed wildcard `cors_allowed_origins` to restore default same-origin checking. `static/forge_demo.html` emits `join` without identity claims. Added `tests/test_socket_security.py` for connection rejection, user/role isolation, forged join claims, and absence of wildcard origins. Full host suite: 15 passed in 1.86s, 17 non-blocking deprecation warnings. The origin test checks configuration; it is not a browser handshake integration test. Classification: SAFE_INCREMENTAL.
 
 3. **Mobile WebView accepts arbitrary origins and insecure transport.** The wrapper persists an editable server address, permits `http://`, uses `originWhitelist={['*']}`, enables Android cleartext traffic, and enables mixed content. A user can be led to an attacker-controlled endpoint or expose session traffic on an untrusted network. Production mobile builds need an HTTPS allowlist, no mixed/cleartext content, and explicit navigation controls. Classification: SAFE_INCREMENTAL.
 
-4. **No CSRF defense is present for cookie-authenticated state-changing routes.** The web client sends cookies (`credentials: same-origin`); Flask session cookies are `SameSite=Lax`, but the server has no CSRF token/origin validation and T-002’s Socket.IO same-origin checking does not protect HTTP mutations. T-003 is the next P0: add a coherent CSRF/origin policy before production deployment. This is security hardening within the current authentication architecture; a fundamental auth replacement remains HUMAN_APPROVAL_REQUIRED.
+4. **Resolved — T-003: CSRF/origin protection for authenticated unsafe API requests.** A `before_request` guard covers `/api/` requests with session `user_id`, except GET/HEAD/OPTIONS/TRACE. It requires `X-CSRF-Token` matching the random token stored in the signed Flask session and bound to that user ID, using constant-time `secrets.compare_digest`. Tokens use `secrets.token_urlsafe(32)`, rotate on register/login/demo-login, and are removed on logout or invalid-session cleanup. Authenticated `GET /api/auth/csrf-token` returns `csrfToken` with `Cache-Control: no-store`. Classification: SAFE_INCREMENTAL.
+
+   Origin is authoritative when present; Referer is used only when Origin is absent. Scheme, hostname and effective port must match the direct WSGI request scheme/Host. Foreign, null, malformed, credential-bearing origins and requests missing both headers are rejected with 403 before route processing. Forwarded/X-Forwarded headers are ignored; no ProxyFix is installed. A TLS-terminating proxy that changes the scheme/Host visible to Flask requires separately reviewed deployment integration.
+
+   The static API helper attaches tokens for authenticated POST/PUT/PATCH/DELETE; direct multipart upload adds the same header without overriding Content-Type. Client token state resets on authentication identity/session changes, logout, and CSRF rejection, with concurrent acquisition deduplication and stale-response protection. Unsafe requests are not automatically replayed. Failed logout does not falsely clear the logged-in UI.
+
+   Anonymous login, registration, demo-login and password-reset behavior is unchanged and requires no CSRF token. Those routes are protected when an authenticated session is present. This change covers authenticated unsafe API requests; it does not redesign anonymous authentication, safe-method semantics, signed-cookie revocation, or the authentication architecture. Full suite: 56 passed, 179 existing deprecation warnings in 10.49s. T-004 is next P0.
 
 ## High-priority verified concerns
 
@@ -19,7 +25,7 @@ Status: discovery findings with T-002 completion synchronized on 2026-09-18. His
 - Password-reset tokens are stored in plaintext. In debug, a valid token is returned in the response; in non-debug with no SMTP configured, reset delivery is not available. Hash stored reset tokens, prevent debug deployment, and make delivery observable without logging sensitive contents.
 - Upload checks happen after saving the complete request, rely on extension rather than file inspection, and `/uploads/<path:name>` is publicly served. Enforce request-size limits before buffering, validate content, define authorization/retention, and scan/serve media safely.
 - Data ownership is incomplete for network requests, suggested users, connection endorsements, and conversations: all authenticated users read/mutate shared rows. This is both an authorization defect and a data-model limitation.
-- No security headers, HTTPS enforcement, cookie `Secure`/explicit `HttpOnly` configuration, CSP, or proxy trust policy was found. The static client uses `innerHTML`; output escaping exists in client helpers but needs regression coverage.
+- Security headers, HTTPS enforcement, CSP, and a reviewed proxy trust policy remain outstanding. T-001 now explicitly configures production Secure/HttpOnly session cookies. The static client uses `innerHTML`; output escaping exists in client helpers but needs regression coverage.
 - External SMTP and the optional Anthropic call are synchronous request-path integrations. Mail bodies and errors can be logged when SMTP is absent/fails; coach history is sent to the provider when configured. Define consent, data minimization, audit, timeouts, and failure handling before production use.
 
 ## Existing protections observed

@@ -2,6 +2,22 @@
 
 Date: 2026-09-18
 
+## IMPLEMENTATION_1 — T-003 CSRF/origin protection (2026-09-18)
+
+| Check | Result | Evidence / scope |
+| --- | --- | --- |
+| Full host-venv suite | PASS | `.venv-host/bin/python -m pytest -q`: **56 passed, 179 warnings in 10.49s**; no skips. |
+| Backend CSRF regressions | PASS | `tests/test_csrf_security.py`: valid/missing/wrong/non-ASCII tokens; session/identity binding; authenticated token access; rejected suspended access; foreign/malformed/null origins, Referer fallback and missing headers; default ports; ignored forwarded headers; GET/HEAD/OPTIONS; POST/PATCH/DELETE/PUT; multipart processing; anonymous register/login/demo/reset flows; authenticated login and logout/token rotation. |
+| Frontend helper regressions | PASS | `tests/test_csrf_frontend.py` invokes Node.js on `tests/csrf_frontend.cjs`, exercising the actual inline helpers with mocked fetch/DOM: unsafe-method headers, custom-header preservation, safe/anonymous requests, concurrent token fetch deduplication, multipart Content-Type preservation, identity/same-account session changes, stale token responses, successful/failed logout. Inline JavaScript syntax is also checked. |
+| Whitespace and diff review | PASS | `git diff --check`; reviewed backend/frontend/test changes. Only added/changed backend lines use LF where needed to pass the check; untouched existing line endings preserved. |
+| Scope preservation | PASS | Baseline hashes confirm `mobile/src/app/index.tsx` and `sandbox/Dockerfile` byte-for-byte unchanged. Agent records updated only after the full test suite passed. No commit created. |
+
+Warnings: 179 non-blocking `DeprecationWarning` / `LegacyAPIWarning` instances from existing `datetime.utcnow()` and SQLAlchemy `Query.get()` call sites, including `get_or_404`. The expanded suite exercises more of these existing paths; no warning suppression or modernization was included.
+
+The first run was 55 passed / 1 failed: the DELETE test used a graduate account for an existing admin-only route. Its setup was corrected to use an administrator; production role authorization was retained. Initial diff checking also identified CR line endings on added backend lines; only those additions/changes were corrected.
+
+Limits: frontend tests use Node mocks, not a live browser or mobile runtime. PUT has no current application route; tests prove missing CSRF is blocked and valid CSRF reaches the normal 405 response. DELETE reaches the authorized route's 404 lookup for a nonexistent post. No deployment/proxy compatibility claim is made; direct scheme/Host must match the browser origin. Original T-001/T-002 evidence below is historical.
+
 ## IMPLEMENTATION_1 — T-002 Socket.IO security
 
 Evidence: verified user-pasted host terminal output, corroborated by inspection of the current implementation and tests.
@@ -46,7 +62,7 @@ Test environment note: the host Python lacked Forge dependencies and disallowed 
 
 ## Required next evidence
 
-Socket.IO identity-bound room regressions are now present. Remaining P0 fixes must add regression tests for HTTP CSRF/origin policy and mobile HTTPS allowlisting. Run those tests before claiming an implementation release baseline.
+Socket.IO identity-bound rooms and authenticated HTTP CSRF/origin regressions are now present. Next P0 evidence: T-004 mobile HTTPS allowlisting, then T-005 debug/demo deployment configuration checks. Run those before claiming a release baseline.
 
 ## 2026-09-18 — documentation-session verification
 

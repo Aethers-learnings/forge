@@ -1,5 +1,16 @@
 # Session log
 
+## 2026-09-18 — IMPLEMENTATION_1 T-003: authenticated API CSRF/origin protection
+
+- Inspected current agent records, Flask signed-session authentication, unsafe API routes, central frontend helper/direct video upload, and isolated test harness in the existing host checkout. T-002 was already committed at `32b9790`; only the mobile and sandbox edits were pre-existing.
+- Added session-bound `secrets.token_urlsafe(32)` CSRF tokens, constant-time comparison, and a before-request guard for authenticated unsafe `/api/` requests. Origin takes precedence over Referer; missing/foreign/malformed origins fail closed against direct scheme/Host. No ProxyFix or forwarded-header trust.
+- Added authenticated `GET /api/auth/csrf-token` (`csrfToken`, no-store). Rotate on register/login/demo-login, clear on logout/invalid-session cleanup; preserve anonymous authentication/reset flows and existing authentication architecture.
+- Updated central API and multipart video fetch token headers; retain browser multipart Content-Type. Centralized client identity changes, cleared token caches, deduplicated acquisition, rejected stale token responses, and made failed logout visible without pretending success.
+- Added `tests/test_csrf_security.py`, `tests/test_csrf_frontend.py`, and `tests/csrf_frontend.cjs`. Corrected initial DELETE test setup to use an admin for the existing admin-only route; corrected added backend line endings without whole-file normalization.
+- Full host-venv verification: **56 passed, 179 warnings in 10.49s**; warnings are existing datetime.utcnow()/SQLAlchemy Query.get() deprecations exercised by wider coverage. Node frontend regressions ran without skips; no live browser/mobile/proxy test claimed. `git diff --check` passed.
+- Updated STATE, TASKS, SECURITY, TEST_RESULTS, and SESSION_LOG only after tests passed. T-003 complete; T-004 mobile HTTPS/navigation allowlisting is next P0. Security records also reconcile stale T-001 fallback-secret/cookie statements against passing implementation evidence.
+- Modified this session: `forge_backend.py`, `static/forge_demo.html`, the three new test files, and the five named agent records. Baseline hashes confirm `mobile/src/app/index.tsx` and `sandbox/Dockerfile` remain byte-for-byte unchanged. No staging or commit performed.
+
 ## 2026-09-18 — T-002 completion record synchronization
 
 - Updated only STATE, TASKS, SECURITY, TEST_RESULTS, and SESSION_LOG to reflect completed T-002, using the verified host terminal output and current implementation.

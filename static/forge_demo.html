@@ -304,15 +304,61 @@ function esc(s){
   ));
 }
 
+let csrfToken = null;
+let csrfRequest = null;
+let csrfGeneration = 0;
+
+function clearCsrfState() {
+  csrfToken = null;
+  csrfRequest = null;
+  csrfGeneration += 1;
+}
+
+function setCurrentUser(user, newSession = false) {
+  if (newSession || state.user?.id !== user?.id) clearCsrfState();
+  state.user = user;
+}
+
+async function getCsrfToken() {
+  if (!state.user) throw { status: 401, body: { error: 'Sign in before continuing.' } };
+  if (csrfToken) return csrfToken;
+  if (csrfRequest) return csrfRequest;
+  const generation = csrfGeneration;
+  const pending = (async () => {
+    const res = await fetch('/api/auth/csrf-token', { credentials: 'same-origin', cache: 'no-store' });
+    const body = await res.json();
+    if (!res.ok) throw { status: res.status, body };
+    if (generation !== csrfGeneration) throw { body: { error: 'Account changed. Please try again.' } };
+    if (!body.csrfToken) throw { body: { error: 'Could not obtain a security token.' } };
+    csrfToken = body.csrfToken;
+    return csrfToken;
+  })();
+  csrfRequest = pending;
+  try { return await pending; }
+  finally { if (csrfRequest === pending) csrfRequest = null; }
+}
+
+async function csrfHeaders(method) {
+  if (!state.user || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) return {};
+  const generation = csrfGeneration;
+  const token = await getCsrfToken();
+  if (generation !== csrfGeneration) throw { body: { error: 'Account changed. Please try again.' } };
+  return { 'X-CSRF-Token': token };
+}
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-  });
+  const method = (opts.method || 'GET').toUpperCase();
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  new Headers(opts.headers).forEach((value, key) => headers.set(key, value));
+  const securityHeaders = await csrfHeaders(method);
+  Object.entries(securityHeaders).forEach(([key, value]) => headers.set(key, value));
+  const res = await fetch(path, { ...opts, method, credentials: 'same-origin', headers });
   let body = null;
   try { body = await res.json(); } catch (e) { /* no body */ }
-  if (!res.ok) throw { status: res.status, body };
+  if (!res.ok) {
+    if (res.status === 401 || body?.code === 'csrf_failed') clearCsrfState();
+    throw { status: res.status, body };
+  }
   return body;
 }
 
@@ -428,7 +474,7 @@ async function init() {
   try {
     const user = await api('/api/auth/me');
     if (user) {
-      state.user = user;
+      setCurrentUser(user);
       initSocket();
       await Promise.all([refreshUnreadCount(), refreshOnboarding()]);
     }
@@ -659,7 +705,7 @@ async function submitLogin(ev) {
     const user = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({
       username: f.get('username'), password: f.get('password'),
     })});
-    state.user = user; state.authBusy = false; initSocket(); state.view = 'feed'; renderApp();
+    setCurrentUser(user, true); state.authBusy = false; initSocket(); state.view = 'feed'; renderApp();
   } catch (e) {
     state.authBusy = false;
     state.authError = (e.body && e.body.error) || 'Could not sign in.';
@@ -677,7 +723,7 @@ async function submitRegister(ev) {
       role: f.get('role'), name: f.get('name'), username: f.get('username'),
       email: f.get('email'), password: f.get('password'),
     })});
-    state.user = user; state.authBusy = false; initSocket(); state.view = 'feed'; renderApp();
+    setCurrentUser(user, true); state.authBusy = false; initSocket(); state.view = 'feed'; renderApp();
   } catch (e) {
     state.authBusy = false;
     state.authError = (e.body && e.body.error) || 'Could not create that account.';
@@ -689,15 +735,18 @@ async function submitRegister(ev) {
 async function demoLogin(role) {
   try {
     const user = await api('/api/auth/demo-login', { method: 'POST', body: JSON.stringify({ role }) });
-    state.user = user; initSocket(); state.view = 'feed'; renderApp();
+    setCurrentUser(user, true); initSocket(); state.view = 'feed'; renderApp();
   } catch (e) {
     toast('Demo login is off — sign in as demo_' + role + ' / demo123');
   }
 }
 
 async function logout() {
-  try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-  state.user = null; socket = null;
+  try { await api('/api/auth/logout', { method: 'POST' }); }
+  catch (e) { toast((e.body && e.body.error) || 'Could not log out. Please try again.'); return; }
+  setCurrentUser(null, true);
+  if (socket) socket.disconnect();
+  socket = null;
   state.view = 'feed';
   renderApp();
 }
@@ -871,8 +920,13 @@ async function uploadVideo(input) {
   fd.append('video', file);
   fd.append('caption', `${state.user.name} shared a video`);
   try {
-    const res = await fetch('/api/posts/video', { method: 'POST', body: fd, credentials: 'same-origin' });
-    if (!res.ok) throw { body: await res.json().catch(() => ({})) };
+    const headers = await csrfHeaders('POST');
+    const res = await fetch('/api/posts/video', { method: 'POST', body: fd, credentials: 'same-origin', headers });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 401 || body.code === 'csrf_failed') clearCsrfState();
+      throw { status: res.status, body };
+    }
     toast('Video processed and posted.');
     loadView();
   } catch (e) {
@@ -1259,7 +1313,7 @@ async function sendCoach(ev) {
 /* ==================================================================== */
 async function renderProfileView() {
   const u = await api('/api/auth/me');
-  state.user = u;
+  setCurrentUser(u);
   const showAlumniVerify = u.role === 'grad' && !u.alumniVerified;
   const isStudent = u.role === 'trade' || u.role === 'grad';
   let analyticsHtml = '';
@@ -1378,7 +1432,7 @@ function visibilityToggle(key, label, on) {
 async function toggleVisibility(key, next) {
   try {
     const u = await api('/api/profile/visibility', { method: 'PATCH', body: JSON.stringify({ [key]: next }) });
-    state.user = u;
+    setCurrentUser(u);
     loadView();
   } catch (e) { toast('Could not update that setting.'); }
 }
@@ -1393,7 +1447,7 @@ async function submitPortfolio(ev) {
   }
   try {
     const u = await api('/api/profile/portfolio', { method: 'PATCH', body: JSON.stringify(payload) });
-    state.user = u;
+    setCurrentUser(u);
     toast('Saved.');
     loadView();
   } catch (e) { toast((e.body && e.body.error) || 'Could not save.'); }
@@ -1406,7 +1460,7 @@ async function addSkill(ev) {
   ev.target.reset();
   try {
     const u = await api('/api/profile/skills', { method: 'PATCH', body: JSON.stringify({ action: 'add', skill }) });
-    state.user = u;
+    setCurrentUser(u);
     loadView();
   } catch (e) { toast((e.body && e.body.error) || 'Could not add skill.'); }
   return false;
@@ -1415,7 +1469,7 @@ async function addSkill(ev) {
 async function removeSkill(skill) {
   try {
     const u = await api('/api/profile/skills', { method: 'PATCH', body: JSON.stringify({ action: 'remove', skill }) });
-    state.user = u;
+    setCurrentUser(u);
     loadView();
   } catch (e) { toast((e.body && e.body.error) || 'Could not remove skill.'); }
 }
@@ -1425,7 +1479,7 @@ async function submitCv(ev) {
   const cvText = new FormData(ev.target).get('cvText');
   try {
     const u = await api('/api/profile/cv-upload', { method: 'POST', body: JSON.stringify({ cvText: cvText || '' }) });
-    state.user = u;
+    setCurrentUser(u);
     toast(u.skills.length ? `CV saved — detected: ${u.skills.slice(0, 3).join(', ')}` : 'CV saved.');
     loadView();
   } catch (e) { toast((e.body && e.body.error) || 'Could not save CV.'); }

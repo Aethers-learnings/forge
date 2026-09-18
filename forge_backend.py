@@ -30,6 +30,7 @@ import urllib.error
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -767,12 +768,81 @@ def require_login():
     user = User.query.get(uid)
     if not user:
         session.pop("user_id", None)
+        _clear_csrf_token()
         return None, (jsonify({"error": "not authenticated"}), 401)
     if user.suspended:
         return None, (jsonify({"error": "account suspended — contact the administrator"}), 403)
     user.last_seen = datetime.utcnow()   # cheap MAU signal for admin analytics
     db.session.commit()
     return user, None
+
+
+def _clear_csrf_token():
+    session.pop("csrf_token", None)
+    session.pop("csrf_user_id", None)
+
+
+def _set_authenticated_session(user):
+    session["user_id"] = user.id
+    # Rotate even when the same account signs in again.
+    session["csrf_token"] = secrets.token_urlsafe(32)
+    session["csrf_user_id"] = user.id
+
+
+def _http_origin(value, *, referer=False):
+    """Return a normalized (scheme, host, port), rejecting ambiguous URLs."""
+    if not value or any(c.isspace() or ord(c) < 32 for c in value) or "\\" in value:
+        return None
+    try:
+        url = urlsplit(value)
+        if (url.scheme not in ("http", "https") or not url.hostname
+                or url.username is not None or url.password is not None
+                or url.fragment or (not referer and (url.path or url.query))):
+            return None
+        port = url.port if url.port is not None else (443 if url.scheme == "https" else 80)
+        return url.scheme, url.hostname.lower(), port
+    except ValueError:
+        return None
+
+
+@app.before_request
+def protect_cookie_api_requests():
+    # Anonymous login/register/reset requests keep their existing behavior.
+    # Authenticated calls to those same routes are protected too.
+    if (not request.path.startswith("/api/")
+            or request.method in ("GET", "HEAD", "OPTIONS", "TRACE")
+            or not session.get("user_id")):
+        return None
+
+    # Use only the direct WSGI scheme and Host; never trust forwarded headers.
+    target = _http_origin(f"{request.scheme}://{request.host}")
+    if "Origin" in request.headers:
+        source = _http_origin(request.headers["Origin"])
+    else:
+        source = _http_origin(request.headers.get("Referer"), referer=True)
+    if target is None or source is None or source != target:
+        return jsonify({"error": "same-origin request required", "code": "csrf_failed"}), 403
+
+    expected = session.get("csrf_token")
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if (session.get("csrf_user_id") != session["user_id"]
+            or not isinstance(expected, str) or not expected or not supplied
+            or not secrets.compare_digest(expected.encode("utf-8"), supplied.encode("utf-8"))):
+        return jsonify({"error": "valid CSRF token required", "code": "csrf_failed"}), 403
+    return None
+
+
+@app.get("/api/auth/csrf-token")
+def csrf_token():
+    user, err = require_login()
+    if err:
+        return err
+    if not session.get("csrf_token") or session.get("csrf_user_id") != user.id:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+        session["csrf_user_id"] = user.id
+    response = jsonify({"csrfToken": session["csrf_token"]})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ---------------------------------------------------------------- auth --
@@ -814,7 +884,7 @@ def register():
     db.session.add(user)
     db.session.commit()
     seed_coach_intro(user)
-    session["user_id"] = user.id
+    _set_authenticated_session(user)
     return jsonify(user.to_public()), 201
 
 
@@ -862,7 +932,7 @@ def login():
     if user.suspended:
         return jsonify({"error": "this account has been suspended"}), 403
     _failed_logins.pop(username, None)
-    session["user_id"] = user.id
+    _set_authenticated_session(user)
     user.last_seen = datetime.utcnow()
     db.session.commit()
     # Sign-in alert: always logged as an in-app notification; also a real
@@ -944,13 +1014,14 @@ def demo_login():
     user = User.query.filter_by(username=f"demo_{role}").first()
     if not user:
         return jsonify({"error": "demo user missing - run seed"}), 500
-    session["user_id"] = user.id
+    _set_authenticated_session(user)
     return jsonify(user.to_public())
 
 
 @app.post("/api/auth/logout")
 def logout():
     session.pop("user_id", None)
+    _clear_csrf_token()
     return jsonify({"ok": True})
 
 
