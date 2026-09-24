@@ -41,3 +41,9 @@ The present signed-cookie/session mechanism remains the baseline only while P0 h
 Status: accepted (2026-09-17)
 
 Forge retains Flask's signed-cookie session model. `FORGE_ENV=production` is the explicit production boundary: it requires a non-default `FORGE_SECRET_KEY` of at least 32 characters and enables `Secure`, `HttpOnly`, `SameSite=Lax` session cookies. Development/test environments never use the historical predictable fallback; if no secret is supplied they receive a process-local random key. `FORGE_DATABASE_URI` is a supported configuration override solely to isolate tests and deployment configuration from the repository's default SQLite path. Classification: SAFE_INCREMENTAL.
+
+## D-008: Deterministic autonomous engineering controller
+
+Status: accepted (2026-09-24)
+
+Forge may use the local `scripts/forge-auto` controller for dependency-satisfied `SAFE_INCREMENTAL` backlog work. Python deterministically parses the task backlog, enforces governance, snapshots dirty paths, selects checks, bounds model calls and repair loops, validates staging, records the run, and creates a local Forge Agent commit. Isolated Codex subprocesses are limited to planning when enabled, implementation, review, and repair; they do not select work or decide safety boundaries. `MAJOR_REVIEW`, `HUMAN_APPROVAL_REQUIRED`, and protected architectural/authentication/destructive-operation boundaries stop before modification. The controller never pushes. Classification: SAFE_INCREMENTAL.

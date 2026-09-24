@@ -16,6 +16,8 @@ Last updated: 2026-09-24 (T-005 verified; roadmap P0 implementation complete; re
 
 Establish a secure, tested baseline around the existing Flask/web/WebView prototype before feature expansion or migration work.
 
+Developer tooling now includes a deterministic local autonomous-task MVP (`scripts/forge-auto`). It is limited to dependency-satisfied `SAFE_INCREMENTAL` tasks and does not alter product architecture or behavior.
+
 ## Immediate gates
 
 1. Begin T-102: harden upload request-size handling, content validation, authorization/retention policy, and upload regressions.

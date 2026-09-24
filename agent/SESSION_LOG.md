@@ -84,3 +84,6 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Full isolated Forge suite: **118 passed, 510 warnings in 15.04s**. Frontend CSRF/logout regressions, Python compilation, and `git diff --check` passed.
 - T-101 complete; T-102 upload-boundary hardening is next.
 - `sandbox/Dockerfile` remains modified, unrelated, uncommitted, and excluded.
+# 2026-09-24 — Autonomous runtime MVP
+
+- Added deterministic local `scripts/forge-auto` orchestration tooling, focused unit tests, governance/model-routing documentation, and decision D-008. It preserves pre-existing dirty product-task paths and does not run autonomous product work.

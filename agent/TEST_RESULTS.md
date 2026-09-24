@@ -129,8 +129,17 @@ Limits: these checks validate application configuration and import behavior, not
 | Full Forge suite | PASS | `pytest -q`: **118 passed, 510 warnings in 15.04s**. |
 | Frontend regression suite | PASS | CSRF helper, multipart, identity, concurrency, and logout regressions passed. |
 | Syntax / whitespace | PASS | `python -m py_compile forge_backend.py` and `git diff --check`. |
+
 | Production behavior | UNCHANGED | T-101 adds regression coverage only; no application source modified. |
 
 Initial T-101 execution had 3 test failures because the new fixture used `Notification.kind`; inspection confirmed the real model field is `Notification.type`. The test fixture was corrected without changing production behavior.
 
 Warnings remain existing `datetime.utcnow()` deprecations and SQLAlchemy `Query.get()` legacy warnings.
+
+## 2026-09-24 — Autonomous runtime MVP
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Focused runtime unit tests | PASS | `.venv/bin/python -m pytest -q tests/test_agent_runtime.py`: **11 passed**; tests use injected subprocess runners and never invoke Codex. |
+| Runtime syntax | PASS | `.venv/bin/python -m py_compile agent_runtime/__init__.py agent_runtime/runtime.py scripts/forge-auto`. |
+| Whitespace | PASS | `git diff --check`. |

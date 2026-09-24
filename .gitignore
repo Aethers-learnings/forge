@@ -36,6 +36,9 @@ ios/App/Pods/
 # Local agent runtime state
 .sandbox-state/
 
+# Transient deterministic autonomous-run artifacts
+.forge-agent/
+
 # Test-generated temporary SQLite databases
 tests/tmp*.db
 tests/tmp*.db-shm
