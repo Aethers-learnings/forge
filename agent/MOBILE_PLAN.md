@@ -1,6 +1,6 @@
 # Mobile plan
 
-Status: proposed incremental parity plan; current mobile behavior is verified separately.
+Status: T-205 native migration in progress; WebView remains the supported fallback while native workflows are added incrementally.
 
 ## Verified implementation — T-004
 
@@ -26,12 +26,28 @@ On signed Android and iOS preview/release builds:
 
 No signed builds, packaged-binary inspection or device tests were performed. Introspection verifies generated configuration but does not replace those checks.
 
+## Verified T-205 native progress — 2026-09-24
+
+Native Expo workflows currently implemented and test-protected:
+
+- authentication/session check and sign in/out;
+- profile display and onboarding progress/advance/skip;
+- student/graduate opportunities and application toggle;
+- notifications, unread counts, mark-one-read, and mark-all-read;
+- role-scoped feed loading, text post creation, likes, and comments.
+
+The WebView remains available as the full-product fallback. Native and WebView sessions are deliberately not bridged.
+
+Native `fetch` cookie persistence and manual `Origin` behavior still require signed-device/simulator verification on iOS and Android before these flows are considered production-ready.
+
+Native messaging remains blocked by the existing conversation/network ownership model: conversations do not yet carry secure participant identity and shared demo relationship state must not be exposed as a native production workflow until T-104/T-201 ownership and migration work is approved.
+
 ## Plan
 
 1. T-004 implementation complete; perform the release-device gates above before release. Classification: SAFE_INCREMENTAL.
 2. Establish a tested API contract shared with web, including session/CSRF behavior and error schemas. Classification: SAFE_INCREMENTAL.
-3. Build native authentication/session and profile/onboarding flows, retaining the WebView as the supported fallback. Classification: SAFE_INCREMENTAL.
-4. Add native discovery, opportunities/applications, notifications, and messaging only after ownership/realtime policy is corrected. Classification: SAFE_INCREMENTAL.
+3. Native authentication/session and profile/onboarding flows are implemented; retain WebView fallback and complete signed-device session/CSRF verification. Classification: SAFE_INCREMENTAL.
+4. Native opportunities/applications, notifications, and feed/post interactions are implemented. Continue safe native product slices; messaging remains blocked until ownership/realtime policy is corrected. Classification: SAFE_INCREMENTAL.
 5. Add lifecycle-aware networking, caching, retry/error states, accessibility, touch/keyboard support, and device notification strategy. Classification: SAFE_INCREMENTAL.
 6. Decide whether WebView retirement is appropriate only after measurable native parity, security, and support evidence. Classification: MAJOR_REVIEW.
 

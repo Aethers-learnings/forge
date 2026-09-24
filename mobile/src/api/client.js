@@ -76,6 +76,33 @@ async function logout(baseUrl) {
   });
 }
 
+async function getFeed(baseUrl) {
+  return request(baseUrl, '/api/feed');
+}
+
+async function createPost(baseUrl, body) {
+  return request(baseUrl, '/api/posts', {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
+async function togglePostLike(baseUrl, postId) {
+  return request(baseUrl, `/api/posts/${postId}/like`, {
+    method: 'POST',
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
+async function addPostComment(baseUrl, postId, text) {
+  return request(baseUrl, `/api/posts/${postId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
 async function getOpportunities(baseUrl) {
   return request(baseUrl, '/api/opportunities');
 }
@@ -128,6 +155,10 @@ module.exports = {
   currentUser,
   login,
   logout,
+  getFeed,
+  createPost,
+  togglePostLike,
+  addPostComment,
   getOpportunities,
   toggleOpportunityApplication,
   getNotifications,

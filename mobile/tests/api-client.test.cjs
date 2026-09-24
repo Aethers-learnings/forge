@@ -191,6 +191,165 @@ test('skip onboarding uses the same CSRF protection', async () => {
   assert.equal(calls[1][1].headers['X-CSRF-Token'], 'skip-token');
 });
 
+test('feed uses the stable authenticated post contract', async () => {
+  let requestUrl;
+
+  global.fetch = async (url) => {
+    requestUrl = url;
+    return new Response(JSON.stringify([{
+      id: 4,
+      name: 'Sam',
+      role: 'trade',
+      color: '#2c6e62',
+      body: 'Hello',
+      media: false,
+      videoUrl: null,
+      thumbUrl: null,
+      pick: false,
+      flagged: false,
+      likeCount: 0,
+      likedByMe: false,
+      comments: [],
+    }]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.getFeed('https://forge.example/');
+
+  assert.equal(requestUrl, 'https://forge.example/api/feed');
+  assert.equal(result[0].body, 'Hello');
+  assert.equal(result[0].likedByMe, false);
+});
+
+test('native post creation uses CSRF protected text contract', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({ csrfToken: 'post-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      id: 5,
+      name: 'Sam',
+      role: 'trade',
+      body: 'Building Forge',
+      likeCount: 0,
+      likedByMe: false,
+      comments: [],
+    }), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.createPost(
+    'https://forge.example/',
+    'Building Forge'
+  );
+
+  assert.equal(calls[1][0], 'https://forge.example/api/posts');
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(calls[1][1].headers.Origin, 'https://forge.example');
+  assert.equal(calls[1][1].headers['X-CSRF-Token'], 'post-token');
+  assert.deepEqual(
+    JSON.parse(calls[1][1].body),
+    { body: 'Building Forge' }
+  );
+  assert.equal(result.id, 5);
+});
+
+test('native post like toggle is CSRF protected', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({ csrfToken: 'like-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      id: 5,
+      name: 'Sam',
+      role: 'trade',
+      body: 'Building Forge',
+      likeCount: 1,
+      likedByMe: true,
+      comments: [],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.togglePostLike(
+    'https://forge.example/',
+    5
+  );
+
+  assert.equal(calls[1][0], 'https://forge.example/api/posts/5/like');
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(calls[1][1].headers['X-CSRF-Token'], 'like-token');
+  assert.equal(result.likedByMe, true);
+});
+
+test('native comments use CSRF protected text contract', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({ csrfToken: 'comment-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      id: 5,
+      name: 'Sam',
+      role: 'trade',
+      body: 'Building Forge',
+      likeCount: 0,
+      likedByMe: false,
+      comments: [{ who: 'Alex', text: 'Nice work' }],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.addPostComment(
+    'https://forge.example/',
+    5,
+    'Nice work'
+  );
+
+  assert.equal(
+    calls[1][0],
+    'https://forge.example/api/posts/5/comments'
+  );
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(calls[1][1].headers['X-CSRF-Token'], 'comment-token');
+  assert.deepEqual(
+    JSON.parse(calls[1][1].body),
+    { text: 'Nice work' }
+  );
+  assert.equal(result.comments[0].text, 'Nice work');
+});
+
 test('opportunities use the stable authenticated list contract', async () => {
   let requestUrl;
 

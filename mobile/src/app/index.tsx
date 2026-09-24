@@ -11,6 +11,10 @@ import {
   currentUser,
   login,
   logout,
+  getFeed,
+  createPost,
+  togglePostLike,
+  addPostComment,
   getOnboarding,
   advanceOnboarding,
   skipOnboarding,
@@ -43,7 +47,14 @@ export default function Index() {
   const [onboardingBusy, setOnboardingBusy] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [nativeSection, setNativeSection] =
-    useState<'profile' | 'opportunities' | 'notifications'>('profile');
+    useState<'feed' | 'profile' | 'opportunities' | 'notifications'>('profile');
+  const [feedPosts, setFeedPosts] = useState<any[]>([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const [feedBusyKey, setFeedBusyKey] = useState<string | null>(null);
+  const [newPostBody, setNewPostBody] = useState('');
+  const [commentDrafts, setCommentDrafts] =
+    useState<Record<number, string>>({});
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [opportunitiesError, setOpportunitiesError] = useState<string | null>(null);
@@ -112,6 +123,11 @@ export default function Index() {
       setOnboarding(null);
       setOnboardingError(null);
       setNativeSection('profile');
+      setFeedPosts([]);
+      setFeedError(null);
+      setFeedBusyKey(null);
+      setNewPostBody('');
+      setCommentDrafts({});
       setOpportunities([]);
       setOpportunitiesError(null);
       setNotifications([]);
@@ -177,6 +193,102 @@ export default function Index() {
       cancelled = true;
     };
   }, [nativeMode, serverUrl, nativeUserId]);
+
+  useEffect(() => {
+    if (
+      !nativeMode ||
+      !serverUrl ||
+      !nativeUserId ||
+      nativeSection !== 'feed'
+    ) return;
+
+    let cancelled = false;
+
+    void getFeed(serverUrl)
+      .then((items: any[]) => {
+        if (!cancelled) {
+          setFeedPosts(Array.isArray(items) ? items : []);
+          setFeedError(null);
+        }
+      })
+      .catch((error: any) => {
+        if (!cancelled) {
+          setFeedError(error?.message || 'Could not load your feed.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setFeedLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeMode, serverUrl, nativeUserId, nativeSection]);
+
+  const handleCreatePost = async () => {
+    if (!serverUrl || feedBusyKey !== null || !newPostBody.trim()) return;
+
+    setFeedBusyKey('create');
+    setFeedError(null);
+
+    try {
+      const created = await createPost(serverUrl, newPostBody.trim());
+      setFeedPosts((items: any[]) => [
+        created,
+        ...items.filter((item: any) => item.id !== created.id),
+      ]);
+      setNewPostBody('');
+    } catch (error: any) {
+      setFeedError(error?.message || 'Could not publish your post.');
+    } finally {
+      setFeedBusyKey(null);
+    }
+  };
+
+  const handleTogglePostLike = async (postId: number) => {
+    if (!serverUrl || feedBusyKey !== null) return;
+
+    const busyKey = `like:${postId}`;
+    setFeedBusyKey(busyKey);
+    setFeedError(null);
+
+    try {
+      const updated = await togglePostLike(serverUrl, postId);
+      setFeedPosts((items: any[]) =>
+        items.map((item: any) => item.id === postId ? updated : item)
+      );
+    } catch (error: any) {
+      setFeedError(error?.message || 'Could not update the like.');
+    } finally {
+      setFeedBusyKey(null);
+    }
+  };
+
+  const handleAddPostComment = async (postId: number) => {
+    if (!serverUrl || feedBusyKey !== null) return;
+
+    const text = (commentDrafts[postId] || '').trim();
+    if (!text) return;
+
+    const busyKey = `comment:${postId}`;
+    setFeedBusyKey(busyKey);
+    setFeedError(null);
+
+    try {
+      const updated = await addPostComment(serverUrl, postId, text);
+      setFeedPosts((items: any[]) =>
+        items.map((item: any) => item.id === postId ? updated : item)
+      );
+      setCommentDrafts((drafts) => ({
+        ...drafts,
+        [postId]: '',
+      }));
+    } catch (error: any) {
+      setFeedError(error?.message || 'Could not add your comment.');
+    } finally {
+      setFeedBusyKey(null);
+    }
+  };
 
   const canUseOpportunities =
     nativeUser?.role === 'trade' || nativeUser?.role === 'grad';
@@ -400,6 +512,11 @@ export default function Index() {
       setOnboarding(null);
       setOnboardingError(null);
       setNativeSection('profile');
+      setFeedPosts([]);
+      setFeedError(null);
+      setFeedBusyKey(null);
+      setNewPostBody('');
+      setCommentDrafts({});
       setOpportunities([]);
       setOpportunitiesError(null);
       setNotifications([]);
@@ -524,6 +641,29 @@ export default function Index() {
             <View style={styles.sectionTabs}>
               <TouchableOpacity
                 accessibilityRole="button"
+                accessibilityState={{ selected: nativeSection === 'feed' }}
+                style={[
+                  styles.sectionTab,
+                  nativeSection === 'feed' && styles.sectionTabActive,
+                ]}
+                onPress={() => {
+                  setFeedLoading(true);
+                  setFeedError(null);
+                  setNativeSection('feed');
+                }}
+              >
+                <Text
+                  style={[
+                    styles.sectionTabText,
+                    nativeSection === 'feed' && styles.sectionTabTextActive,
+                  ]}
+                >
+                  Feed
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                accessibilityRole="button"
                 accessibilityState={{ selected: nativeSection === 'profile' }}
                 style={[
                   styles.sectionTab,
@@ -604,6 +744,192 @@ export default function Index() {
                 </View>
               </TouchableOpacity>
             </View>
+
+            {nativeSection === 'feed' && (
+              <View>
+                <View style={styles.opportunityHeader}>
+                  <Text style={styles.cardEyebrow}>COMMUNITY</Text>
+                  <Text style={styles.opportunityTitle}>Your Forge feed</Text>
+                  <Text style={styles.opportunityIntro}>
+                    Share progress, ideas and updates with your Forge community.
+                  </Text>
+                </View>
+
+                <View style={styles.feedComposer}>
+                  <Text style={styles.feedComposerTitle}>Create a post</Text>
+                  <TextInput
+                    accessibilityLabel="New post"
+                    style={styles.feedInput}
+                    value={newPostBody}
+                    onChangeText={setNewPostBody}
+                    placeholder="What are you working on?"
+                    multiline
+                    textAlignVertical="top"
+                    editable={feedBusyKey === null}
+                  />
+
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    disabled={feedBusyKey !== null || !newPostBody.trim()}
+                    style={[
+                      styles.button,
+                      (feedBusyKey !== null || !newPostBody.trim()) &&
+                        styles.buttonDisabled,
+                    ]}
+                    onPress={handleCreatePost}
+                  >
+                    <Text style={styles.buttonText}>
+                      {feedBusyKey === 'create' ? 'Publishing…' : 'Publish post'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {feedLoading && feedPosts.length === 0 && (
+                  <View style={styles.profileCard}>
+                    <Text style={styles.profileBio}>Loading your feed…</Text>
+                  </View>
+                )}
+
+                {feedError && (
+                  <Text accessibilityRole="alert" style={styles.nativeError}>
+                    {feedError}
+                  </Text>
+                )}
+
+                {!feedLoading &&
+                  !feedError &&
+                  feedPosts.length === 0 && (
+                    <View style={styles.profileCard}>
+                      <Text style={styles.profileHeadline}>
+                        Nothing here yet
+                      </Text>
+                      <Text style={styles.profileBio}>
+                        Be the first to share something with your Forge community.
+                      </Text>
+                    </View>
+                  )}
+
+                {feedPosts.map((post: any) => {
+                  const comments = Array.isArray(post.comments)
+                    ? post.comments
+                    : [];
+                  const recentComments = comments.slice(-3);
+                  const commentBusyKey = `comment:${post.id}`;
+                  const likeBusyKey = `like:${post.id}`;
+
+                  return (
+                    <View key={post.id} style={styles.feedPostCard}>
+                      <View style={styles.feedPostTopRow}>
+                        <View style={styles.feedAuthorBlock}>
+                          <Text style={styles.feedAuthor}>
+                            {post.name || 'Forge member'}
+                          </Text>
+                          <Text style={styles.feedRole}>
+                            {(post.role || 'member').toUpperCase()}
+                          </Text>
+                        </View>
+
+                        {post.pick && (
+                          <View style={styles.feedFeaturedBadge}>
+                            <Text style={styles.feedFeaturedText}>FEATURED</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={styles.feedBody}>{post.body}</Text>
+
+                      {post.media && (
+                        <Text style={styles.feedMediaNote}>
+                          Video post · open the full web experience to watch
+                        </Text>
+                      )}
+
+                      <View style={styles.feedActions}>
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          disabled={feedBusyKey !== null}
+                          style={[
+                            styles.feedActionButton,
+                            post.likedByMe && styles.feedActionButtonActive,
+                          ]}
+                          onPress={() => handleTogglePostLike(post.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.feedActionText,
+                              post.likedByMe && styles.feedActionTextActive,
+                            ]}
+                          >
+                            {feedBusyKey === likeBusyKey
+                              ? 'Updating…'
+                              : `${post.likedByMe ? 'Liked' : 'Like'} · ${post.likeCount || 0}`}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {recentComments.length > 0 && (
+                        <View style={styles.feedComments}>
+                          {comments.length > recentComments.length && (
+                            <Text style={styles.feedCommentCount}>
+                              Latest {recentComments.length} of {comments.length} comments
+                            </Text>
+                          )}
+
+                          {recentComments.map((comment: any, index: number) => (
+                            <View
+                              key={`${post.id}-${index}-${comment.who}`}
+                              style={styles.feedComment}
+                            >
+                              <Text style={styles.feedCommentWho}>
+                                {comment.who}
+                              </Text>
+                              <Text style={styles.feedCommentText}>
+                                {comment.text}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      <View style={styles.feedCommentComposer}>
+                        <TextInput
+                          accessibilityLabel={`Comment on post by ${post.name || 'Forge member'}`}
+                          style={styles.feedCommentInput}
+                          value={commentDrafts[post.id] || ''}
+                          onChangeText={(value) =>
+                            setCommentDrafts((drafts) => ({
+                              ...drafts,
+                              [post.id]: value,
+                            }))
+                          }
+                          placeholder="Add a comment"
+                          editable={feedBusyKey === null}
+                        />
+
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          disabled={
+                            feedBusyKey !== null ||
+                            !(commentDrafts[post.id] || '').trim()
+                          }
+                          style={[
+                            styles.feedCommentButton,
+                            (feedBusyKey !== null ||
+                              !(commentDrafts[post.id] || '').trim()) &&
+                              styles.buttonDisabled,
+                          ]}
+                          onPress={() => handleAddPostComment(post.id)}
+                        >
+                          <Text style={styles.feedCommentButtonText}>
+                            {feedBusyKey === commentBusyKey ? 'Sending…' : 'Send'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
 
             {nativeSection === 'profile' && (
               <>
@@ -1204,13 +1530,16 @@ const styles = StyleSheet.create({
   },
   sectionTabs: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     backgroundColor: '#eadfce',
     borderRadius: 12,
     padding: 4,
+    gap: 4,
     marginBottom: 16,
   },
   sectionTab: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '48%',
     minHeight: 42,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1245,6 +1574,166 @@ const styles = StyleSheet.create({
   unreadBadgeText: {
     color: '#fff8ee',
     fontSize: 10,
+    fontWeight: '800',
+  },
+  feedComposer: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+  },
+  feedComposerTitle: {
+    color: '#1a1a1a',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  feedInput: {
+    minHeight: 92,
+    borderWidth: 1,
+    borderColor: '#d8c9b8',
+    borderRadius: 12,
+    backgroundColor: '#fffdf8',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#1a1a1a',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  feedPostCard: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 14,
+  },
+  feedPostTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  feedAuthorBlock: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  feedAuthor: {
+    color: '#1a1a1a',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  feedRole: {
+    color: '#8a7767',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    marginTop: 3,
+  },
+  feedFeaturedBadge: {
+    backgroundColor: '#efe4d6',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  feedFeaturedText: {
+    color: '#b5432b',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  feedBody: {
+    color: '#27221d',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  feedMediaNote: {
+    color: '#716558',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 10,
+  },
+  feedActions: {
+    flexDirection: 'row',
+    marginTop: 14,
+  },
+  feedActionButton: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 9,
+    backgroundColor: '#efe4d6',
+  },
+  feedActionButtonActive: {
+    borderWidth: 1,
+    borderColor: '#b5432b',
+  },
+  feedActionText: {
+    color: '#625a50',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  feedActionTextActive: {
+    color: '#b5432b',
+  },
+  feedComments: {
+    borderTopWidth: 1,
+    borderTopColor: '#eadfce',
+    marginTop: 14,
+    paddingTop: 12,
+    gap: 9,
+  },
+  feedCommentCount: {
+    color: '#8a7767',
+    fontSize: 10,
+  },
+  feedComment: {
+    backgroundColor: '#f4ede0',
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  feedCommentWho: {
+    color: '#1a1a1a',
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  feedCommentText: {
+    color: '#514a42',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  feedCommentComposer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  feedCommentInput: {
+    flex: 1,
+    minHeight: 40,
+    borderWidth: 1,
+    borderColor: '#d8c9b8',
+    borderRadius: 10,
+    backgroundColor: '#fffdf8',
+    paddingHorizontal: 11,
+    color: '#1a1a1a',
+    fontSize: 12,
+  },
+  feedCommentButton: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#b5432b',
+  },
+  feedCommentButtonText: {
+    color: '#fff8ee',
+    fontSize: 11,
     fontWeight: '800',
   },
   notificationHeader: {
