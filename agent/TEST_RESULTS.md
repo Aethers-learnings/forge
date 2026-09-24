@@ -89,3 +89,10 @@ Preservation: Dockerfile hash matches the starting baseline. The static frontend
 - `git diff --check`: PASS.
 - Install warnings: 14 moderate npm audit vulnerabilities, deprecated ESLint 9.39.5 and pending/unapproved unrs-resolver postinstall script. No broad audit fix or script approval was applied; lint passed. Dependency remediation is separate work.
 - Screen tests use mocked React/native components; installed WebView native handlers were inspected but not exercised on devices. No signed native build/device tests or final packaged native config inspection. HTTPS subresource/CSP restrictions are outside this navigation policy.
+
+## 2026-09-24 — V2/profile-image checkpoint
+
+- `.venv-host/bin/python -m pytest -q`: 69 passed, 251 deprecation warnings in 11.65s, including 13 profile-image tests.
+- `node tests/csrf_frontend.cjs`: passed CSRF, multipart, identity, concurrency and logout regressions; parses all inline script blocks with vm.Script.
+- Backend AST syntax check and `git diff --check`: passed.
+- Tests use isolated database/image storage. No manual desktop/phone verification performed in this session.

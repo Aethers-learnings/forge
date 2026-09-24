@@ -57,3 +57,7 @@ Verified: 33 mobile tests; mobile lint, TypeScript, native preview/production co
 Preservation: Dockerfile hash matches the starting baseline. The static frontend changed concurrently during this session; this task never wrote it and leaves its current contents intact. The pre-existing mobile error handling remains. No existing locked dependency versions changed or entries were removed.
 
 Added missing lint tooling and repaired two small existing lint issues (apostrophe and web hydration). npm reported 14 moderate vulnerabilities, ESLint deprecation and a pending resolver script; no broad upgrades/script approvals. Updated all six requested agent records. Remaining release work is in MOBILE_PLAN.md; T-005 is next P0.
+
+## 2026-09-24 — prepare V2/profile-image commit and push
+
+Reviewed the real current master checkout and preserved all existing V2/profile-image source changes, including backend line-ending normalization. Intended source scope: forge_backend.py, requirements.txt, static/forge_demo.html, tests/conftest.py, tests/test_profile_images.py. Updated state and test evidence. All 69 tests and frontend/backend syntax, CSRF/logout, and whitespace checks passed. User authorized a normal push to origin/master without history rewriting. sandbox/Dockerfile excluded and preserved byte-for-byte (SHA-256 c05ebde6159325507f89fa05b66c620cb6afccf76ada0af5c017d53b6b401f75). Frontend upload/remove controls are absent and remain future work; this checkpoint does not claim they exist. Commit/push outcome is reported in the task response.

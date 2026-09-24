@@ -103,13 +103,14 @@
   }
   .brand{display:flex;align-items:center;gap:10px;}
   .brand .mark{
-    width:34px;height:34px;border-radius:11px;
-    background:linear-gradient(135deg,#ff744f 0%,var(--rust) 48%,#c2381d 100%);
+    width:36px;height:36px;border-radius:12px;
     display:grid;place-items:center;
-    color:white;
-    box-shadow:0 9px 22px rgba(255,90,54,.28),inset 0 1px 0 rgba(255,255,255,.25);
+    color:var(--rust);
+    background:rgba(255,255,255,.04);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
     flex:0 0 auto;
   }
+  .brand .mark svg{width:100%;height:100%;display:block;}
   .brand .word{
     font-family:'Space Grotesk';font-weight:700;font-size:20px;letter-spacing:-.03em;
   }
@@ -145,16 +146,19 @@
     color:#fff;
     box-shadow:inset 3px 0 0 var(--rust);
   }
-  .sidebar .navbtn .dot{
-    width:8px;height:8px;border-radius:3px;background:#465269;opacity:1;flex:0 0 auto;
-    transition:all .18s ease;
-  }
-  .sidebar .navbtn.active .dot{background:var(--rust);box-shadow:0 0 0 4px rgba(255,90,54,.12);}
+  .nav-icon{width:18px;height:18px;display:grid;place-items:center;flex:0 0 auto;}
+  .nav-icon svg{width:18px;height:18px;display:block;}
+  .sidebar .navbtn .nav-icon{color:#728097;transition:color .18s ease;}
+  .sidebar .navbtn.active .nav-icon{color:var(--rust);}
   .sidebar-footer{
     margin-top:auto;
     border-top:1px solid rgba(255,255,255,.08);
-    padding:16px 6px 0;
+    padding:14px 4px 0;
   }
+  .sidebar-account{
+    width:100%;border:0;background:transparent;color:inherit;cursor:pointer;padding:8px;border-radius:12px;text-align:left;
+  }
+  .sidebar-account:hover{background:rgba(255,255,255,.05);}
   .mini-user{display:flex;align-items:center;gap:10px;min-width:0;}
   .mini-user-copy{min-width:0;flex:1;}
   .mini-user-name{font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -203,8 +207,31 @@
   }
   .icon-btn:hover{opacity:1;background:#f8fafc;border-color:var(--line);}
   .top-profile-btn{
-    width:38px;height:38px;border:0;background:transparent;padding:0;cursor:pointer;border-radius:12px;
+    width:40px;height:40px;border:1px solid transparent;background:transparent;padding:2px;cursor:pointer;border-radius:13px;
   }
+  .top-profile-btn:hover{background:#f8fafc;border-color:var(--line);}
+
+  .account-menu{position:absolute;inset:0;z-index:90;display:none;}
+  .account-menu.open{display:block;}
+  .account-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.26);backdrop-filter:blur(2px);}
+  .account-panel{
+    position:absolute;top:74px;right:24px;width:min(340px,calc(100% - 28px));
+    background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);overflow:hidden;
+  }
+  .account-head{padding:16px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:12px;}
+  .account-head-copy{min-width:0;flex:1;}
+  .account-head-name{font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .account-head-meta{font-size:11.5px;color:var(--muted);margin-top:3px;}
+  .account-actions{padding:8px;}
+  .account-action{
+    width:100%;min-height:44px;border:0;background:transparent;border-radius:11px;display:flex;align-items:center;gap:11px;
+    padding:0 11px;color:var(--ink);cursor:pointer;font-size:13px;font-weight:650;text-align:left;
+  }
+  .account-action:hover{background:#f8fafc;}
+  .account-action .nav-icon{color:var(--muted);}
+  .account-action.danger{color:var(--danger);}
+  .account-action.danger .nav-icon{color:var(--danger);}
+  .account-divider{height:1px;background:var(--line-soft);margin:7px 0;}
 
   #content{
     flex:1 1 auto;
@@ -354,6 +381,7 @@
   .avatar.lg{width:64px;height:64px;border-radius:19px;font-size:18px;}
   .avatar.xl{width:84px;height:84px;border-radius:24px;font-size:22px;border:4px solid #fff;box-shadow:0 14px 28px rgba(15,23,42,.16);}
   .avatar[data-color]{background:var(--avatar-bg,#334155);}
+  .avatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit;}
 
   .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
   .stat-tile{
@@ -583,8 +611,9 @@
     .sidebar{display:none;}
     .workspace{height:100%;}
     .topbar{
-      min-height:64px;padding:10px 14px;
-      background:rgba(255,255,255,.94);
+      min-height:calc(62px + env(safe-area-inset-top));
+      padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
+      background:rgba(255,255,255,.96);
     }
     .mobile-brand{display:flex;}
     .mobile-brand .word{font-size:17px;}
@@ -598,26 +627,27 @@
     #content > *{max-width:100%;}
     .bottomnav{
       position:absolute;left:0;right:0;bottom:0;
-      display:flex;overflow-x:auto;
+      display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
       border-top:1px solid var(--line);
-      background:rgba(255,255,255,.96);
+      background:rgba(255,255,255,.97);
       backdrop-filter:blur(18px);
-      padding:6px 7px calc(6px + env(safe-area-inset-bottom));
+      padding:6px 6px calc(6px + env(safe-area-inset-bottom));
       z-index:20;
-      scrollbar-width:none;
     }
-    .bottomnav::-webkit-scrollbar{display:none;}
     .bottomnav .navbtn{
-      flex:1 0 62px;min-width:62px;min-height:48px;
-      border:0;background:transparent;color:#78869a;cursor:pointer;
-      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-      padding:5px 3px;font-size:9.5px;font-weight:700;border-radius:10px;
+      min-width:0;min-height:52px;border:0;background:transparent;color:#7a8798;cursor:pointer;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+      padding:5px 2px;font-size:9px;font-weight:750;border-radius:11px;
     }
-    .bottomnav .navbtn .dot{
-      width:6px;height:6px;border-radius:3px;background:#d7dee8;opacity:1;
+    .bottomnav .nav-icon{width:20px;height:20px;}
+    .bottomnav .nav-icon svg{width:20px;height:20px;}
+    .bottomnav .navbtn.active{color:var(--rust);background:#fff4f0;}
+    .account-panel{
+      top:auto;left:0;right:0;bottom:0;width:100%;max-height:min(78dvh,620px);
+      border-radius:24px 24px 0 0;border-bottom:0;
+      padding-bottom:env(safe-area-inset-bottom);
     }
-    .bottomnav .navbtn.active{color:var(--ink);background:#fff3ef;}
-    .bottomnav .navbtn.active .dot{background:var(--rust);}
+    .account-backdrop{background:rgba(15,23,42,.42);}
     .view-head{align-items:flex-start;margin-bottom:16px;}
     .view-head h1{font-size:21px;}
     .view-head-actions{display:none;}
@@ -677,10 +707,10 @@
 
 /* ------------------------------------------------------------------ logo */
 const LOGO_MARK = `
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 2.5l1.15 3.1L16.5 7l-3.35 1.4L12 11.5l-1.15-3.1L7.5 7l3.35-1.4L12 2.5z" fill="currentColor"/>
-    <path d="M2.5 14.8h6.2l1.1-1.6h4.4l1.1 1.6h6.2v1.9c0 .6-.45 1-1 1H3.5c-.55 0-1-.4-1-1v-1.9z" fill="currentColor"/>
-    <rect x="9.5" y="17.7" width="5" height="2.8" rx="0.4" fill="currentColor"/>
+  <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M16 2.5 27 8.7v14.6L16 29.5 5 23.3V8.7L16 2.5Z" fill="currentColor"/>
+    <path d="M10.3 9.1h12.2v4h-7.8v3.25h6.65v3.85H14.7v6.7h-4.4V9.1Z" fill="white"/>
+    <path d="m22.7 5.65 1.1 1.1-1.1 1.1-1.1-1.1 1.1-1.1Z" fill="#FFD6CC"/>
   </svg>`;
 
 /* --------------------------------------------------------- icon set --- */
@@ -708,6 +738,20 @@ const ICON_VIDEO = `
     <rect x="2.5" y="6" width="13" height="12" rx="1.6" stroke="currentColor" stroke-width="1.6"/>
     <path d="M15.5 10l6-3.2v10.4l-6-3.2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
   </svg>`;
+
+const NAV_ICONS = {
+  feed: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5h16M4 12h16M4 18.5h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  discover: '<svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  listings: '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M4 12h16" stroke="currentColor" stroke-width="1.8"/></svg>',
+  admin: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 19 6v5.2c0 4.4-2.8 7.6-7 9.3-4.2-1.7-7-4.9-7-9.3V6l7-2.5Z" stroke="currentColor" stroke-width="1.8"/><path d="m9.4 12 1.7 1.7 3.6-3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  network: '<svg viewBox="0 0 24 24" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="9" r="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.5-3.2 2.1-5 4.5-5s4 1.8 4.5 5M13.5 18.5c.4-2.5 1.6-3.9 3.6-3.9 1.9 0 3.1 1.3 3.5 3.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  messages: '<svg viewBox="0 0 24 24" fill="none"><path d="M5 5.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-5 3v-3H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  coach: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 14 8l4.5 2-4.5 2-2 4.5-2-4.5-4.5-2L10 8l2-4.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m18 15 .9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9L18 15Z" fill="currentColor"/></svg>',
+  profile: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 20c.6-4 2.8-6.2 6.5-6.2S17.9 16 18.5 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  notifications: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 10.5a6 6 0 0 1 12 0c0 4 1.3 5.2 1.3 5.2H4.7S6 14.5 6 10.5Z" stroke="currentColor" stroke-width="1.8"/><path d="M10 18.8a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  logout: '<svg viewBox="0 0 24 24" fill="none"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 8l4 4-4 4M9 12h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+function navIcon(key) { return `<span class="nav-icon">${NAV_ICONS[key] || NAV_ICONS.feed}</span>`; }
 /* One-letter badge per notification type — a colour cue without an emoji.*/
 const NOTIF_BADGE = {
   applicant: ['A', '#0f766e'], approval: ['A', '#2563eb'], verification: ['V', '#b7791f'],
@@ -790,10 +834,11 @@ function initials(name) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('') || '?';
 }
 
-function avatarHtml(name, color, size = '') {
+function avatarHtml(name, color, size = '', avatarUrl = '') {
   const safe = esc(name || 'Forge user');
   const bg = esc(color || '#334155');
-  return `<span class="avatar ${esc(size)}" style="background:${bg};" title="${safe}" aria-label="${safe}">${esc(initials(name))}</span>`;
+  const photo = avatarUrl ? `<img src="${esc(avatarUrl)}" alt="" loading="lazy"/>` : esc(initials(name));
+  return `<span class="avatar ${esc(size)}" style="background:${bg};" title="${safe}" aria-label="${safe}">${photo}</span>`;
 }
 
 function prettyRole(role) {
@@ -1282,14 +1327,26 @@ const NAV_BY_ROLE = {
   business: [['feed','Community'],['listings','Hiring'],['network','Network'],['messages','Messages'],['coach','Coach'],['profile','Profile']],
   admin:    [['feed','Community'],['admin','Admin'],['network','Network'],['messages','Messages'],['coach','Coach'],['profile','Profile']],
 };
+const MOBILE_NAV_BY_ROLE = {
+  trade:    [['feed','Home'],['discover','Discover'],['network','Network'],['messages','Messages'],['profile','Profile']],
+  grad:     [['feed','Home'],['discover','Discover'],['network','Network'],['messages','Messages'],['profile','Profile']],
+  business: [['feed','Home'],['listings','Hiring'],['network','Network'],['messages','Messages'],['profile','Profile']],
+  admin:    [['feed','Home'],['admin','Admin'],['network','Network'],['messages','Messages'],['profile','Profile']],
+};
+
+function navButtonsHtml(items) {
+  return items.map(([key,label]) => `
+    <button class="navbtn ${state.view === key ? 'active' : ''}" data-view="${key}" onclick="goto('${key}')">
+      ${navIcon(key)}<span>${label}</span>
+    </button>`).join('');
+}
 
 function renderShell() {
   const role = state.user.role;
   const nav = NAV_BY_ROLE[role] || NAV_BY_ROLE.trade;
-  const navButtons = nav.map(([key,label]) => `
-    <button class="navbtn ${state.view === key ? 'active' : ''}" data-view="${key}" onclick="goto('${key}')">
-      <span class="dot"></span><span>${label}</span>
-    </button>`).join('');
+  const mobileNav = MOBILE_NAV_BY_ROLE[role] || MOBILE_NAV_BY_ROLE.trade;
+  const navButtons = navButtonsHtml(nav);
+  const mobileNavButtons = navButtonsHtml(mobileNav);
 
   return `
   <div class="shell">
@@ -1301,13 +1358,15 @@ function renderShell() {
       <p class="sidebar-tagline">Build proof. Find opportunity. Keep moving.</p>
       <nav class="sidebar-nav">${navButtons}</nav>
       <div class="sidebar-footer">
-        <div class="mini-user">
-          ${avatarHtml(state.user.name, state.user.color, 'sm')}
-          <div class="mini-user-copy">
-            <div class="mini-user-name">${esc(state.user.name)}</div>
-            <div class="mini-user-role">${esc(prettyRole(role))}</div>
+        <button class="sidebar-account" onclick="goto('profile')">
+          <div class="mini-user">
+            ${avatarHtml(state.user.name, state.user.color, 'sm', state.user.avatarUrl)}
+            <div class="mini-user-copy">
+              <div class="mini-user-name">${esc(state.user.name)}</div>
+              <div class="mini-user-role">${esc(prettyRole(role))}</div>
+            </div>
           </div>
-        </div>
+        </button>
         <button class="sidebar-logout" onclick="logout()">Sign out</button>
       </div>
     </aside>
@@ -1330,16 +1389,54 @@ function renderShell() {
               font-size:9px;font-weight:800;border-radius:99px;min-width:15px;height:15px;line-height:15px;
               text-align:center;padding:0 3px;border:2px solid #fff;"></span>
           </button>
-          <button class="top-profile-btn" onclick="goto('profile')" title="Open profile" aria-label="Open profile">
-            ${avatarHtml(state.user.name, state.user.color, 'sm')}
+          <button id="account-menu-button" class="top-profile-btn" onclick="toggleAccountMenu()" title="Account menu" aria-label="Open account menu" aria-expanded="false">
+            ${avatarHtml(state.user.name, state.user.color, 'sm', state.user.avatarUrl)}
           </button>
         </div>
       </header>
       <div id="content"><div class="loading">Loading Forge…</div></div>
-      <nav class="bottomnav">${navButtons}</nav>
+      <nav class="bottomnav">${mobileNavButtons}</nav>
     </section>
+    <div class="account-menu" id="account-menu" aria-hidden="true">
+      <div class="account-backdrop" onclick="closeAccountMenu()"></div>
+      <section class="account-panel" role="dialog" aria-modal="true" aria-label="Account menu">
+        <div class="account-head">
+          ${avatarHtml(state.user.name, state.user.color, 'lg', state.user.avatarUrl)}
+          <div class="account-head-copy">
+            <div class="account-head-name">${esc(state.user.name)}</div>
+            <div class="account-head-meta">${esc(prettyRole(role))} · @${esc(state.user.username || '')}</div>
+          </div>
+        </div>
+        <div class="account-actions">
+          <button class="account-action" onclick="accountGoto('profile')">${navIcon('profile')}<span>View & edit profile</span></button>
+          <button class="account-action" onclick="accountGoto('notifications')">${navIcon('notifications')}<span>Notifications</span></button>
+          <button class="account-action" onclick="accountGoto('coach')">${navIcon('coach')}<span>Career coach</span></button>
+          <div class="account-divider"></div>
+          <button class="account-action danger" onclick="logout()">${navIcon('logout')}<span>Sign out</span></button>
+        </div>
+      </section>
+    </div>
   </div>`;
 }
+
+function toggleAccountMenu() {
+  const menu = document.getElementById('account-menu');
+  const button = document.getElementById('account-menu-button');
+  if (!menu) return;
+  const opening = !menu.classList.contains('open');
+  menu.classList.toggle('open', opening);
+  menu.setAttribute('aria-hidden', opening ? 'false' : 'true');
+  if (button) button.setAttribute('aria-expanded', opening ? 'true' : 'false');
+}
+
+function closeAccountMenu() {
+  const menu = document.getElementById('account-menu');
+  const button = document.getElementById('account-menu-button');
+  if (menu) { menu.classList.remove('open'); menu.setAttribute('aria-hidden', 'true'); }
+  if (button) button.setAttribute('aria-expanded', 'false');
+}
+
+function accountGoto(view) { closeAccountMenu(); goto(view); }
 
 // Switching tabs used to tear down and rebuild the whole shell (topbar +
 // bottom nav + content), which is why every tap looked like a full page
@@ -1350,6 +1447,7 @@ function updateNavHighlight() {
 }
 
 function goto(view) {
+  closeAccountMenu();
   state.view = view;
   updateNavHighlight();
   const content = document.getElementById('content');
@@ -1799,7 +1897,7 @@ async function renderUserProfileView() {
       <div class="profile-cover"></div>
       <div class="profile-hero-body">
         <div class="profile-avatar-row">
-          ${avatarHtml(u.name, u.color, 'xl')}
+          ${avatarHtml(u.name, u.color, 'xl', u.avatarUrl)}
           <div class="profile-actions">
             <button class="btn btn-ghost btn-sm" onclick="goto('network')">Back</button>
           </div>
@@ -2020,7 +2118,7 @@ async function renderProfileView() {
       <div class="profile-cover"></div>
       <div class="profile-hero-body">
         <div class="profile-avatar-row">
-          ${avatarHtml(u.name, u.color, 'xl')}
+          ${avatarHtml(u.name, u.color, 'xl', u.avatarUrl)}
           <div class="profile-actions">
             <button class="btn btn-ghost btn-sm" onclick="openUserProfile(${u.id})">Preview public profile</button>
           </div>
@@ -2635,6 +2733,10 @@ async function adminAnalyticsHtml() {
       ])}
     </div>`;
 }
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeAccountMenu();
+});
 
 /* ----------------------------------------------------------------- go -- */
 init();

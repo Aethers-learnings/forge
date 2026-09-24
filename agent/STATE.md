@@ -50,3 +50,7 @@ Implemented in `/home/pablo/Documents/Programming/04-Projects/forge` at starting
 Verified: 33 mobile tests; mobile lint, TypeScript, native preview/production config introspection and diff check pass. Isolated Forge suite: 56 passed, 179 existing deprecation warnings in 6.60s. Signed release-device tests remain a release gate (see MOBILE_PLAN.md). No commit or push. T-005 is next P0.
 
 Preservation: Dockerfile hash matches the starting baseline. The static frontend changed concurrently during this session; this task never wrote it and leaves its current contents intact. The pre-existing mobile error handling remains. No existing locked dependency versions changed or entries were removed.
+
+## 2026-09-24 — V2/profile-image checkpoint
+
+Current checkout includes V2 navigation, mobile safe-area/account-menu/sign-out fixes, profile-image upload/delete/authenticated-serving API, Pillow image validation/canonicalization, and avatar rendering in shell/self/public profiles. Existing backend line-ending normalization is preserved. The frontend upload/replace/remove controls described in prior conversation are absent from this checkout; wiring those and broader identity propagation remain unfinished. No architecture change. Unrelated sandbox/Dockerfile remains excluded from this checkpoint.

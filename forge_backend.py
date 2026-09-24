@@ -21,6 +21,7 @@ Serves the API under /api/... and the front-end HTML at / from static/.
 """
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -30,14 +31,16 @@ import urllib.error
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
+from io import BytesIO
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, jsonify, request, session, send_from_directory
+from flask import Flask, abort, jsonify, request, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, join_room
+from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -83,6 +86,10 @@ def build_app_config(environ=None):
         "SESSION_COOKIE_HTTPONLY": True,
         "SESSION_COOKIE_SAMESITE": "Lax",
         "SESSION_COOKIE_SECURE": production,
+        "PROFILE_IMAGE_DIR": environ.get(
+            "FORGE_PROFILE_IMAGE_DIR",
+            os.path.join(BASE_DIR, "instance", "profile_images"),
+        ),
     }
 
 
@@ -121,6 +128,22 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "instance", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".m4v", ".avi", ".mkv"}
 MAX_VIDEO_BYTES = 50 * 1024 * 1024
+
+# Profile images are isolated from the video/general upload directory.
+# Forge decodes and re-encodes them before serving them back to clients.
+PROFILE_IMAGE_DIR = app.config["PROFILE_IMAGE_DIR"]
+os.makedirs(PROFILE_IMAGE_DIR, exist_ok=True)
+MAX_PROFILE_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_PROFILE_IMAGE_REQUEST_BYTES = MAX_PROFILE_IMAGE_BYTES + 512 * 1024
+MAX_PROFILE_IMAGE_PIXELS = 50_000_000
+PROFILE_IMAGE_SIZE = (640, 640)
+PROFILE_IMAGE_NAME_RE = re.compile(r"^profile_[0-9a-f]{32}\.jpg$")
+PROFILE_IMAGE_MIME_FORMATS = {
+    "image/jpeg": "JPEG",
+    "image/jpg": "JPEG",
+    "image/png": "PNG",
+    "image/webp": "WEBP",
+}
 
 # First-login walkthrough steps per role (brief §2.6). Frontend
 # ONBOARDING_COPY keys match these exactly.
@@ -196,6 +219,7 @@ class User(db.Model):
         return {
             "id": self.id, "username": self.username, "role": self.role,
             "name": self.name, "color": self.color,
+            "avatarUrl": profile_image_url(self.id),
             "completion": self.completion, "cvUploaded": self.cv_uploaded,
             "skills": [s for s in self.skills.split(",") if s],
             "alumniVerified": self.alumni_verified,
@@ -228,7 +252,8 @@ class User(db.Model):
         is_owner = viewer is not None and viewer.id == self.id
         data = {
             "id": self.id, "name": self.name, "role": self.role,
-            "color": self.color, "bio": self.bio,
+            "color": self.color, "avatarUrl": profile_image_url(self.id),
+            "bio": self.bio,
             "headline": self.headline, "programme": self.programme,
             "year": self.year, "campus": self.campus,
             "portfolio": {
@@ -244,6 +269,24 @@ class User(db.Model):
             .order_by(Testimonial.id.desc()).all()
         data["testimonials"] = [t.to_dict() for t in testimonials]
         return data
+
+
+
+class ProfileImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    filename = db.Column(db.String(80), nullable=False, unique=True)
+
+
+def profile_image_url(user_id):
+    image = ProfileImage.query.filter_by(user_id=user_id).first()
+    return f"/profile-images/{image.filename}" if image else ""
 
 
 class Post(db.Model):
@@ -1574,6 +1617,177 @@ def post_chat():
 
 
 # -------------------------------------------------------------- profile --
+def _profile_image_path(filename):
+    if not filename or not PROFILE_IMAGE_NAME_RE.fullmatch(filename):
+        return None
+    return os.path.join(PROFILE_IMAGE_DIR, filename)
+
+
+def _unlink_profile_image(filename):
+    path = _profile_image_path(filename)
+    if not path:
+        return
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+
+
+def _decode_profile_image(raw, expected_format):
+    """Validate real image bytes and return a canonical square JPEG."""
+    try:
+        with Image.open(BytesIO(raw)) as probe:
+            source_format = (probe.format or "").upper()
+            width, height = probe.size
+
+            if source_format != expected_format:
+                raise ValueError("image MIME type does not match image data")
+
+            if width <= 0 or height <= 0 or width * height > MAX_PROFILE_IMAGE_PIXELS:
+                raise ValueError("image dimensions are too large")
+
+            probe.verify()
+
+        with Image.open(BytesIO(raw)) as source:
+            source = ImageOps.exif_transpose(source)
+            source = ImageOps.fit(
+                source.convert("RGB"),
+                PROFILE_IMAGE_SIZE,
+                method=Image.Resampling.LANCZOS,
+            )
+            output = BytesIO()
+            source.save(output, format="JPEG", quality=88, optimize=True)
+            return output.getvalue()
+
+    except (
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+        Image.DecompressionBombError,
+    ) as exc:
+        raise ValueError(str(exc) or "invalid image") from exc
+
+
+@app.post("/api/profile/image")
+def upload_profile_image():
+    user, err = require_login()
+    if err:
+        return err
+
+    if request.content_length and request.content_length > MAX_PROFILE_IMAGE_REQUEST_BYTES:
+        return jsonify({"error": "profile image must be 10MB or smaller"}), 413
+
+    uploaded = request.files.get("image")
+    if not uploaded or not uploaded.filename:
+        return jsonify({"error": "image file required"}), 400
+
+    expected_format = PROFILE_IMAGE_MIME_FORMATS.get(
+        (uploaded.mimetype or "").lower()
+    )
+    if not expected_format:
+        return jsonify({
+            "error": "profile images must be JPEG, PNG or WebP"
+        }), 415
+
+    raw = uploaded.stream.read(MAX_PROFILE_IMAGE_BYTES + 1)
+
+    if len(raw) > MAX_PROFILE_IMAGE_BYTES:
+        return jsonify({"error": "profile image must be 10MB or smaller"}), 413
+
+    if not raw:
+        return jsonify({"error": "image file required"}), 400
+
+    try:
+        canonical = _decode_profile_image(raw, expected_format)
+    except ValueError:
+        return jsonify({
+            "error": "uploaded file is not a valid supported image"
+        }), 400
+
+    filename = f"profile_{uuid.uuid4().hex}.jpg"
+    path = _profile_image_path(filename)
+
+    try:
+        with open(path, "xb") as output:
+            output.write(canonical)
+    except OSError:
+        return jsonify({"error": "could not store profile image"}), 500
+
+    existing = ProfileImage.query.filter_by(user_id=user.id).first()
+    old_filename = existing.filename if existing else None
+
+    if existing:
+        existing.filename = filename
+    else:
+        db.session.add(ProfileImage(user_id=user.id, filename=filename))
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        _unlink_profile_image(filename)
+        raise
+
+    if old_filename and old_filename != filename:
+        _unlink_profile_image(old_filename)
+
+    return jsonify(user.to_public()), 201
+
+
+@app.delete("/api/profile/image")
+def remove_profile_image():
+    user, err = require_login()
+    if err:
+        return err
+
+    image = ProfileImage.query.filter_by(user_id=user.id).first()
+
+    if not image:
+        return jsonify(user.to_public())
+
+    filename = image.filename
+    db.session.delete(image)
+    db.session.commit()
+    _unlink_profile_image(filename)
+
+    return jsonify(user.to_public())
+
+
+@app.get("/profile-images/<name>")
+def serve_profile_image(name):
+    viewer, err = require_login()
+    if err:
+        return err
+
+    if not PROFILE_IMAGE_NAME_RE.fullmatch(name):
+        abort(404)
+
+    image = ProfileImage.query.filter_by(filename=name).first()
+    if not image:
+        abort(404)
+
+    owner = db.session.get(User, image.user_id)
+    if not owner:
+        abort(404)
+
+    if (
+        not owner.profile_visible
+        and viewer.id != owner.id
+        and viewer.role != "admin"
+    ):
+        abort(404)
+
+    response = send_from_directory(
+        PROFILE_IMAGE_DIR,
+        name,
+        mimetype="image/jpeg",
+        conditional=True,
+    )
+    response.cache_control.private = True
+    response.cache_control.max_age = 86400
+    return response
+
+
 @app.post("/api/profile/cv-upload")
 def cv_upload():
     """NLP-assisted profile building (brief §2.8): accepts raw CV text and
