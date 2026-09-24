@@ -81,6 +81,38 @@ def next_safe_task(tasks: list[Task]) -> Task | None:
     return next((task for task in tasks if not task.complete and task.classification is Classification.SAFE_INCREMENTAL and dependency_satisfied(task, tasks)), None)
 
 
+def run_autopilot(root: Path | str, max_tasks: int = 3, *, runtime_factory: Callable[..., "ForgeRuntime"] | None = None) -> dict:
+    """Run a bounded sequence of independent, dependency-satisfied safe tasks."""
+    if max_tasks < 1:
+        raise ValueError("max_tasks must be at least 1")
+    factory = ForgeRuntime if runtime_factory is None else runtime_factory
+    runs: list[dict[str, str]] = []
+    total_model_calls = 0
+    for _ in range(max_tasks):
+        selector = factory(root)
+        task = next_safe_task(selector.tasks())
+        if task is None:
+            break
+        runtime = factory(root)
+        result = runtime.run_task(task)
+        task_result = result["result"]
+        runs.append({"task_id": task.id, "result": task_result})
+        total_model_calls += runtime.calls
+        if task_result != "COMMITTED":
+            break
+
+    final_runtime = factory(root)
+    next_task = next_safe_task(final_runtime.tasks())
+    return {
+        "result": "COMPLETED" if not runs or runs[-1]["result"] == "COMMITTED" else runs[-1]["result"],
+        "tasks_attempted": len(runs),
+        "tasks_committed": sum(run["result"] == "COMMITTED" for run in runs),
+        "total_model_calls": total_model_calls,
+        "runs": runs,
+        "next_eligible_task": next_task.id if next_task else None,
+    }
+
+
 def parse_reviewer_result(raw: str) -> dict:
     """Strictly parse the only reviewer response accepted by the controller."""
     try:

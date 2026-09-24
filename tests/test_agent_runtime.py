@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime.runtime import Classification, ForgeRuntime, Task, dependency_satisfied, model_routing, next_safe_task, parse_reviewer_result, parse_tasks
+from agent_runtime.runtime import Classification, ForgeRuntime, Task, dependency_satisfied, model_routing, next_safe_task, parse_reviewer_result, parse_tasks, run_autopilot
 
 
 TASKS = """\
@@ -29,6 +29,64 @@ def test_dependency_resolution_and_safe_selection():
     assert dependency_satisfied(tasks[1], tasks)
     assert not dependency_satisfied(tasks[2], tasks)
     assert next_safe_task(tasks).id == "T-002"
+
+
+def test_autopilot_default_bound_and_fresh_runtime_budget(tmp_path: Path):
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent/TASKS.md").write_text("\n".join(
+        f"- [ ] T-{number:03d} — Safe {number}. Depends on: none. Classification: SAFE_INCREMENTAL."
+        for number in range(1, 5)
+    ))
+    instances = []
+
+    class FakeRuntime:
+        def __init__(self, root):
+            self.root = root
+            self.calls = 2
+            instances.append(self)
+
+        def tasks(self):
+            return parse_tasks((self.root / "agent/TASKS.md").read_text())
+
+        def run_task(self, task):
+            return {"result": "COMMITTED"}
+
+    summary = run_autopilot(tmp_path, runtime_factory=FakeRuntime)
+    assert summary["tasks_attempted"] == 3
+    assert summary["total_model_calls"] == 6
+    assert len(instances) == 7
+
+
+def test_autopilot_stops_on_first_non_commit_and_skips_governance(tmp_path: Path):
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent/TASKS.md").write_text(
+        "- [ ] T-001 — Safe. Depends on: none. Classification: SAFE_INCREMENTAL.\n"
+        "- [ ] T-002 — Review. Depends on: none. Classification: MAJOR_REVIEW.\n"
+    )
+    executed = []
+
+    class FakeRuntime:
+        calls = 1
+        def __init__(self, root): self.root = root
+        def tasks(self): return parse_tasks((self.root / "agent/TASKS.md").read_text())
+        def run_task(self, task):
+            executed.append(task.id)
+            return {"result": "FAILED_CHECKS"}
+
+    summary = run_autopilot(tmp_path, 3, runtime_factory=FakeRuntime)
+    assert executed == ["T-001"]
+    assert summary["result"] == "FAILED_CHECKS"
+    # Failed work remains incomplete, so it is still the next eligible task.
+    assert summary["next_eligible_task"] == "T-001"
+
+
+def test_autopilot_no_eligible_task_is_clean(tmp_path: Path):
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent/TASKS.md").write_text("- [ ] T-001 — Review. Depends on: none. Classification: HUMAN_APPROVAL_REQUIRED.\n")
+    summary = run_autopilot(tmp_path, runtime_factory=ForgeRuntime)
+    assert summary["result"] == "COMPLETED"
+    assert summary["tasks_attempted"] == 0
+    assert summary["next_eligible_task"] is None
 
 
 def test_governance_blocks_before_modification(tmp_path: Path):
@@ -278,4 +336,3 @@ def test_guarded_agent_restores_controller_owned_records(tmp_path: Path, monkeyp
 
     for name, content in originals.items():
         assert (agent / name).read_text() == content
-

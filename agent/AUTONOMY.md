@@ -6,6 +6,8 @@
 
 `scripts/forge-auto status` parses the backlog and reports progress and the eligible next task. It makes zero model calls. `scripts/forge-auto next` prints the first incomplete, dependency-satisfied `SAFE_INCREMENTAL` task. `scripts/forge-auto run T-XYZ` verifies the requested task is safe, snapshots the dirty working tree, creates a run directory, and executes the bounded workflow. It never selects a different task.
 
+`scripts/forge-auto auto --max-tasks N` runs at most N (default 3) dependency-satisfied `SAFE_INCREMENTAL` tasks. N must be at least 1. Each task gets a fresh runtime and reset model-call/repair budgets. Autopilot stops on the first non-`COMMITTED` result, or normally when no eligible task remains, and never runs governance-boundary tasks or pushes.
+
 ## Architecture and boundaries
 
 Python owns deterministic work: task parsing, dependency resolution, classification enforcement, protected-operation gates, git dirty/touched/staged-file handling, check selection, subprocess execution, repair limits, run records, and local commits. It refuses `MAJOR_REVIEW` and `HUMAN_APPROVAL_REQUIRED` tasks before any model is invoked, as well as destructive migrations, framework/backend/authentication replacement, irreversible operations, and major-subsystem removal.
