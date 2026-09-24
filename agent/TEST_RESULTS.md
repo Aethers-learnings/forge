@@ -210,3 +210,12 @@ Limits: content inspection is container-signature-level validation, not malware 
 - Focused baseline: `.venv/bin/python -m pytest -q tests/test_profile_routes.py` — **50 passed, 311 warnings in 1.64s**.
 - Full baseline: `.venv/bin/python -m pytest -q` — **256 passed, 1276 warnings in 44.68s**, no skips. Existing datetime/SQLAlchemy deprecations remain out of scope.
 - `git diff --check` passed. Only tests and this evidence record changed; production handlers remain untouched in this commit. Existing harness isolates SQLite and image/upload storage.
+
+## 2026-09-24 — T-203 / Issue #3 extraction verification
+
+- Full Forge suite after extraction: `.venv/bin/python -m pytest -q` — **256 passed, 1276 warnings in 44.47s**, no skips. Count and existing datetime/SQLAlchemy warnings match the pre-extraction baseline. Includes image/upload authorization, public-profile visibility, API, CSRF/session, Socket.IO, frontend Node, and agent-runtime regressions.
+- Direct-script startup test confirms all five profile routes register exactly once and `forge_backend` is not imported again when executed as `__main__`.
+- Compared all **123 original top-level class/function definitions** to `5dafe2a`: identical ASTs after normalizing only the five moved handlers' blueprint/dependency names and docstring indentation. Initial raw comparison detected only the moved multiline docstring indentation; normalized comparison passed.
+- Runtime snapshots preserve all **66 URL rules** (paths, methods, subdomains, strict-slash behavior) and **23 tables** (column types, nullability, primary keys, foreign keys). Snapshot imports used an in-memory database; tests use the existing isolated harness, never the application database.
+- `git diff --check` passes. Production diff is restricted to importing/registering the new blueprint and moving the five handlers. Models, shared helpers, image storage/serving, global security hooks, and clients remain unchanged.
+- Limits: automated Flask/Node and script-startup verification; no manual browser/mobile-device/deployment testing. Optional image extraction and broader T-203 remain deferred.

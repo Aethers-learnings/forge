@@ -51,3 +51,7 @@ Roadmap P0 items T-001 through T-005 now have regression/configuration verificat
 ## 2026-09-24 — T-203 route extraction review
 
 Only notification read and onboarding handlers moved. They still call the existing `require_login`; the global CSRF/origin hook remains on the same app and is exercised against every moved mutation. Notification ownership checks, missing-resource handling, and user-scoped read-all queries are preserved. Configuration, session mutation, Socket.IO authorization, profile visibility, upload authorization, schema, and clients were not modified. Existing ownership/revocation/deployment concerns are neither resolved nor expanded by this extraction.
+
+## 2026-09-24 — Issue #3 profile extraction review
+
+The five moved routes use the existing session-derived login guard and application-wide CSRF/origin enforcement. Skills retain their student/alumni-only 400 gate; other profile workflows retain their current role-specific behavior. Forged user identifiers cannot redirect edits or exports. Exports retain caller-scoped notification/coach/application queries, full history, and existing serialization. Visibility truthiness and owner/admin access semantics remain intact. Image/media authorization, cleanup, retention, Socket.IO, models, and clients are unchanged. Existing security concerns above remain separate work.

@@ -104,3 +104,9 @@ T-103 completed on 2026-09-24. Password-reset tokens are stored as SHA-256 diges
 On `codex/t-203-backend-extraction`, added behavior tests against the original implementation, then moved six notification/onboarding handlers into `forge_routes/notifications.py` and `forge_routes/onboarding.py`. Existing application/database creation, models, login/CSRF hooks, Socket.IO, media, and clients remain in place. Explicit factory dependencies avoid importing a second app during direct-script startup. No migration or fundamental architectural decision was needed.
 
 This is a bounded first increment of T-203 for PR review against `master`; wider extraction remains unfinished in TASKS.md. Nothing has been merged. Verification evidence is recorded in TEST_RESULTS.md.
+
+## 2026-09-24 — T-203 / Issue #3 profile increment
+
+Notification/onboarding PR #2 is merged in starting commit `5dafe2a`. On `codex/t-203-profile-extraction`, 50 new profile regression cases passed before moving the five required handlers to `forge_routes/profile.py`. The factory reuses the existing app/database dependencies and security policy. Image/storage/public-profile handlers remain in place (D-010); API contract, schema, clients, session/CSRF, Socket.IO, and retention are unchanged.
+
+Full suite passes before and after: **256 tests**, no skips. Route/schema/AST comparisons and `git diff --check` pass; detailed evidence is in TEST_RESULTS.md. This increment is prepared for human review against `master`, without merging. T-203 stays open for the remaining extraction work.
