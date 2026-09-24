@@ -121,3 +121,11 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Extracted six handlers into two blueprint factories without changing their operations. Reviewed original-vs-extracted ASTs: all 129 original class/function definitions are preserved after normalizing only the six moved handlers' blueprint/dependency identifiers.
 - Documented factory wiring, internal endpoint namespaces, security invariants, and remaining extraction boundaries. No schema migration, authentication/CSRF redesign, ownership repair, or retention change was attempted.
 - Full-suite and diff-check evidence is in TEST_RESULTS.md. Changes are prepared for a review PR to master; do not merge automatically.
+
+## 2026-09-24 — T-203 / GitHub Issue #3
+
+- Read the issue, comments (none), AGENTS.md, required records, existing handlers, and relevant tests. Retrieved Forge into the supplied empty workspace and checked out the existing `codex/t-203-profile-extraction` branch at `5dafe2a` (merged PR #2).
+- Committed 50 new profile cases plus expanded direct-script registration coverage before production edits. Original handlers passed the full 256-test suite.
+- Moved only the five required profile handlers into an explicitly injected blueprint. Kept image routes and shared helpers in place; documented D-010 and remaining T-203 boundaries.
+- Reviewed source diff and compared all original top-level definitions, URL rules, and schema metadata. Full suite after extraction: 256 passed; evidence and limitations are in TEST_RESULTS.md.
+- Preparing a PR to `master` for human review. No merge, auto-merge, schema/ownership/retention change, or client work is included.

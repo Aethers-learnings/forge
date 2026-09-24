@@ -159,7 +159,9 @@ def inspect_startup(self, app, **kwargs):
     rules = [rule.rule for rule in app.url_map.iter_rules()]
     for path in ('/api/onboarding', '/api/onboarding/advance', '/api/onboarding/skip',
                  '/api/notifications', '/api/notifications/<int:note_id>/read',
-                 '/api/notifications/read-all'):
+                 '/api/notifications/read-all', '/api/profile/cv-upload',
+                 '/api/profile/skills', '/api/profile/portfolio',
+                 '/api/profile/visibility', '/api/profile/export'):
         assert rules.count(path) == 1, path
     calls.append(app)
 

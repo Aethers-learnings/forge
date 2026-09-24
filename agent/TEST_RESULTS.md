@@ -201,3 +201,21 @@ Limits: content inspection is container-signature-level validation, not malware 
 - AST comparison: all **129 original class/function definitions** match after normalizing only `blueprint`/`app`, `notification_model`/`Notification`, and `steps_by_role`/`ONBOARDING_STEPS` identifiers in the six moved handlers.
 - `git diff --check` passes. Source review confirms only the six handlers' location/registration changed; global security hooks and remaining handlers/models are unchanged. No dependency, web, mobile, or sandbox changes.
 - Limits: automated Flask/Node and direct-script startup checks; no manual browser, mobile-device, or deployment testing. Broader T-203 extraction remains in the backlog.
+
+## 2026-09-24 — T-203 / Issue #3 profile baseline before extraction
+
+- Starting commit: `5dafe2a` on `codex/t-203-profile-extraction`, including merged notification/onboarding PR #2.
+- Added 50 cases in `tests/test_profile_routes.py` against the original handlers: authentication/suspension, CSRF/origin rejection, all-role CV keyword/substring/merge behavior, empty/malformed JSON, student-only skill edits, role-specific portfolio allowlists and clearing, session identity, completion recalculation, visibility truthiness/partial updates, and caller-only export contents/order/full history/download headers.
+- Extended the existing direct-script startup regression to require the five profile routes exactly once without a second entrypoint import.
+- Focused baseline: `.venv/bin/python -m pytest -q tests/test_profile_routes.py` — **50 passed, 311 warnings in 1.64s**.
+- Full baseline: `.venv/bin/python -m pytest -q` — **256 passed, 1276 warnings in 44.68s**, no skips. Existing datetime/SQLAlchemy deprecations remain out of scope.
+- `git diff --check` passed. Only tests and this evidence record changed; production handlers remain untouched in this commit. Existing harness isolates SQLite and image/upload storage.
+
+## 2026-09-24 — T-203 / Issue #3 extraction verification
+
+- Full Forge suite after extraction: `.venv/bin/python -m pytest -q` — **256 passed, 1276 warnings in 44.47s**, no skips. Count and existing datetime/SQLAlchemy warnings match the pre-extraction baseline. Includes image/upload authorization, public-profile visibility, API, CSRF/session, Socket.IO, frontend Node, and agent-runtime regressions.
+- Direct-script startup test confirms all five profile routes register exactly once and `forge_backend` is not imported again when executed as `__main__`.
+- Compared all **123 original top-level class/function definitions** to `5dafe2a`: identical ASTs after normalizing only the five moved handlers' blueprint/dependency names and docstring indentation. Initial raw comparison detected only the moved multiline docstring indentation; normalized comparison passed.
+- Runtime snapshots preserve all **66 URL rules** (paths, methods, subdomains, strict-slash behavior) and **23 tables** (column types, nullability, primary keys, foreign keys). Snapshot imports used an in-memory database; tests use the existing isolated harness, never the application database.
+- `git diff --check` passes. Production diff is restricted to importing/registering the new blueprint and moving the five handlers. Models, shared helpers, image storage/serving, global security hooks, and clients remain unchanged.
+- Limits: automated Flask/Node and script-startup verification; no manual browser/mobile-device/deployment testing. Optional image extraction and broader T-203 remain deferred.

@@ -102,3 +102,7 @@ Status: route inventory for the current Flask prototype. All JSON routes return 
 ## T-203 implementation locations (2026-09-24)
 
 The three `/api/onboarding*` handlers are now in `forge_routes/onboarding.py`; the three `/api/notifications*` handlers are in `forge_routes/notifications.py`. Their paths/methods and externally visible behavior are unchanged. `require_login` and the application-wide CSRF/origin hook remain in `forge_backend.py`. Notification creation, Socket.IO pushes, account models, and all other routes remain in the entrypoint. The T-202 API contract remains unchanged.
+
+## T-203 profile implementation locations (Issue #3, 2026-09-24)
+
+`POST /api/profile/cv-upload`, `PATCH /api/profile/skills`, `PATCH /api/profile/portfolio`, `PATCH /api/profile/visibility`, and `GET /api/profile/export` now live in `forge_routes/profile.py`. Their existing API contract, status codes, response bodies, and authentication/role rules are unchanged. The earlier location note predates this second increment. Profile image routes and public-profile reads remain in the entrypoint; no upload or serving policy changed.
