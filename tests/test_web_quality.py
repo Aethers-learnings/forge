@@ -53,3 +53,32 @@ def test_common_mutations_disable_trigger_buttons_while_pending():
     assert "runBusyButton(ev.submitter, 'Sending…'" in HTML
     assert "runBusyButton(ev.submitter, 'Thinking…'" in HTML
 
+def test_dynamic_form_labels_are_associated_with_controls():
+    assert "function enhanceAccessibility(root = document)" in HTML
+    assert "root.querySelectorAll('.field')" in HTML
+    assert "field.querySelector('label')" in HTML
+    assert "field.querySelector('input, textarea, select')" in HTML
+    assert "label.htmlFor = control.id" in HTML
+    assert "enhanceAccessibility(app)" in HTML
+    assert "enhanceAccessibility(content)" in HTML
+
+
+def test_clickable_cards_are_keyboard_operable():
+    assert ".conversation-card[onclick], .card[onclick]" in HTML
+    assert "card.setAttribute('role', 'button')" in HTML
+    assert "card.setAttribute('tabindex', '0')" in HTML
+    assert "event.key !== 'Enter' && event.key !== ' '" in HTML
+    assert "card.click()" in HTML
+
+
+def test_active_navigation_exposes_current_page_semantics():
+    assert 'aria-current="page"' in HTML
+    assert "button.setAttribute('aria-current', 'page')" in HTML
+    assert "button.removeAttribute('aria-current')" in HTML
+
+
+def test_mobile_compact_controls_keep_touch_friendly_targets():
+    assert ".password-toggle," in HTML
+    assert ".top-profile-btn{" in HTML
+    assert "min-height:44px;" in HTML
+

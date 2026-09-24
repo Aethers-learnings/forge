@@ -645,6 +645,18 @@
     .bottomnav .nav-icon{width:20px;height:20px;}
     .bottomnav .nav-icon svg{width:20px;height:20px;}
     .bottomnav .navbtn.active{color:var(--rust);background:#fff4f0;}
+
+    /* Compact desktop controls stay compact, but touch targets should not. */
+    .btn-sm,
+    .password-toggle,
+    .icon-btn,
+    .top-profile-btn{
+      min-height:44px;
+    }
+    .password-toggle{
+      width:44px;
+      min-width:44px;
+    }
     .account-panel{
       top:auto;left:0;right:0;bottom:0;width:100%;max-height:min(78dvh,620px);
       border-radius:24px 24px 0 0;border-bottom:0;
@@ -697,6 +709,10 @@
   :focus-visible{
     outline:3px solid rgba(255,90,54,.32);
     outline-offset:2px;
+  }
+
+  [role="button"][tabindex="0"]{
+    cursor:pointer;
   }
 
   .skip-link{
@@ -886,6 +902,46 @@ function togglePasswordVisibility(id, btn) {
   btn.innerHTML = nowShowing ? ICON_EYE_OPEN : ICON_EYE_CLOSED;
   btn.title = nowShowing ? 'Hide password' : 'Show password';
   btn.setAttribute('aria-label', btn.title);
+}
+
+let accessibilityId = 0;
+
+function enhanceAccessibility(root = document) {
+  // A lot of the current prototype fields already have visible labels but
+  // predate explicit label/control associations. Preserve the markup while
+  // wiring those labels correctly for assistive technology and label clicks.
+  root.querySelectorAll('.field').forEach(field => {
+    const label = field.querySelector('label');
+    const control = field.querySelector('input, textarea, select');
+
+    if (!label || !control) return;
+
+    if (!control.id) {
+      accessibilityId += 1;
+      control.id = `forge-field-${accessibilityId}`;
+    }
+
+    if (!label.htmlFor) label.htmlFor = control.id;
+  });
+
+  // Existing cards already use click handlers for navigation. Give those
+  // same controls keyboard semantics without changing their visual design.
+  root.querySelectorAll('.conversation-card[onclick], .card[onclick]').forEach(card => {
+    if (card.matches('button, a, input, select, textarea')) return;
+    if (!card.hasAttribute('role')) card.setAttribute('role', 'button');
+    if (!card.hasAttribute('tabindex')) card.setAttribute('tabindex', '0');
+
+    if (card.dataset.keyboardClickBound === 'true') return;
+    card.dataset.keyboardClickBound = 'true';
+
+    card.addEventListener('keydown', event => {
+      if (event.target !== card) return;
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+
+      event.preventDefault();
+      card.click();
+    });
+  });
 }
 
 function updateEmailHint(role) {
@@ -1198,9 +1254,12 @@ function renderApp() {
   const app = document.getElementById('app');
   if (!state.user) {
     app.innerHTML = renderAuth();
+    enhanceAccessibility(app);
     return;
   }
+
   app.innerHTML = renderShell() + renderOnboardingOverlay();
+  enhanceAccessibility(app);
   refreshNavBadge();
   loadView();
 }
@@ -1481,7 +1540,8 @@ const MOBILE_NAV_BY_ROLE = {
 
 function navButtonsHtml(items) {
   return items.map(([key,label]) => `
-    <button class="navbtn ${state.view === key ? 'active' : ''}" data-view="${key}" onclick="goto('${key}')">
+    <button class="navbtn ${state.view === key ? 'active' : ''}" data-view="${key}"
+      ${state.view === key ? 'aria-current="page"' : ''} onclick="goto('${key}')">
       ${navIcon(key)}<span>${label}</span>
     </button>`).join('');
 }
@@ -1589,7 +1649,12 @@ function accountGoto(view) { closeAccountMenu(); goto(view); }
 // bottom nav + content), which is why every tap looked like a full page
 // reload. Now only the active-tab highlight and the content pane change.
 function updateNavHighlight() {
-  document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
+  document.querySelectorAll('.navbtn').forEach(button => {
+    const active = button.dataset.view === state.view;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
   updateShellTitle();
 }
 
@@ -1645,12 +1710,14 @@ async function loadView() {
     if (generation !== viewLoadGeneration || state.view !== requestedView) return;
 
     content.innerHTML = html;
+    enhanceAccessibility(content);
     content.setAttribute('aria-busy', 'false');
   } catch (e) {
     clearTimeout(showSpinner);
     if (generation !== viewLoadGeneration || state.view !== requestedView) return;
 
     content.innerHTML = renderError(e);
+    enhanceAccessibility(content);
     content.setAttribute('aria-busy', 'false');
   }
 }
@@ -2710,6 +2777,7 @@ async function searchCandidates(ev) {
         </div>
         <span class="chip teal">${c.completion}%</span>
       </div>`).join('') : '<div class="empty">No candidates match those skills yet.</div>';
+    enhanceAccessibility(el);
   } catch (e) { toast((e.body && e.body.error) || 'Search failed.'); }
   return false;
 }
