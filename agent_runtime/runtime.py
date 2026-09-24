@@ -214,7 +214,7 @@ class ForgeRuntime:
             "exec",
             "--ephemeral",
             "--sandbox",
-            "workspace-write",
+            "danger-full-access",
             "-C",
             "/workspace",
             "-m",
@@ -296,6 +296,14 @@ class ForgeRuntime:
             self.invoke("planner", context, artifacts)
         self.invoke(self._implementation_role(task), context, artifacts)
         touched = self.task_touched_paths(preexisting)
+        if not touched:
+            return self._finish(
+                artifacts,
+                "IMPLEMENTER_NO_CHANGES",
+                touched,
+                [],
+                0,
+            )
         checks = self.run_checks(touched, artifacts)
         repairs = 0
         while not all(check.passed for check in checks):

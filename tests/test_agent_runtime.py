@@ -104,3 +104,64 @@ def test_status_is_local_and_makes_no_subprocess_calls(tmp_path: Path):
     def no_process(*args, **kwargs):
         raise AssertionError("status must not invoke a subprocess or model")
     assert ForgeRuntime(tmp_path, runner=no_process).status()["next"]["id"] == "T-002"
+
+def test_agent_invocation_uses_outer_docker_sandbox_without_nested_workspace_sandbox(tmp_path: Path):
+    commands = []
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        output_index = command.index("-o") + 1
+        container_output = command[output_index]
+        local_output = tmp_path / Path(container_output).relative_to("/workspace")
+        local_output.parent.mkdir(parents=True, exist_ok=True)
+        local_output.write_text('{"result":"PASS","findings":[]}')
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    prompts = tmp_path / "agent_runtime/prompts"
+    prompts.mkdir(parents=True)
+    (prompts / "reviewer.txt").write_text("Return exactly JSON")
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    (sandbox / "run-locked.sh").write_text("#!/usr/bin/env bash\n")
+
+    ForgeRuntime(tmp_path, runner=runner).invoke("reviewer", "packet", artifact)
+
+    command = commands[0]
+    sandbox_values = [
+        command[i + 1]
+        for i, value in enumerate(command[:-1])
+        if value == "--sandbox"
+    ]
+    assert "danger-full-access" in sandbox_values
+    assert "workspace-write" not in sandbox_values
+
+
+def test_run_stops_before_review_when_implementer_makes_no_changes(tmp_path: Path, monkeypatch):
+    runtime = ForgeRuntime(tmp_path)
+    task = Task(
+        "T-999",
+        False,
+        "Routine safe task.",
+        (),
+        Classification.SAFE_INCREMENTAL,
+    )
+
+    monkeypatch.setattr(runtime, "dirty_paths", lambda: set())
+    monkeypatch.setattr(runtime, "make_artifacts", lambda task: tmp_path / "artifacts")
+    (tmp_path / "artifacts").mkdir()
+    monkeypatch.setattr(runtime, "_context_packet", lambda task, dirty: "packet")
+    monkeypatch.setattr(runtime, "invoke", lambda role, prompt, artifacts: "blocked")
+    monkeypatch.setattr(runtime, "task_touched_paths", lambda preexisting: set())
+
+    def fake_git(*args):
+        return subprocess.CompletedProcess(("git", *args), 0, "", "")
+
+    monkeypatch.setattr(runtime, "_git", fake_git)
+
+    result = runtime.run_task(task)
+
+    assert result["result"] == "IMPLEMENTER_NO_CHANGES"
+    assert result["touched_files"] == []
+
