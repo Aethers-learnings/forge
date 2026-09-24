@@ -31,6 +31,11 @@ function screen(saved, options = {}) {
     '@react-native-async-storage/async-storage': storage,
     'expo-constants': { expoConfig: { extra: { forgeSecurity: { allowedOrigins: ['https://forge.example'] } } } },
     '../security/url-policy': policy,
+    '../api/client': {
+      currentUser: async () => null,
+      login: async () => null,
+      logout: async () => ({ ok: true }),
+    },
   };
   const source = ts.transpileModule(fs.readFileSync(require.resolve('../src/app/index.tsx'), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true },
@@ -53,6 +58,48 @@ function find(tree, type) {
   }
   return null;
 }
+
+function textContent(tree) {
+  if (typeof tree === 'string') return tree;
+  if (!tree || typeof tree !== 'object') return '';
+  return (tree.children || []).map(textContent).join('');
+}
+
+function findComponent(tree, name) {
+  if (!tree || typeof tree !== 'object') return null;
+
+  if (
+    typeof tree.type === 'function' &&
+    tree.type.name === name
+  ) {
+    return tree;
+  }
+
+  for (const child of tree.children || []) {
+    const result = findComponent(child, name);
+    if (result) return result;
+  }
+
+  return null;
+}
+
+function findButtonByText(tree, label) {
+  if (!tree || typeof tree !== 'object') return null;
+
+  if (
+    tree.type === 'TouchableOpacity' &&
+    textContent(tree).includes(label)
+  ) {
+    return tree;
+  }
+
+  for (const child of tree.children || []) {
+    const result = findButtonByText(child, label);
+    if (result) return result;
+  }
+
+  return null;
+}
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 test('invalid persisted URL is retained for correction without load or write', async () => {
@@ -67,11 +114,20 @@ test('invalid persisted URL is retained for correction without load or write', a
   assert.deepEqual(app.writes, []);
   find(app.render(), 'TextInput').props.onChangeText('https://forge.example/path');
   await find(app.render(), 'TouchableOpacity').props.onPress();
+
+  // Native authentication is now the default T-205 entry point.
+  // The hardened WebView remains an explicit fallback.
+  findButtonByText(app.render(), 'Use web experience').props.onPress();
+
   assert.equal(find(app.render(), 'WebView').props.source.uri, 'https://forge.example/path');
   assert.deepEqual(app.writes, [['forge_server_url', 'https://forge.example/path']]);
 });
 test('initial source and navigation use the policy, popup callbacks never load a target', async () => {
   const app = screen('https://forge.example'); await settle();
+
+  assert.equal(find(app.render(), 'WebView'), null);
+  findButtonByText(app.render(), 'Use web experience').props.onPress();
+
   const web = find(app.render(), 'WebView');
   assert.equal(web.props.source.uri, 'https://forge.example/');
   for (const url of ['https://evil.example', 'http://forge.example', 'javascript:alert(1)', 'https://forge.example:8443']) {
