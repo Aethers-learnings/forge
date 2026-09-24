@@ -1397,12 +1397,30 @@ def serve_upload(name):
 
 
 # ----------------------------------------------------------- discover --
+def opportunity_is_student_visible(opportunity):
+    """Return whether a student may see or act on an opportunity.
+
+    Opportunities created before the listing workflow have no source listing
+    and remain visible. Opportunities linked to a listing require both the
+    listing and its approval-queue item to be in their approved live states.
+    """
+    if opportunity.listing_id is None:
+        return True
+    listing = BusinessListing.query.get(opportunity.listing_id)
+    if not listing or listing.status != "live" or not listing.queue_item_id:
+        return False
+    queue_item = ApprovalQueueItem.query.get(listing.queue_item_id)
+    return queue_item is not None and queue_item.status == "approved"
+
+
 @app.get("/api/opportunities")
 def get_opportunities():
     user, err = require_login()
     if err:
         return err
     opps = Opportunity.query.order_by(Opportunity.id).all()
+    if user.role in STUDENT_ROLES:
+        opps = [opp for opp in opps if opportunity_is_student_visible(opp)]
     # Count an impression against the source listing when a student
     # browses the board — powers the business engagement-rate metric.
     if user.role in STUDENT_ROLES:
@@ -1421,6 +1439,8 @@ def toggle_apply(opp_id):
     if err:
         return err
     opp = Opportunity.query.get_or_404(opp_id)
+    if user.role in STUDENT_ROLES and not opportunity_is_student_visible(opp):
+        abort(404)
     existing = Application.query.filter_by(opportunity_id=opp.id, user_id=user.id).first()
     if existing:
         db.session.delete(existing)

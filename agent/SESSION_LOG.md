@@ -107,3 +107,5 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Removed email fallback/failure logging of recipients, subjects, bodies, exception details, and therefore reset URLs/tokens. Non-debug without SMTP intentionally cannot deliver reset email but returns the existing generic anti-enumeration response.
 - Added reset-token digest, redemption, non-debug response, and sensitive-log regressions; updated the existing anonymous CSRF reset test to retrieve the debug token from its intended response rather than the database.
 - Verification: focused suite **44 passed, 56 warnings in 7.83s**; full suite **144 passed, 162 warnings in 22.39s**; backend compilation and `git diff --check` passed.
+
+- 2026-09-24 11:07 UTC: autonomous T-105 completed after reviewer PASS; artifacts `.forge-agent/runs/20260924T110515Z-T-105`; checks: git diff --check => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m py_compile forge_backend.py tests/test_authz_regressions.py => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m pytest -q => 0.

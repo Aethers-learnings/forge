@@ -391,6 +391,48 @@ def test_admin_listing_approval_creates_live_opportunity(client):
     assert opportunity.title == listing.title
 
 
+def test_students_only_see_and_apply_to_approved_live_listing_opportunities(client):
+    student = make_user("student", role="trade")
+    business = make_user("business", role="business", business_approved=True)
+
+    def linked_opportunity(title, listing_status, queue_status):
+        queue = backend.ApprovalQueueItem(
+            title=title, co=business.name, tags="Python", status=queue_status,
+        )
+        backend.db.session.add(queue)
+        backend.db.session.flush()
+        listing = backend.BusinessListing(
+            owner_user_id=business.id, queue_item_id=queue.id, title=title,
+            co=business.name, tags="Python", status=listing_status,
+        )
+        backend.db.session.add(listing)
+        backend.db.session.flush()
+        opportunity = backend.Opportunity(
+            title=title, co=business.name, tags="Python", listing_id=listing.id,
+        )
+        backend.db.session.add(opportunity)
+        return opportunity
+
+    pending = linked_opportunity("Pending", "pending", "pending")
+    rejected = linked_opportunity("Rejected", "rejected", "rejected")
+    mismatched = linked_opportunity("Mismatched", "live", "pending")
+    visible = linked_opportunity("Visible", "live", "approved")
+    legacy = backend.Opportunity(title="Legacy", co="Forge", tags="Python")
+    backend.db.session.add(legacy)
+    backend.db.session.commit()
+
+    sign_in(client, student)
+    response = client.get("/api/opportunities")
+
+    assert response.status_code == 200
+    assert {item["id"] for item in response.json} == {visible.id, legacy.id}
+
+    headers = csrf_headers(client)
+    for hidden in (pending, rejected, mismatched):
+        assert client.post(f"/api/opportunities/{hidden.id}/apply", headers=headers).status_code == 404
+    assert client.post(f"/api/opportunities/{visible.id}/apply", headers=headers).status_code == 200
+
+
 def test_admin_can_approve_alumni_verification(client):
     graduate = make_user("graduate", role="grad", alumni_verified=False)
     admin = make_user("admin", role="admin")

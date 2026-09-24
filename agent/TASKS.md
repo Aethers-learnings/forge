@@ -16,7 +16,7 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 - [x] T-102 — Completed 2026-09-24: added request-size preflight and bounded streaming, container-signature validation, fail-closed ffmpeg processing, authenticated/feed-authorized media serving, soft-removal access revocation with byte retention pending a separately approved deletion policy, isolated upload storage, and upload regressions. Dedicated suite: 10 passed; full Forge suite: 139 passed. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 - [x] T-103 — Completed 2026-09-24: reset tokens are SHA-256 digests at rest; only explicit local debug returns a development token; SMTP absence/failure logs no recipients, subjects, bodies, or tokens; dedicated reset-security regressions added. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 - [ ] T-104 — Define ownership and authorization rules for network, suggestions, endorsements, and conversations; introduce a migration plan before code changes. Depends on: T-101. Classification: MAJOR_REVIEW.
-- [ ] T-105 — Ensure only approved/live listings produce student-visible opportunities; cover lifecycle with tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
+- [x] T-105 — Ensure only approved/live listings produce student-visible opportunities; cover lifecycle with tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 - [ ] T-106 — Correct business/admin analytics scope and document metric semantics. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 
 ## P2
