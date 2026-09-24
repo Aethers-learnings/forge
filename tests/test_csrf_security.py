@@ -171,12 +171,25 @@ def test_anonymous_password_reset_flows_need_no_csrf(client):
     assert client.post("/api/auth/login", json={"username": "alice", "password": "changed123"}).status_code == 200
 
 
-def test_anonymous_demo_login_rotates_token(client, monkeypatch):
+def test_debug_alone_does_not_enable_demo_login(client, monkeypatch):
     make_user(username="demo_grad")
     monkeypatch.setattr(backend.app, "debug", True)
+    monkeypatch.setitem(backend.app.config, "FORGE_DEMO_MODE", False)
+
+    assert client.post("/api/auth/demo-login", json={"role": "grad"}).status_code == 404
+
+
+def test_anonymous_demo_login_rotates_token(client, monkeypatch):
+    make_user(username="demo_grad")
+    monkeypatch.setitem(backend.app.config, "FORGE_DEMO_MODE", True)
+
     assert client.post("/api/auth/demo-login", json={"role": "grad"}).status_code == 200
     first = token(client)
-    assert client.post("/api/auth/demo-login", json={"role": "grad"}, headers=headers(client)).status_code == 200
+    assert client.post(
+        "/api/auth/demo-login",
+        json={"role": "grad"},
+        headers=headers(client),
+    ).status_code == 200
     assert token(client) != first
 
 

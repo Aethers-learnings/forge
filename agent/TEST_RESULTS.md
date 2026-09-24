@@ -1,6 +1,6 @@
 # Test results
 
-Date: 2026-09-18
+Date: 2026-09-24
 
 ## IMPLEMENTATION_1 — T-003 CSRF/origin protection (2026-09-18)
 
@@ -62,7 +62,7 @@ Test environment note: the host Python lacked Forge dependencies and disallowed 
 
 ## Required next evidence
 
-Socket.IO identity-bound rooms and authenticated HTTP CSRF/origin regressions are now present. Next P0 evidence: T-004 mobile HTTPS allowlisting, then T-005 debug/demo deployment configuration checks. Run those before claiming a release baseline.
+Socket.IO identity-bound rooms, authenticated HTTP CSRF/origin protection, mobile HTTPS/navigation policy, and debug/demo deployment configuration now have regression evidence. T-101 authentication/authorization and ownership coverage is the next roadmap test expansion.
 
 ## 2026-09-18 — documentation-session verification
 
@@ -96,3 +96,22 @@ Preservation: Dockerfile hash matches the starting baseline. The static frontend
 - `node tests/csrf_frontend.cjs`: passed CSRF, multipart, identity, concurrency and logout regressions; parses all inline script blocks with vm.Script.
 - Backend AST syntax check and `git diff --check`: passed.
 - Tests use isolated database/image storage. No manual desktop/phone verification performed in this session.
+
+## 2026-09-24 — T-005 debug/demo deployment configuration
+
+| Check | Result | Evidence / scope |
+| --- | --- | --- |
+| Backend syntax | PASS | `python -m py_compile forge_backend.py` completed without error. |
+| Focused configuration + CSRF suite | PASS | `pytest -q tests/test_configuration.py tests/test_csrf_security.py`: **73 passed, 288 warnings in 9.65s**. |
+| Full isolated Forge suite | PASS | `pytest -q`: **93 passed, 377 warnings in 10.60s**. |
+| Frontend regressions | PASS | `node tests/csrf_frontend.cjs`: CSRF helper, multipart, identity, concurrency, and logout regressions passed. |
+| Whitespace validation | PASS | `git diff --check` completed without output. |
+| Debug defaults | PASS | Debug and demo mode default off. Explicit local development can enable them; ambiguous boolean values are rejected. |
+| Deployment environment validation | PASS | Unknown/misspelled `FORGE_ENV` values fail closed. Staging/production/prod require deployment-grade secrets and Secure cookies. |
+| Demo isolation | PASS | Flask debug alone cannot enable demo login. Demo endpoint, CLI seeding, and automatic startup demo seeding require explicit local demo mode. |
+| Placeholder secret | PASS | `.env.example` placeholder `change-me-to-something-random` is rejected for staging/production deployment configuration. |
+| Scope preservation | PASS | Intended T-005 files only plus agent records; unrelated `sandbox/Dockerfile` remains modified but excluded. |
+
+Warnings are existing `datetime.utcnow()` deprecations and SQLAlchemy `Query.get()` legacy warnings exercised by the wider suite; T-005 does not attempt their cleanup.
+
+Limits: these checks validate application configuration and import behavior, not a real reverse-proxy or production-host deployment. Binding policy, TLS termination, signed mobile release-device verification, operational secret provisioning, and remaining non-P0 security concerns require separate verification.

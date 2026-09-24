@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from urllib.parse import urlsplit
 
+from click import ClickException
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -51,8 +52,31 @@ os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
 # Keep local development convenient without ever giving a deployed process a
 # predictable signing key.  Tests also use this seam to point SQLAlchemy at a
 # throw-away SQLite database instead of the project instance database.
-INSECURE_SECRET_KEYS = frozenset({"dev-secret-change-me", "change-me", "secret"})
-PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod"})
+INSECURE_SECRET_KEYS = frozenset({
+    "dev-secret-change-me",
+    "change-me",
+    "change-me-to-something-random",
+    "secret",
+})
+DEPLOYMENT_ENVIRONMENTS = frozenset({"production", "prod", "staging"})
+VALID_ENVIRONMENTS = DEPLOYMENT_ENVIRONMENTS | frozenset({"development", "test"})
+TRUE_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+FALSE_ENV_VALUES = frozenset({"0", "false", "no", "off", ""})
+
+
+def _env_bool(environ, name, default=False):
+    """Parse an explicit boolean environment value without treating typos as true."""
+    raw = environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in TRUE_ENV_VALUES:
+        return True
+    if value in FALSE_ENV_VALUES:
+        return False
+    raise RuntimeError(
+        f"{name} must be one of: 1/0, true/false, yes/no, on/off."
+    )
 
 
 def build_app_config(environ=None):
@@ -64,14 +88,33 @@ def build_app_config(environ=None):
     """
     environ = os.environ if environ is None else environ
     environment = environ.get("FORGE_ENV", "development").strip().lower()
-    production = environment in PRODUCTION_ENVIRONMENTS
+    if environment not in VALID_ENVIRONMENTS:
+        raise RuntimeError(
+            "FORGE_ENV must be one of: development, test, staging, production, prod."
+        )
+    deployment = environment in DEPLOYMENT_ENVIRONMENTS
+    debug = _env_bool(environ, "FORGE_DEBUG", default=False)
+    demo_mode = _env_bool(environ, "FORGE_DEMO_MODE", default=False)
+
+    # Debugging and seeded demo identities are local-development conveniences,
+    # not deployment modes. Fail closed instead of silently accepting an
+    # unsafe environment combination.
+    if environment != "development" and debug:
+        raise RuntimeError(
+            "FORGE_DEBUG may only be enabled when FORGE_ENV=development."
+        )
+    if environment != "development" and demo_mode:
+        raise RuntimeError(
+            "FORGE_DEMO_MODE may only be enabled when FORGE_ENV=development."
+        )
+
     secret_key = (environ.get("FORGE_SECRET_KEY") or "").strip()
     invalid_secret = not secret_key or secret_key.lower() in INSECURE_SECRET_KEYS
 
-    if production and (invalid_secret or len(secret_key) < 32):
+    if deployment and (invalid_secret or len(secret_key) < 32):
         raise RuntimeError(
             "FORGE_SECRET_KEY must be a non-default value of at least 32 characters "
-            "when FORGE_ENV is production."
+            "for staging or production deployments."
         )
     if invalid_secret:
         secret_key = secrets.token_urlsafe(48)
@@ -83,9 +126,12 @@ def build_app_config(environ=None):
         ),
         "SQLALCHEMY_TRACK_MODIFICATIONS": False,
         "SECRET_KEY": secret_key,
+        "DEBUG": debug,
+        "FORGE_ENVIRONMENT": environment,
+        "FORGE_DEMO_MODE": demo_mode,
         "SESSION_COOKIE_HTTPONLY": True,
         "SESSION_COOKIE_SAMESITE": "Lax",
-        "SESSION_COOKIE_SECURE": production,
+        "SESSION_COOKIE_SECURE": deployment,
         "PROFILE_IMAGE_DIR": environ.get(
             "FORGE_PROFILE_IMAGE_DIR",
             os.path.join(BASE_DIR, "instance", "profile_images"),
@@ -1046,9 +1092,8 @@ def reset_password():
 
 @app.post("/api/auth/demo-login")
 def demo_login():
-    """Role-toggle convenience for the demo UI. Only served in debug mode —
-    delete this route entirely before a real deployment."""
-    if not app.debug:
+    """Explicit local-development demo convenience, disabled by default."""
+    if not app.config.get("FORGE_DEMO_MODE", False):
         return jsonify({"error": "not available"}), 404
     data = request.get_json(force=True) or {}
     role = data.get("role")
@@ -2514,23 +2559,33 @@ def seed_demo_data(force=False):
 
 @app.cli.command("seed-demo")
 def seed_demo_command():
-    """flask --app forge_backend seed-demo"""
+    """Seed local demo identities only when explicit demo mode is active."""
+    if not app.config.get("FORGE_DEMO_MODE", False):
+        raise ClickException(
+            "seed-demo is disabled; set FORGE_ENV=development and "
+            "FORGE_DEMO_MODE=1 explicitly."
+        )
     print("Seeded." if seed_demo_data() else "Database not empty — skipped.")
 
 
 if __name__ == "__main__":
+    debug = bool(app.config.get("DEBUG", False))
+    demo_mode = bool(app.config.get("FORGE_DEMO_MODE", False))
+
     with app.app_context():
         db.create_all()
-        debug = os.environ.get("FORGE_DEBUG", "1").lower() not in ("0", "false", "no")
-        # Under the debug reloader the module runs twice; only the serving
-        # process seeds.
-        if (not debug) or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-            if seed_demo_data():
-                print("=" * 66)
-                print("Seeded demo data. Demo logins (password 'demo123'):")
-                print("  demo_trade · demo_grad · demo_business · demo_admin")
-                print("Upgraded from an older schema? Delete instance/forge.db")
-                print("and restart to re-seed with the new columns.")
-                print("=" * 66)
+        # Demo identities are never created implicitly in a normal startup.
+        # When explicitly enabled, avoid double seeding under the debug reloader.
+        should_seed_demo = demo_mode and (
+            (not debug) or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+        )
+        if should_seed_demo and seed_demo_data():
+            print("=" * 66)
+            print("Seeded local demo data. Demo logins (password 'demo123'):")
+            print("  demo_trade · demo_grad · demo_business · demo_admin")
+            print("Upgraded from an older schema? Delete instance/forge.db")
+            print("and restart to re-seed with the new columns.")
+            print("=" * 66)
+
     socketio.run(app, host="0.0.0.0",
                  port=int(os.environ.get("PORT", 5000)), debug=debug)

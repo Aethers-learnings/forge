@@ -2,7 +2,7 @@
 
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
-Last updated: 2026-09-18 (T-004 verified; release-device checks pending)
+Last updated: 2026-09-24 (T-005 verified; roadmap P0 implementation complete; release-device checks pending)
 
 ## Verified current state
 
@@ -18,8 +18,8 @@ Establish a secure, tested baseline around the existing Flask/web/WebView protot
 
 ## Immediate gates
 
-1. Resolve the remaining P0 findings in `SECURITY.md`, beginning with T-005 debug/demo configuration.
-2. Extend the new isolated Flask regression harness to authentication/authorization, tenant ownership, and upload boundaries before refactoring those paths.
+1. Begin T-101: extend the isolated Flask regression harness across registration/login, role gates, notification ownership, profile visibility, and approval actions.
+2. Continue into upload, reset-token, ownership, listing-lifecycle, and analytics hardening only after the corresponding regression baseline exists.
 3. Keep the prototype architecture in place while extracting only tested seams.
 
 ## Deliberate non-decisions
@@ -41,16 +41,28 @@ Establish a secure, tested baseline around the existing Flask/web/WebView protot
 - The central static API helper and direct multipart video upload send the token; multipart Content-Type is left to the browser. Client cache is cleared for identity/session changes, successful logout, and CSRF errors; late token responses cannot repopulate an obsolete cache. Failed logout remains visible as an error.
 - Same-origin checks use the direct request scheme and Host, with no ProxyFix or forwarded-header trust. Deployment must present the browser origin to Flask directly; proxy integration remains separate work.
 - Full host-venv suite: 56 passed, 179 non-blocking deprecation warnings in 10.49s, including Node-based frontend helper regressions. `git diff --check` passed.
-- T-004 is the next P0 task. Pre-existing `mobile/src/app/index.tsx` and `sandbox/Dockerfile` changes remain byte-for-byte unchanged; no commit created.
+- T-005 completes the roadmap P0 implementation sequence. The next implementation task is T-101, which expands authentication/authorization and ownership regression coverage before further refactoring.
 
 ## 2026-09-18 — T-004 SAFE_INCREMENTAL
 
 Implemented in `/home/pablo/Documents/Programming/04-Projects/forge` at starting HEAD `ea8ffc3`; the stale mirror was not used. Exact HTTPS origins come from build-time configuration with no production default. Missing configuration permits no connection. Persisted URL, Connect/save, initial WebView source and navigation share the pure policy; invalid saved values remain visible in recoverable settings without loading or automatic replacement. Existing mobile error handling is preserved. Popups and subframe navigation are blocked, mixed content is never allowed, Android cleartext is disabled through an Expo manifest plugin, and iOS ATS has no arbitrary-load/local-network exceptions.
 
-Verified: 33 mobile tests; mobile lint, TypeScript, native preview/production config introspection and diff check pass. Isolated Forge suite: 56 passed, 179 existing deprecation warnings in 6.60s. Signed release-device tests remain a release gate (see MOBILE_PLAN.md). No commit or push. T-005 is next P0.
+Verified: 33 mobile tests; mobile lint, TypeScript, native preview/production config introspection and diff check pass. Isolated Forge suite: 56 passed, 179 existing deprecation warnings in 6.60s. Signed release-device tests remain a release gate (see MOBILE_PLAN.md). No commit or push from that task.
 
 Preservation: Dockerfile hash matches the starting baseline. The static frontend changed concurrently during this session; this task never wrote it and leaves its current contents intact. The pre-existing mobile error handling remains. No existing locked dependency versions changed or entries were removed.
 
 ## 2026-09-24 — V2/profile-image checkpoint
 
 Current checkout includes V2 navigation, mobile safe-area/account-menu/sign-out fixes, profile-image upload/delete/authenticated-serving API, Pillow image validation/canonicalization, and avatar rendering in shell/self/public profiles. Existing backend line-ending normalization is preserved. The frontend upload/replace/remove controls described in prior conversation are absent from this checkout; wiring those and broader identity propagation remain unfinished. No architecture change. Unrelated sandbox/Dockerfile remains excluded from this checkpoint.
+
+## 2026-09-24 — T-005 SAFE_INCREMENTAL
+
+T-005 is verified. Runtime debug and demo behavior are now explicit configuration rather than implicit deployment behavior. `FORGE_DEBUG` and `FORGE_DEMO_MODE` default off and may only be enabled with `FORGE_ENV=development`. Invalid boolean values fail startup rather than being interpreted loosely.
+
+`FORGE_ENV` is validated against development, test, staging, production, and prod. Unknown or misspelled environment names fail closed. Staging and production/prod require a non-default secret of at least 32 characters and use Secure session cookies. The `.env.example` placeholder secret is explicitly rejected for deployments.
+
+`/api/auth/demo-login`, the `seed-demo` CLI command, and automatic startup seeding are disabled unless explicit local demo mode is active. Flask debug mode by itself no longer enables demo authentication.
+
+Verification: focused configuration/CSRF suite **73 passed, 288 warnings in 9.65s**; full isolated Forge suite **93 passed, 377 warnings in 10.60s**. Backend compilation, frontend CSRF/logout regressions, and `git diff --check` passed. Warnings remain existing datetime/SQLAlchemy deprecations. `sandbox/Dockerfile` remains unrelated and excluded.
+
+All roadmap P0 implementation tasks T-001 through T-005 are now complete. T-101 is next.

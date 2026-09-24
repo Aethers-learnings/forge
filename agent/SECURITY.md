@@ -1,6 +1,6 @@
 # Security
 
-Status: discovery findings with T-001/T-002/T-003/T-004 resolutions verified as of 2026-09-18. Open findings and implementation evidence are distinguished below.
+Status: discovery findings with T-001 through T-005 roadmap P0 resolutions verified as of 2026-09-24. Open findings and implementation evidence are distinguished below.
 
 ## P0 — verified findings
 
@@ -24,9 +24,9 @@ Status: discovery findings with T-001/T-002/T-003/T-004 resolutions verified as 
 
    Anonymous login, registration, demo-login and password-reset behavior is unchanged and requires no CSRF token. Those routes are protected when an authenticated session is present. This change covers authenticated unsafe API requests; it does not redesign anonymous authentication, safe-method semantics, signed-cookie revocation, or the authentication architecture. Full suite: 56 passed, 179 existing deprecation warnings in 10.49s. T-005 is next P0.
 
-## High-priority verified concerns
+5. **Resolved — T-005: debug/demo deployment configuration.** `FORGE_DEBUG` and `FORGE_DEMO_MODE` default off and are accepted only with `FORGE_ENV=development`. Flask debug mode alone does not expose `/api/auth/demo-login`; demo login, the `seed-demo` CLI command, and startup demo seeding require explicit demo mode. Environment names and boolean switches are parsed fail-closed. Unknown/misspelled environments are rejected. Staging and production/prod require a non-default secret of at least 32 characters and Secure session cookies; the documented placeholder secret is also rejected. Regression coverage includes direct configuration behavior and production import failure. Classification: SAFE_INCREMENTAL.
 
-- The process defaults to `FORGE_DEBUG=1`, binds `0.0.0.0`, and provides `/api/auth/demo-login` in debug mode. Debug must be off outside a local development environment; demo accounts and endpoint must not be exposed.
+## High-priority verified concerns
 - Login throttling is in-process and keyed only by username; it is lost across restarts and does not provide distributed/IP-aware protection.
 - Password-reset tokens are stored in plaintext. In debug, a valid token is returned in the response; in non-debug with no SMTP configured, reset delivery is not available. Hash stored reset tokens, prevent debug deployment, and make delivery observable without logging sensitive contents.
 - Upload checks happen after saving the complete request, rely on extension rather than file inspection, and `/uploads/<path:name>` is publicly served. Enforce request-size limits before buffering, validate content, define authorization/retention, and scan/serve media safely.
@@ -44,4 +44,4 @@ Status: discovery findings with T-001/T-002/T-003/T-004 resolutions verified as 
 
 ## Security release gate
 
-No internet-facing deployment should proceed until every P0 item has a regression test and a configuration verification path. Findings above are not a substitute for an independent security review.
+Roadmap P0 items T-001 through T-005 now have regression/configuration verification paths. This does **not** by itself authorize an internet-facing production release: the remaining high-priority findings above, signed mobile release-device checks, deployment/proxy review, operational controls, and an independent security review still apply.

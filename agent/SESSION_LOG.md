@@ -61,3 +61,15 @@ Added missing lint tooling and repaired two small existing lint issues (apostrop
 ## 2026-09-24 — prepare V2/profile-image commit and push
 
 Reviewed the real current master checkout and preserved all existing V2/profile-image source changes, including backend line-ending normalization. Intended source scope: forge_backend.py, requirements.txt, static/forge_demo.html, tests/conftest.py, tests/test_profile_images.py. Updated state and test evidence. All 69 tests and frontend/backend syntax, CSRF/logout, and whitespace checks passed. User authorized a normal push to origin/master without history rewriting. sandbox/Dockerfile excluded and preserved byte-for-byte (SHA-256 c05ebde6159325507f89fa05b66c620cb6afccf76ada0af5c017d53b6b401f75). Frontend upload/remove controls are absent and remain future work; this checkpoint does not claim they exist. Commit/push outcome is reported in the task response.
+
+## 2026-09-24 — IMPLEMENTATION_1 T-005: debug/demo deployment containment
+
+- Started from pushed master `872eb2ba9bba6816946c8039a77e0dcd1f79171f`; `sandbox/Dockerfile` was the only pre-existing dirty file and remained outside task scope.
+- Changed runtime configuration so `FORGE_DEBUG` and `FORGE_DEMO_MODE` default off and may only be enabled in explicit `FORGE_ENV=development`.
+- Added strict boolean parsing and validated environment names. Unknown/misspelled environments fail startup. Staging and production/prod use deployment secret requirements and Secure cookies.
+- Added the `.env.example` placeholder secret to the rejected deployment-secret set.
+- Decoupled `/api/auth/demo-login` from Flask debug. Debug alone now returns 404 from demo login. `seed-demo` and automatic startup demo seeding require explicit demo mode.
+- Added configuration/import/CLI/demo-login regressions, including fail-closed environment and placeholder-secret cases.
+- Verification after final hardening: focused configuration/CSRF suite **73 passed, 288 warnings in 9.65s**; full isolated Forge suite **93 passed, 377 warnings in 10.60s**; Python compilation, Node frontend CSRF/logout regressions, and `git diff --check` passed.
+- Existing datetime/SQLAlchemy deprecation warnings remain out of scope. No architecture, authentication model, schema, frontend framework, or deployment platform replacement was introduced.
+- T-005 completes roadmap P0 T-001 through T-005. T-101 regression coverage is next. `sandbox/Dockerfile` remains unrelated, modified, uncommitted, and excluded.
