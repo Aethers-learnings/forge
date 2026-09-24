@@ -46,6 +46,9 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+from forge_routes.notifications import create_notifications_blueprint
+from forge_routes.onboarding import create_onboarding_blueprint
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
 
@@ -2126,76 +2129,15 @@ def export_profile():
     return resp
 
 
-# ------------------------------------------------------------ onboarding --
-@app.get("/api/onboarding")
-def get_onboarding():
-    user, err = require_login()
-    if err:
-        return err
-    steps = ONBOARDING_STEPS.get(user.role, ["welcome"])
-    return jsonify({"steps": steps, "step": user.onboarding_step,
-                    "complete": user.onboarding_complete})
-
-
-@app.post("/api/onboarding/advance")
-def advance_onboarding():
-    user, err = require_login()
-    if err:
-        return err
-    steps = ONBOARDING_STEPS.get(user.role, ["welcome"])
-    user.onboarding_step = min(user.onboarding_step + 1, len(steps) - 1)
-    if user.onboarding_step >= len(steps) - 1:
-        user.onboarding_complete = True
-    db.session.commit()
-    return jsonify({"steps": steps, "step": user.onboarding_step,
-                    "complete": user.onboarding_complete})
-
-
-@app.post("/api/onboarding/skip")
-def skip_onboarding():
-    user, err = require_login()
-    if err:
-        return err
-    user.onboarding_complete = True
-    db.session.commit()
-    return jsonify({"steps": ONBOARDING_STEPS.get(user.role, ["welcome"]),
-                    "step": user.onboarding_step, "complete": True})
-
-
-# --------------------------------------------------------- notifications --
-@app.get("/api/notifications")
-def get_notifications():
-    user, err = require_login()
-    if err:
-        return err
-    notes = (Notification.query.filter_by(user_id=user.id)
-             .order_by(Notification.id.desc()).limit(50).all())
-    unread = Notification.query.filter_by(user_id=user.id, read=False).count()
-    return jsonify({"notifications": [n.to_dict() for n in notes],
-                    "unreadCount": unread})
-
-
-@app.post("/api/notifications/<int:note_id>/read")
-def mark_notification_read(note_id):
-    user, err = require_login()
-    if err:
-        return err
-    note = Notification.query.get_or_404(note_id)
-    if note.user_id != user.id:
-        return jsonify({"error": "not yours"}), 403
-    note.read = True
-    db.session.commit()
-    return jsonify({"ok": True})
-
-
-@app.post("/api/notifications/read-all")
-def mark_all_notifications_read():
-    user, err = require_login()
-    if err:
-        return err
-    Notification.query.filter_by(user_id=user.id, read=False).update({"read": True})
-    db.session.commit()
-    return jsonify({"ok": True})
+# -------------------------------------------------- extracted account routes --
+# Pass the existing dependencies explicitly: importing forge_backend from a
+# blueprint would create a second app when this file runs as __main__.
+app.register_blueprint(create_onboarding_blueprint(
+    db=db, require_login=require_login, steps_by_role=ONBOARDING_STEPS,
+))
+app.register_blueprint(create_notifications_blueprint(
+    db=db, require_login=require_login, notification_model=Notification,
+))
 
 
 # -------------------------------------------------------- public profiles --

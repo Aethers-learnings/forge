@@ -98,3 +98,9 @@ T-103 completed on 2026-09-24. Password-reset tokens are stored as SHA-256 diges
 
 - T-202 completed with reviewer PASS and deterministic checks passing.
 - Next dependency-satisfied SAFE_INCREMENTAL task: T-203.
+
+## 2026-09-24 — T-203 / Issue #1 first extraction
+
+On `codex/t-203-backend-extraction`, added behavior tests against the original implementation, then moved six notification/onboarding handlers into `forge_routes/notifications.py` and `forge_routes/onboarding.py`. Existing application/database creation, models, login/CSRF hooks, Socket.IO, media, and clients remain in place. Explicit factory dependencies avoid importing a second app during direct-script startup. No migration or fundamental architectural decision was needed.
+
+This is a bounded first increment of T-203 for PR review against `master`; wider extraction remains unfinished in TASKS.md. Nothing has been merged. Verification evidence is recorded in TEST_RESULTS.md.

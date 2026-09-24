@@ -47,3 +47,7 @@ Status: discovery findings with T-001 through T-005 roadmap P0 resolutions verif
 ## Security release gate
 
 Roadmap P0 items T-001 through T-005 now have regression/configuration verification paths. This does **not** by itself authorize an internet-facing production release: the remaining high-priority findings above, signed mobile release-device checks, deployment/proxy review, operational controls, and an independent security review still apply.
+
+## 2026-09-24 — T-203 route extraction review
+
+Only notification read and onboarding handlers moved. They still call the existing `require_login`; the global CSRF/origin hook remains on the same app and is exercised against every moved mutation. Notification ownership checks, missing-resource handling, and user-scoped read-all queries are preserved. Configuration, session mutation, Socket.IO authorization, profile visibility, upload authorization, schema, and clients were not modified. Existing ownership/revocation/deployment concerns are neither resolved nor expanded by this extraction.

@@ -47,3 +47,11 @@ Forge retains Flask's signed-cookie session model. `FORGE_ENV=production` is the
 Status: accepted (2026-09-24)
 
 Forge may use the local `scripts/forge-auto` controller for dependency-satisfied `SAFE_INCREMENTAL` backlog work. Python deterministically parses the task backlog, enforces governance, snapshots dirty paths, selects checks, bounds model calls and repair loops, validates staging, records the run, and creates a local Forge Agent commit. Isolated Codex subprocesses are limited to planning when enabled, implementation, review, and repair; they do not select work or decide safety boundaries. `MAJOR_REVIEW`, `HUMAN_APPROVAL_REQUIRED`, and protected architectural/authentication/destructive-operation boundaries stop before modification. The controller never pushes. Classification: SAFE_INCREMENTAL.
+
+## D-009: Extract small route groups with explicit existing dependencies
+
+Status: implemented for T-203 / Issue #1 (2026-09-24), pending PR review
+
+Use blueprint factories for notifications and onboarding, passing the existing database, login guard, and model/step mapping from `forge_backend.py`. This avoids circular imports and duplicate entrypoint initialization when run as `__main__`. Register at the former route-group location and retain all handler operations and transaction boundaries. Keep query logic in these small handlers; do not add a generic service/repository layer or app-factory redesign. Classification: SAFE_INCREMENTAL under D-001/D-002, with no fundamental architectural or schema decision.
+
+Internal Flask endpoint names become blueprint-qualified; public route contracts remain fixed. Further extractions need their own bounded regression evidence. Ownership/schema changes, session redesign, and retention changes remain outside T-203 and require the reviews already recorded in the backlog.

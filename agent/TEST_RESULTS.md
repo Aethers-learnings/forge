@@ -185,3 +185,19 @@ Limits: content inspection is container-signature-level validation, not malware 
 - Reviewer: PASS
 - Deterministic checks: git diff --check => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m py_compile tests/test_api_contract.py => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m pytest -q => 0
 - Run artifacts: `.forge-agent/runs/20260924T141111Z-T-202`
+
+## 2026-09-24 — T-203 / Issue #1 pre-extraction baseline
+
+- Starting commit: `e03c0a3` on the existing `codex/t-203-backend-extraction` branch.
+- Added 30 cases in `tests/test_account_routes.py` before moving production code: anonymous/suspended access for all six notification/onboarding routes, global CSRF rejection on all four mutations, role-specific onboarding progress/clamping/fallback and skip persistence, notification ordering/50-row window versus total unread count, repeated marking, missing-resource HTML 404, route methods, and direct-script startup without a second app import.
+- `.venv/bin/python -m pytest -q`: **206 passed, 965 existing deprecation/legacy warnings in 17.10s**, no skips. This includes the unchanged security, API, upload, profile, Socket.IO, frontend Node, and agent-runtime regressions.
+- Tests run against the original handlers, with isolated SQLite/storage from the existing harness. No application source changed in this baseline commit.
+
+## 2026-09-24 — T-203 / Issue #1 extraction verification
+
+- Focused route/API/authorization suite: `.venv/bin/python -m pytest -q tests/test_account_routes.py tests/test_api_contract.py tests/test_authz_regressions.py` — **64 passed, 522 warnings in 5.77s**.
+- Full Forge suite after extraction: `.venv/bin/python -m pytest -q` — **206 passed, 965 warnings in 16.03s**, no skips. Warning count matches the pre-extraction run; existing datetime/SQLAlchemy deprecations remain out of scope.
+- Compared runtime URL rules with starting commit `e03c0a3`: all **66 rules** (including Flask static) preserve paths, methods, subdomains, and strict-slash behavior. Compared SQLAlchemy table/column metadata: all **23 tables** match. No production database was opened; the comparison used in-memory database configuration.
+- AST comparison: all **129 original class/function definitions** match after normalizing only `blueprint`/`app`, `notification_model`/`Notification`, and `steps_by_role`/`ONBOARDING_STEPS` identifiers in the six moved handlers.
+- `git diff --check` passes. Source review confirms only the six handlers' location/registration changed; global security hooks and remaining handlers/models are unchanged. No dependency, web, mobile, or sandbox changes.
+- Limits: automated Flask/Node and direct-script startup checks; no manual browser, mobile-device, or deployment testing. Broader T-203 extraction remains in the backlog.

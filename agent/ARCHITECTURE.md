@@ -45,3 +45,16 @@ The current client is same-origin. It renders API data via `innerHTML` with an `
 ## Proposed future architecture (not implemented)
 
 Extract route-local services behind tests first: identity/session policy, socket authorization, content/upload policy, and workflow/approval services. Preserve Flask routes while introducing route blueprints and a versioned API contract only after regression coverage exists. A native mobile client can consume those stable contracts feature by feature while the WebView remains supported. Assess PostgreSQL and a schema migration tool only after data ownership, backups, and a migration/rollback plan have been approved.
+
+## 2026-09-24 — T-203 first extraction (Issue #1)
+
+The discovery descriptions above are historical. The current entrypoint still creates the Flask app, SQLAlchemy instance, models, Socket.IO instance, configuration, security hooks, and the remaining routes. Six account routes now live in two modules:
+
+| Module | Responsibility | Existing dependencies supplied by the entrypoint |
+| --- | --- | --- |
+| `forge_routes/onboarding.py` | Read, advance, and skip onboarding | `db`, `require_login`, `ONBOARDING_STEPS` |
+| `forge_routes/notifications.py` | List notifications, mark one read, mark all read | `db`, `require_login`, `Notification` |
+
+Each module exports a blueprint factory. `forge_backend.py` registers each blueprint once, at the former route group's location. The factories do not import the entrypoint or instantiate an app/database; both module imports and direct-script startup keep a single app. Paths, methods, query order/limits, JSON serialization, status codes, transaction points, and authentication/CSRF policy are preserved. Flask's internal endpoint identifiers for the moved views acquire the `onboarding.` or `notifications.` namespace; no existing code uses their former identifiers via `url_for` or `request.endpoint`.
+
+These small handlers retain their route-local queries and mutations; a separate service layer would add indirection without separating another responsibility. Further identity, workflow, profile, media, and analytics extraction remains incremental follow-up work. No schema, data ownership, framework, or authentication decision is required for this increment.

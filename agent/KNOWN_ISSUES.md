@@ -19,3 +19,7 @@
 - Add ownership foreign keys and migration strategy before converting demo networking/messaging data into real user data.
 - Replace CSV/pipe-delimited skills, tags, programme targeting, and pathway rows with normalized structures only after an approved migration plan.
 - Add timestamps, actor identities, audit records, pagination, validation limits, and retention rules to user-generated and administrative operations.
+
+## T-203 follow-up boundary (2026-09-24)
+
+The first notification/onboarding extraction requires no migration or architectural decision. Further identity, profile, media, workflow, and analytics extraction remains unimplemented in this PR. Shared networking/conversation ownership and messaging models must not be repaired as part of extraction: any such change remains stopped at the T-104/T-201 design and migration boundary. Authentication/session replacement and irreversible retention/deletion policy likewise remain outside this work. Historical discovery findings above are not newly verified defects from T-203.
