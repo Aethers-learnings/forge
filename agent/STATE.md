@@ -20,7 +20,7 @@ Developer tooling now includes a deterministic local autonomous-task MVP (`scrip
 
 ## Immediate gates
 
-1. Begin T-102: harden upload request-size handling, content validation, authorization/retention policy, and upload regressions.
+1. Begin T-103: hash password-reset tokens, establish non-debug reset delivery behavior, and avoid sensitive logging.
 2. Continue into reset-token, ownership, listing-lifecycle, and analytics hardening only after the corresponding regression baseline exists.
 3. Keep the prototype architecture in place while extracting only tested seams.
 
@@ -79,4 +79,8 @@ The initial run exposed a test-fixture schema mistake (`Notification.kind` inste
 
 Full verification: **118 passed, 510 warnings in 15.04s**. Frontend CSRF/multipart/identity/concurrency/logout regressions, backend compilation, and `git diff --check` passed. Existing datetime/SQLAlchemy deprecation warnings remain out of scope.
 
-T-102 is next. `sandbox/Dockerfile` remains unrelated and excluded.
+T-102 completed on 2026-09-24. Uploads now use request-size preflight plus bounded streaming, supported-container signature checks, isolated configurable storage, fail-closed ffmpeg processing when available, and authenticated media serving constrained to active post/feed authorization. Soft removal immediately revokes access while physical bytes remain pending a separately approved irreversible retention/deletion policy.
+
+Dedicated T-102 verification: **10 passed, 58 warnings in 3.93s**. Full Forge verification after the autonomy-runtime additions: **139 passed, 568 warnings in 17.05s**. Backend compilation and `git diff --check` passed.
+
+T-103 is next. `sandbox/Dockerfile` remains unrelated and excluded.

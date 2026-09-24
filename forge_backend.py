@@ -129,6 +129,10 @@ def build_app_config(environ=None):
         "DEBUG": debug,
         "FORGE_ENVIRONMENT": environment,
         "FORGE_DEMO_MODE": demo_mode,
+        "UPLOAD_DIR": environ.get(
+            "FORGE_UPLOAD_DIR",
+            os.path.join(BASE_DIR, "instance", "uploads"),
+        ),
         "SESSION_COOKIE_HTTPONLY": True,
         "SESSION_COOKIE_SAMESITE": "Lax",
         "SESSION_COOKIE_SECURE": deployment,
@@ -168,12 +172,26 @@ ALLOWED_STUDENT_DOMAINS = (
     "my.aaa.ac.za", "aaa.ac.za",
 )
 
-# Video pipeline (brief §2.8): uploads land here, get transcoded and
-# thumbnailed by ffmpeg when available, then served from /uploads/...
-UPLOAD_DIR = os.path.join(BASE_DIR, "instance", "uploads")
+# Video pipeline (brief §2.8). Storage can be isolated in tests/deployments.
+UPLOAD_DIR = app.config["UPLOAD_DIR"]
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".m4v", ".avi", ".mkv"}
+VIDEO_CONTAINER_FAMILIES = {
+    ".mp4": "iso-bmff",
+    ".mov": "iso-bmff",
+    ".m4v": "iso-bmff",
+    ".webm": "ebml",
+    ".mkv": "ebml",
+    ".avi": "avi",
+}
 MAX_VIDEO_BYTES = 50 * 1024 * 1024
+MAX_VIDEO_REQUEST_BYTES = MAX_VIDEO_BYTES + 512 * 1024
+
+# Werkzeug enforces this while parsing request bodies, before a multipart
+# upload can grow without bound in application code. The video route also
+# performs its own Content-Length preflight and bounded stream copy.
+app.config["MAX_CONTENT_LENGTH"] = MAX_VIDEO_REQUEST_BYTES
 
 # Profile images are isolated from the video/general upload directory.
 # Forge decodes and re-encodes them before serving them back to clients.
@@ -1218,36 +1236,94 @@ PLACEHOLDER_THUMB = (
 )
 
 
-def process_video(src_path, base_name):
-    """Video pipeline (brief §2.8): compress/transcode, then thumbnail,
-    before the file counts as stored. ffmpeg when on PATH (<=720p,
-    H.264 + AAC, +faststart, poster frame at 1s). Without ffmpeg, keeps
-    the original and writes an SVG placeholder thumbnail so the flow is
-    still demonstrable end to end."""
-    out_path, thumb_path = src_path, os.path.join(UPLOAD_DIR, base_name + "_thumb.svg")
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg:
-        transcoded = os.path.join(UPLOAD_DIR, base_name + "_web.mp4")
-        jpg_thumb = os.path.join(UPLOAD_DIR, base_name + "_thumb.jpg")
+def _video_container_family(header):
+    """Identify the supported container family from file bytes."""
+    if len(header) >= 12 and header[4:8] == b"ftyp":
+        return "iso-bmff"
+    if header.startswith(b"\\x1a\\x45\\xdf\\xa3"):
+        return "ebml"
+    if len(header) >= 12 and header[:4] == b"RIFF" and header[8:12] == b"AVI ":
+        return "avi"
+    return None
+
+
+def _video_content_matches_extension(file_storage, ext):
+    """Reject extension-only uploads; require a matching container signature."""
+    try:
+        header = file_storage.stream.read(4096)
+        file_storage.stream.seek(0)
+    except (OSError, ValueError):
+        return False
+    return _video_container_family(header) == VIDEO_CONTAINER_FAMILIES.get(ext)
+
+
+def _save_video_bounded(file_storage, destination):
+    """Copy at most MAX_VIDEO_BYTES to a new file; never overwrite an existing path."""
+    total = 0
+    try:
+        with open(destination, "xb") as output:
+            while True:
+                remaining = MAX_VIDEO_BYTES - total
+                chunk = file_storage.stream.read(min(1024 * 1024, remaining + 1))
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_VIDEO_BYTES:
+                    raise ValueError("video larger than 50MB")
+                output.write(chunk)
+    except Exception:
         try:
-            subprocess.run(
-                [ffmpeg, "-y", "-i", src_path,
-                 "-vf", "scale='min(1280,iw)':-2",
-                 "-c:v", "libx264", "-crf", "26", "-preset", "veryfast",
-                 "-c:a", "aac", "-b:a", "96k",
-                 "-movflags", "+faststart", transcoded],
-                check=True, capture_output=True, timeout=180)
-            subprocess.run(
-                [ffmpeg, "-y", "-ss", "1", "-i", transcoded,
-                 "-frames:v", "1", "-vf", "scale=480:-2", jpg_thumb],
-                check=True, capture_output=True, timeout=60)
-            os.remove(src_path)
-            return transcoded, jpg_thumb
-        except (subprocess.SubprocessError, OSError):
-            pass  # store the original rather than lose the upload
-    with open(thumb_path, "w", encoding="utf-8") as fh:
-        fh.write(PLACEHOLDER_THUMB)
-    return out_path, thumb_path
+            os.remove(destination)
+        except FileNotFoundError:
+            pass
+        raise
+    return total
+
+
+def _remove_media_artifact(path):
+    if not path:
+        return
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+
+
+def process_video(src_path, base_name):
+    """Transcode and thumbnail a validated upload when ffmpeg is available.
+
+    A configured ffmpeg failure is treated as invalid/unprocessable media
+    instead of silently publishing the original. Without ffmpeg, the
+    signature-validated original is retained with a generated placeholder.
+    """
+    thumb_path = os.path.join(UPLOAD_DIR, base_name + "_thumb.svg")
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        with open(thumb_path, "x", encoding="utf-8") as fh:
+            fh.write(PLACEHOLDER_THUMB)
+        return src_path, thumb_path
+
+    transcoded = os.path.join(UPLOAD_DIR, base_name + "_web.mp4")
+    jpg_thumb = os.path.join(UPLOAD_DIR, base_name + "_thumb.jpg")
+    try:
+        subprocess.run(
+            [ffmpeg, "-y", "-i", src_path,
+             "-vf", "scale='min(1280,iw)':-2",
+             "-c:v", "libx264", "-crf", "26", "-preset", "veryfast",
+             "-c:a", "aac", "-b:a", "96k",
+             "-movflags", "+faststart", transcoded],
+            check=True, capture_output=True, timeout=180)
+        subprocess.run(
+            [ffmpeg, "-y", "-ss", "1", "-i", transcoded,
+             "-frames:v", "1", "-vf", "scale=480:-2", jpg_thumb],
+            check=True, capture_output=True, timeout=60)
+    except (subprocess.SubprocessError, OSError) as exc:
+        _remove_media_artifact(transcoded)
+        _remove_media_artifact(jpg_thumb)
+        raise ValueError("video could not be safely processed") from exc
+
+    os.remove(src_path)
+    return transcoded, jpg_thumb
 
 
 @app.post("/api/posts/video")
@@ -1257,20 +1333,35 @@ def upload_video_post():
         return err
     if user.role not in STUDENT_ROLES:
         return jsonify({"error": "only students and alumni can post videos"}), 403
+
+    # Check the complete multipart request before parsing request.files.
+    if request.content_length and request.content_length > MAX_VIDEO_REQUEST_BYTES:
+        return jsonify({"error": "video larger than 50MB"}), 413
+
     file = request.files.get("video")
     if not file or not file.filename:
         return jsonify({"error": "video file required"}), 400
+
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_VIDEO_EXTENSIONS:
         return jsonify({"error": f"unsupported video type {ext}"}), 400
+
+    if not _video_content_matches_extension(file, ext):
+        return jsonify({"error": "video content does not match a supported container"}), 415
+
     caption = (request.form.get("caption") or "Shared a video").strip()
-    base_name = f"{int(time.time())}_{uuid.uuid4().hex[:8]}_{secure_filename(os.path.splitext(file.filename)[0])}"
+    safe_stem = secure_filename(os.path.splitext(file.filename)[0]) or "video"
+    base_name = f"{int(time.time())}_{uuid.uuid4().hex[:8]}_{safe_stem}"
     src_path = os.path.join(UPLOAD_DIR, base_name + ext)
-    file.save(src_path)
-    if os.path.getsize(src_path) > MAX_VIDEO_BYTES:
-        os.remove(src_path)
-        return jsonify({"error": "video larger than 50MB"}), 413
-    stored, thumb = process_video(src_path, base_name)
+
+    try:
+        _save_video_bounded(file, src_path)
+        stored, thumb = process_video(src_path, base_name)
+    except ValueError as exc:
+        _remove_media_artifact(src_path)
+        status = 413 if str(exc) == "video larger than 50MB" else 400
+        return jsonify({"error": str(exc)}), status
+
     post = Post(feed=user.role, author_name=user.name, author_role=user.role,
                 color=user.color, body=caption, media=True,
                 video_url=f"/uploads/{os.path.basename(stored)}",
@@ -1282,7 +1373,31 @@ def upload_video_post():
 
 @app.get("/uploads/<path:name>")
 def serve_upload(name):
-    return send_from_directory(UPLOAD_DIR, name)
+    user, err = require_login()
+    if err:
+        return err
+
+    # Forge generates flat filenames. Reject nested paths even though
+    # send_from_directory also performs traversal protection.
+    if not name or name != os.path.basename(name):
+        abort(404)
+
+    media_url = f"/uploads/{name}"
+    post = (Post.query
+            .filter_by(media=True, removed=False)
+            .filter((Post.video_url == media_url) | (Post.thumb_url == media_url))
+            .first())
+    if not post:
+        abort(404)
+
+    # Media inherits the same role-feed boundary as /api/feed. Admins retain
+    # access to active media for moderation.
+    if user.role != "admin" and post.feed != user.role:
+        abort(404)
+
+    response = send_from_directory(UPLOAD_DIR, name, conditional=True)
+    response.headers["Cache-Control"] = "private, max-age=86400"
+    return response
 
 
 # ----------------------------------------------------------- discover --

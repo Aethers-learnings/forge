@@ -143,3 +143,19 @@ Warnings remain existing `datetime.utcnow()` deprecations and SQLAlchemy `Query.
 | Focused runtime unit tests | PASS | `.venv/bin/python -m pytest -q tests/test_agent_runtime.py`: **11 passed**; tests use injected subprocess runners and never invoke Codex. |
 | Runtime syntax | PASS | `.venv/bin/python -m py_compile agent_runtime/__init__.py agent_runtime/runtime.py scripts/forge-auto`. |
 | Whitespace | PASS | `git diff --check`. |
+
+## 2026-09-24 — T-102 upload boundary hardening
+
+| Check | Result | Evidence / scope |
+| --- | --- | --- |
+| Dedicated upload-security suite | PASS | `.venv-host/bin/python -m pytest -q tests/test_upload_security.py`: **10 passed, 58 warnings in 3.93s**. |
+| Request-size handling | PASS | Multipart Content-Length preflight plus bounded streamed writes reject oversized uploads and clean partial files. |
+| Content validation | PASS | Unsupported extensions, invalid signatures, and extension/container mismatches are rejected; supported container families are checked from file bytes. |
+| Processing failure behavior | PASS | ffmpeg failures fail closed; when ffmpeg is unavailable, signature-validated originals remain usable with placeholder thumbnails. |
+| Upload authorization | PASS | Anonymous access is rejected; active media follows role-feed authorization; admins retain moderation access; orphan and soft-removed media are unavailable. |
+| Retention behavior | PASS / DEFERRED | Soft removal immediately revokes access while physical bytes remain. Automated irreversible deletion is deferred pending an approved retention policy. |
+| Full Forge suite | PASS | `.venv-host/bin/python -m pytest -q`: **139 passed, 568 warnings in 17.05s**. |
+| Syntax / whitespace | PASS | `.venv-host/bin/python -m py_compile forge_backend.py` and `git diff --check`. |
+
+Limits: content inspection is container-signature-level validation, not malware scanning or deep codec/media validation. The global Flask request-size ceiling currently applies application-wide. Physical cleanup of removed media remains intentionally deferred.
+

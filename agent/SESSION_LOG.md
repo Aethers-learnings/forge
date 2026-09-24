@@ -87,3 +87,15 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 # 2026-09-24 — Autonomous runtime MVP
 
 - Added deterministic local `scripts/forge-auto` orchestration tooling, focused unit tests, governance/model-routing documentation, and decision D-008. It preserves pre-existing dirty product-task paths and does not run autonomous product work.
+
+## 2026-09-24 — IMPLEMENTATION_1 T-102: upload boundary hardening
+
+- Added configurable isolated upload storage, global request-size protection, route-level Content-Length preflight, and bounded streamed video writes capped at 50 MiB.
+- Added supported-container signature-family validation for ISO-BMFF, EBML, and AVI instead of relying only on filename extensions.
+- Changed ffmpeg handling to fail closed when processing is available but fails. When ffmpeg is absent, signature-validated originals are retained with placeholder thumbnails.
+- `/uploads/<path:name>` now requires authentication, serves only media referenced by active non-removed posts, applies role-feed authorization to non-admin users, and retains admin moderation access.
+- Soft removal immediately revokes media access. Physical bytes are deliberately retained because an irreversible deletion/retention lifecycle requires separate approval.
+- Added isolated upload storage to the test fixture and 10 focused upload-security regressions.
+- Final verification: dedicated suite **10 passed, 58 warnings in 3.93s**; full Forge suite **139 passed, 568 warnings in 17.05s**; Python compilation and `git diff --check` passed.
+- Container-signature checking is not malware/deep media scanning; that limitation remains documented.
+- T-102 complete; T-103 is next. `sandbox/Dockerfile` remains separate autonomous-agent infrastructure work and is excluded from this task.

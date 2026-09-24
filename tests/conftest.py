@@ -19,10 +19,14 @@ _test_database.close()
 _test_profile_images = tempfile.mkdtemp(
     prefix="forge-profile-images-", dir=os.path.dirname(__file__)
 )
+_test_uploads = tempfile.mkdtemp(
+    prefix="forge-uploads-", dir=os.path.dirname(__file__)
+)
 os.environ["FORGE_SECRET_KEY"] = "test-secret-key-with-at-least-thirty-two-characters"
 os.environ["FORGE_DATABASE_URI"] = f"sqlite:///{_test_database.name}"
 os.environ["FORGE_ENV"] = "test"
 os.environ["FORGE_PROFILE_IMAGE_DIR"] = _test_profile_images
+os.environ["FORGE_UPLOAD_DIR"] = _test_uploads
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import forge_backend  # noqa: E402  (environment must be configured first)
@@ -30,7 +34,10 @@ import forge_backend  # noqa: E402  (environment must be configured first)
 
 @pytest.fixture(autouse=True)
 def isolated_database():
-    """Create only the schema needed by a test and remove its data after it."""
+    """Create isolated database state and upload storage for every test."""
+    shutil.rmtree(_test_uploads, ignore_errors=True)
+    os.makedirs(_test_uploads, exist_ok=True)
+
     with forge_backend.app.app_context():
         forge_backend.db.drop_all()
         forge_backend.db.create_all()
@@ -38,6 +45,9 @@ def isolated_database():
         yield
         forge_backend.db.session.remove()
         forge_backend.db.drop_all()
+
+    shutil.rmtree(_test_uploads, ignore_errors=True)
+    os.makedirs(_test_uploads, exist_ok=True)
 
 
 @pytest.fixture()
@@ -57,3 +67,4 @@ def pytest_sessionfinish(session, exitstatus):
     except FileNotFoundError:
         pass
     shutil.rmtree(_test_profile_images, ignore_errors=True)
+    shutil.rmtree(_test_uploads, ignore_errors=True)
