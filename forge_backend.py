@@ -147,6 +147,54 @@ def build_app_config(environ=None):
 app = Flask(__name__, static_folder="static")
 app.config.update(build_app_config())
 
+
+# Browser security policy for both API and static responses.
+#
+# The current static prototype intentionally keeps its CSS and JavaScript
+# inline, so script/style-src still require 'unsafe-inline'. External browser
+# resources are restricted to the two origins the existing client actually
+# uses. A future frontend extraction can remove 'unsafe-inline' without
+# changing the rest of this policy.
+CONTENT_SECURITY_POLICY = "; ".join((
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    "media-src 'self' blob:",
+    "connect-src 'self'",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+))
+
+
+@app.after_request
+def add_browser_security_headers(response):
+    """Apply Forge's browser hardening policy to every Flask response."""
+    response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=()"
+    )
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+
+    # HSTS must never make local HTTP development unusable. Deployment
+    # environments already require secure session cookies and an explicit
+    # production-grade secret, so enable HSTS only there.
+    if app.config.get("FORGE_ENVIRONMENT") in DEPLOYMENT_ENVIRONMENTS:
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+
+    return response
+
+
 db = SQLAlchemy(app)
 # Flask-SocketIO's default origin policy is same-origin. Do not use a wildcard:
 # browser sockets carry the authenticated Flask session and receive private
