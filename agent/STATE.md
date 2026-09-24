@@ -20,9 +20,8 @@ Developer tooling now includes a deterministic local autonomous-task MVP (`scrip
 
 ## Immediate gates
 
-1. Begin T-103: hash password-reset tokens, establish non-debug reset delivery behavior, and avoid sensitive logging.
-2. Continue into reset-token, ownership, listing-lifecycle, and analytics hardening only after the corresponding regression baseline exists.
-3. Keep the prototype architecture in place while extracting only tested seams.
+1. Continue into ownership, listing-lifecycle, and analytics hardening only after the corresponding regression baseline exists.
+2. Keep the prototype architecture in place while extracting only tested seams.
 
 ## Deliberate non-decisions
 
@@ -83,4 +82,4 @@ T-102 completed on 2026-09-24. Uploads now use request-size preflight plus bound
 
 Dedicated T-102 verification: **10 passed, 58 warnings in 3.93s**. Full Forge verification after the autonomy-runtime additions: **139 passed, 568 warnings in 17.05s**. Backend compilation and `git diff --check` passed.
 
-T-103 is next. `sandbox/Dockerfile` remains unrelated and excluded.
+T-103 completed on 2026-09-24. Password-reset tokens are stored as SHA-256 digests; the plaintext token is restricted to the explicit local debug response, and email fallback/failure logging omits sensitive content. `sandbox/Dockerfile` remains unrelated and excluded.

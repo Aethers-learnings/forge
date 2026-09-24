@@ -69,7 +69,7 @@ Demo logins (password `demo123`): `demo_trade`, `demo_grad`, `demo_business`,
 |---|---|---|
 | `FORGE_SECRET_KEY` | Recommended | Flask session signing key |
 | `ANTHROPIC_API_KEY` | Optional | Enables the real AI coach; falls back to rule-based replies without it |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Optional | Enables real outbound email (sign-in alerts, password resets). Without these, emails are logged to the console instead of sent. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Optional | Enables real outbound email (sign-in alerts, password resets). Without SMTP, delivery is skipped and message contents are never logged. |
 
 ## Team
 

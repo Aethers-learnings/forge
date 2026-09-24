@@ -20,6 +20,7 @@ features required by the hackathon brief:
 Serves the API under /api/... and the front-end HTML at / from static/.
 """
 import json
+import hashlib
 import os
 import re
 import secrets
@@ -634,19 +635,12 @@ def push_notification(user_id, ntype, text, link=""):
 
 
 def send_email(to_addr, subject, body):
-    """Actually deliver mail when SMTP_HOST/PORT/USER/PASS/FROM are set in
-    the environment (works with Gmail app-passwords, SendGrid, Mailtrap,
-    Resend's SMTP endpoint, etc.). With no SMTP configured — the default
-    for this demo — it just logs to the console, same pattern as the
-    forgot-password devResetToken fallback above. Callers should never
-    assume the send succeeded; this never raises.
-    """
+    """Deliver mail through configured SMTP without logging message contents."""
     if not to_addr:
         return False
     host = os.environ.get("SMTP_HOST")
     if not host:
-        print(f"[email:not-configured] to={to_addr} subject={subject!r}\n{body}\n"
-              f"(set SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM to send for real)")
+        print("[email:not-configured] delivery skipped")
         return False
     try:
         import smtplib
@@ -664,8 +658,8 @@ def send_email(to_addr, subject, body):
                 server.login(user, pw)
             server.sendmail(msg["From"], [to_addr], msg.as_string())
         return True
-    except Exception as exc:  # noqa: BLE001 — a failed email must never break the request
-        print(f"[email:failed] to={to_addr} subject={subject!r} error={exc}")
+    except Exception:  # noqa: BLE001 — a failed email must never break the request
+        print("[email:failed] delivery failed")
         return False
 
 
@@ -1056,19 +1050,20 @@ def login():
 
 @app.post("/api/auth/forgot-password")
 def forgot_password():
-    """Issue a password-reset token. This demo has no email/SMTP service
-    wired up, so in debug mode the token is returned directly in the
-    response for the UI to use. In non-debug mode the token is never
-    returned to the client — wire up real email delivery before then.
-    Response is deliberately the same either way so the endpoint can't be
-    used to check which usernames exist."""
+    """Issue a reset token, storing only its digest.
+
+    The plaintext token is only returned through the explicit local debug
+    path. Normal operation delivers it through SMTP when configured and
+    never writes it to logs. The public response remains generic so callers
+    cannot enumerate accounts.
+    """
     data = request.get_json(force=True) or {}
     username = (data.get("username") or "").strip()
     user = User.query.filter_by(username=username).first()
     token = None
     if user:
         token = secrets.token_urlsafe(32)
-        user.reset_token = token
+        user.reset_token = hashlib.sha256(token.encode("utf-8")).hexdigest()
         user.reset_token_expires = datetime.utcnow() + timedelta(minutes=30)
         db.session.commit()
         if user.email:
@@ -1093,7 +1088,8 @@ def reset_password():
         return jsonify({"error": "token and newPassword are required"}), 400
     if len(new_password) < 8:
         return jsonify({"error": "password must be at least 8 characters"}), 400
-    user = User.query.filter_by(reset_token=token).first()
+    token_digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    user = User.query.filter_by(reset_token=token_digest).first()
     if not user or not user.reset_token_expires or user.reset_token_expires < datetime.utcnow():
         return jsonify({"error": "that reset link is invalid or has expired"}), 400
     user.password_hash = generate_password_hash(new_password)

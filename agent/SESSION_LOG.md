@@ -99,3 +99,11 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Final verification: dedicated suite **10 passed, 58 warnings in 3.93s**; full Forge suite **139 passed, 568 warnings in 17.05s**; Python compilation and `git diff --check` passed.
 - Container-signature checking is not malware/deep media scanning; that limitation remains documented.
 - T-102 complete; T-103 is next. `sandbox/Dockerfile` remains separate autonomous-agent infrastructure work and is excluded from this task.
+
+## 2026-09-24 — IMPLEMENTATION_1 T-103: password-reset token hardening
+
+- Stored password-reset tokens as SHA-256 digests; reset redemption hashes the supplied token before lookup and continues to clear the digest after use.
+- Kept the plaintext development token limited to explicit Flask debug behavior, which existing T-005 configuration prohibits outside local development.
+- Removed email fallback/failure logging of recipients, subjects, bodies, exception details, and therefore reset URLs/tokens. Non-debug without SMTP intentionally cannot deliver reset email but returns the existing generic anti-enumeration response.
+- Added reset-token digest, redemption, non-debug response, and sensitive-log regressions; updated the existing anonymous CSRF reset test to retrieve the debug token from its intended response rather than the database.
+- Verification: focused suite **44 passed, 56 warnings in 7.83s**; full suite **144 passed, 162 warnings in 22.39s**; backend compilation and `git diff --check` passed.

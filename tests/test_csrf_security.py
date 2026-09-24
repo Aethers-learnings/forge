@@ -159,13 +159,15 @@ def test_anonymous_login_and_registration_need_no_csrf(client):
     assert token(client) != first
 
 
-def test_anonymous_password_reset_flows_need_no_csrf(client):
+def test_anonymous_password_reset_flows_need_no_csrf(client, monkeypatch):
     uid = make_user()
+    monkeypatch.setattr(backend.app, "debug", True)
     response = client.post("/api/auth/forgot-password", json={"username": "alice"})
     assert response.status_code == 200
     user = backend.db.session.get(backend.User, uid)
-    reset_token = user.reset_token
+    reset_token = response.json["devResetToken"]
     assert reset_token
+    assert user.reset_token != reset_token
     response = client.post("/api/auth/reset-password", json={"token": reset_token, "newPassword": "changed123"})
     assert response.status_code == 200
     assert client.post("/api/auth/login", json={"username": "alice", "password": "changed123"}).status_code == 200

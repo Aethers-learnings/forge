@@ -159,3 +159,11 @@ Warnings remain existing `datetime.utcnow()` deprecations and SQLAlchemy `Query.
 
 Limits: content inspection is container-signature-level validation, not malware scanning or deep codec/media validation. The global Flask request-size ceiling currently applies application-wide. Physical cleanup of removed media remains intentionally deferred.
 
+## 2026-09-24 — T-103 password-reset token hardening
+
+| Check | Result | Evidence / scope |
+| --- | --- | --- |
+| Reset and CSRF regressions | PASS | `.venv/bin/python -m pytest -q tests/test_password_reset_security.py tests/test_csrf_security.py`: **44 passed, 56 warnings in 7.83s**. |
+| Token secrecy | PASS | New reset tokens are persisted only as SHA-256 digests, can be redeemed once, and are cleared after redemption. |
+| Non-debug delivery/logging | PASS | Non-debug responses omit development tokens; unconfigured SMTP emits no recipient, subject, body, or token content. |
+| Full Forge suite | PASS | `.venv/bin/python -m pytest -q`: **144 passed, 162 warnings in 22.39s**. |

@@ -9,8 +9,8 @@ Status: route inventory for the current Flask prototype. All JSON routes return 
 | POST `/api/auth/register` | Public | Creates `trade`, `grad`, or `business`; checks student-domain only when an email is supplied; creates a session. |
 | POST `/api/admin/provision` | Secret header | Creates admin if `X-Provision-Secret` equals environment secret; otherwise 404. |
 | POST `/api/auth/login` | Public | Username/password login; in-memory 5-attempt/300-second per-username throttle; creates session. |
-| POST `/api/auth/forgot-password` | Public | Creates 30-minute reset token for matching username; sends SMTP email if configured; returns token in debug. |
-| POST `/api/auth/reset-password` | Public token | Exchanges a valid stored token for a password of at least 8 characters. |
+| POST `/api/auth/forgot-password` | Public | Creates a 30-minute SHA-256-digested reset token for a matching username; sends SMTP email if configured; returns plaintext only in explicit local debug mode. |
+| POST `/api/auth/reset-password` | Public token | Exchanges a valid token whose digest matches stored state for a password of at least 8 characters. |
 | POST `/api/auth/demo-login` | Explicit local demo mode | Selects seeded `demo_<role>` user only when `FORGE_DEMO_MODE=1` with `FORGE_ENV=development`; otherwise 404. Flask debug alone does not enable it. |
 | POST `/api/auth/logout` | Session-aware | Removes `user_id` from session. |
 | GET `/api/auth/me` | Session-aware | Returns current public user object or `null`; does not call `require_login()`. |
