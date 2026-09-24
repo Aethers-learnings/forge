@@ -87,6 +87,24 @@ async function toggleOpportunityApplication(baseUrl, opportunityId) {
   });
 }
 
+async function getNotifications(baseUrl) {
+  return request(baseUrl, '/api/notifications');
+}
+
+async function markNotificationRead(baseUrl, notificationId) {
+  return request(baseUrl, `/api/notifications/${notificationId}/read`, {
+    method: 'POST',
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
+async function markAllNotificationsRead(baseUrl) {
+  return request(baseUrl, '/api/notifications/read-all', {
+    method: 'POST',
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
 async function getOnboarding(baseUrl) {
   return request(baseUrl, '/api/onboarding');
 }
@@ -112,6 +130,9 @@ module.exports = {
   logout,
   getOpportunities,
   toggleOpportunityApplication,
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
   getOnboarding,
   advanceOnboarding,
   skipOnboarding,

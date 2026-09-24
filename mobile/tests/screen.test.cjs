@@ -60,6 +60,12 @@ function screen(saved, options = {}) {
         tags: ['Python'],
         applied: true,
       }),
+      getNotifications: async () => ({
+        notifications: [],
+        unreadCount: 0,
+      }),
+      markNotificationRead: async () => ({ ok: true }),
+      markAllNotificationsRead: async () => ({ ok: true }),
     },
   };
   const source = ts.transpileModule(fs.readFileSync(require.resolve('../src/app/index.tsx'), 'utf8'), {

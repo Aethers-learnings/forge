@@ -268,3 +268,110 @@ test('native opportunity application toggle is CSRF protected', async () => {
   assert.equal(result.applied, true);
 });
 
+test('notifications use the stable summary contract', async () => {
+  let requestUrl;
+
+  global.fetch = async (url) => {
+    requestUrl = url;
+
+    return new Response(JSON.stringify({
+      notifications: [{
+        id: 4,
+        type: 'application',
+        text: 'Your application was received.',
+        link: null,
+        read: false,
+        createdAt: '2026-09-24T12:00:00',
+      }],
+      unreadCount: 1,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.getNotifications(
+    'https://forge.example/'
+  );
+
+  assert.equal(
+    requestUrl,
+    'https://forge.example/api/notifications'
+  );
+  assert.equal(result.unreadCount, 1);
+  assert.equal(result.notifications[0].read, false);
+});
+
+test('mark notification read is CSRF protected', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({
+        csrfToken: 'notification-token',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  await client.markNotificationRead(
+    'https://forge.example/',
+    4
+  );
+
+  assert.equal(
+    calls[1][0],
+    'https://forge.example/api/notifications/4/read'
+  );
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(
+    calls[1][1].headers['X-CSRF-Token'],
+    'notification-token'
+  );
+});
+
+test('mark all notifications read is CSRF protected', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({
+        csrfToken: 'all-read-token',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  await client.markAllNotificationsRead(
+    'https://forge.example/'
+  );
+
+  assert.equal(
+    calls[1][0],
+    'https://forge.example/api/notifications/read-all'
+  );
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(
+    calls[1][1].headers['X-CSRF-Token'],
+    'all-read-token'
+  );
+});
+

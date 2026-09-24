@@ -16,6 +16,9 @@ import {
   skipOnboarding,
   getOpportunities,
   toggleOpportunityApplication,
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 } from '../api/client';
 
 const STORAGE_KEY = 'forge_server_url';
@@ -39,11 +42,18 @@ export default function Index() {
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
-  const [nativeSection, setNativeSection] = useState<'profile' | 'opportunities'>('profile');
+  const [nativeSection, setNativeSection] =
+    useState<'profile' | 'opportunities' | 'notifications'>('profile');
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [opportunitiesError, setOpportunitiesError] = useState<string | null>(null);
   const [opportunityBusyId, setOpportunityBusyId] = useState<number | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [notificationBusyId, setNotificationBusyId] =
+    useState<number | 'all' | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
@@ -104,6 +114,9 @@ export default function Index() {
       setNativeSection('profile');
       setOpportunities([]);
       setOpportunitiesError(null);
+      setNotifications([]);
+      setUnreadCount(0);
+      setNotificationsError(null);
       setAuthChecked(true);
     } catch (error: any) {
       setAuthError(error?.message || 'Could not sign out.');
@@ -231,6 +244,101 @@ export default function Index() {
     }
   };
 
+  useEffect(() => {
+    if (
+      !nativeMode ||
+      !serverUrl ||
+      !nativeUserId ||
+      nativeSection !== 'notifications'
+    ) return;
+
+    let cancelled = false;
+
+    void getNotifications(serverUrl)
+      .then((value: any) => {
+        if (!cancelled) {
+          setNotifications(
+            Array.isArray(value?.notifications) ? value.notifications : []
+          );
+          setUnreadCount(
+            typeof value?.unreadCount === 'number' ? value.unreadCount : 0
+          );
+          setNotificationsError(null);
+        }
+      })
+      .catch((error: any) => {
+        if (!cancelled) {
+          setNotificationsError(
+            error?.message || 'Could not load notifications.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNotificationsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeMode, serverUrl, nativeUserId, nativeSection]);
+
+  const handleMarkNotificationRead = async (notificationId: number) => {
+    if (!serverUrl || notificationBusyId !== null) return;
+
+    const target = notifications.find(
+      (notification: any) => notification.id === notificationId
+    );
+
+    if (!target || target.read) return;
+
+    setNotificationBusyId(notificationId);
+    setNotificationsError(null);
+
+    try {
+      await markNotificationRead(serverUrl, notificationId);
+
+      setNotifications((items: any[]) =>
+        items.map((notification: any) =>
+          notification.id === notificationId
+            ? { ...notification, read: true }
+            : notification
+        )
+      );
+      setUnreadCount((count: number) => Math.max(0, count - 1));
+    } catch (error: any) {
+      setNotificationsError(
+        error?.message || 'Could not mark the notification as read.'
+      );
+    } finally {
+      setNotificationBusyId(null);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (!serverUrl || notificationBusyId !== null || unreadCount === 0) return;
+
+    setNotificationBusyId('all');
+    setNotificationsError(null);
+
+    try {
+      await markAllNotificationsRead(serverUrl);
+
+      setNotifications((items: any[]) =>
+        items.map((notification: any) => ({
+          ...notification,
+          read: true,
+        }))
+      );
+      setUnreadCount(0);
+    } catch (error: any) {
+      setNotificationsError(
+        error?.message || 'Could not mark notifications as read.'
+      );
+    } finally {
+      setNotificationBusyId(null);
+    }
+  };
+
   const applyOnboardingState = (value: any) => {
     setOnboarding(value);
     setNativeUser((user: any) => user ? {
@@ -294,6 +402,9 @@ export default function Index() {
       setNativeSection('profile');
       setOpportunities([]);
       setOpportunitiesError(null);
+      setNotifications([]);
+      setUnreadCount(0);
+      setNotificationsError(null);
     } catch {
       setSettingsError('Could not save the address. Please try again.');
     }
@@ -410,27 +521,27 @@ export default function Index() {
               </View>
             </View>
 
-            {canUseOpportunities && (
-              <View style={styles.sectionTabs}>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: nativeSection === 'profile' }}
+            <View style={styles.sectionTabs}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ selected: nativeSection === 'profile' }}
+                style={[
+                  styles.sectionTab,
+                  nativeSection === 'profile' && styles.sectionTabActive,
+                ]}
+                onPress={() => setNativeSection('profile')}
+              >
+                <Text
                   style={[
-                    styles.sectionTab,
-                    nativeSection === 'profile' && styles.sectionTabActive,
+                    styles.sectionTabText,
+                    nativeSection === 'profile' && styles.sectionTabTextActive,
                   ]}
-                  onPress={() => setNativeSection('profile')}
                 >
-                  <Text
-                    style={[
-                      styles.sectionTabText,
-                      nativeSection === 'profile' && styles.sectionTabTextActive,
-                    ]}
-                  >
-                    Profile
-                  </Text>
-                </TouchableOpacity>
+                  Profile
+                </Text>
+              </TouchableOpacity>
 
+              {canUseOpportunities && (
                 <TouchableOpacity
                   accessibilityRole="button"
                   accessibilityState={{ selected: nativeSection === 'opportunities' }}
@@ -453,8 +564,46 @@ export default function Index() {
                     Opportunities
                   </Text>
                 </TouchableOpacity>
-              </View>
-            )}
+              )}
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ selected: nativeSection === 'notifications' }}
+                accessibilityLabel={
+                  unreadCount > 0
+                    ? `Notifications, ${unreadCount} unread`
+                    : 'Notifications'
+                }
+                style={[
+                  styles.sectionTab,
+                  nativeSection === 'notifications' && styles.sectionTabActive,
+                ]}
+                onPress={() => {
+                  setNotificationsLoading(true);
+                  setNotificationsError(null);
+                  setNativeSection('notifications');
+                }}
+              >
+                <View style={styles.notificationTabContent}>
+                  <Text
+                    style={[
+                      styles.sectionTabText,
+                      nativeSection === 'notifications' && styles.sectionTabTextActive,
+                    ]}
+                  >
+                    Notifications
+                  </Text>
+
+                  {unreadCount > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadBadgeText}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
 
             {nativeSection === 'profile' && (
               <>
@@ -683,6 +832,120 @@ export default function Index() {
                             : 'Apply'}
                       </Text>
                     </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {nativeSection === 'notifications' && (
+              <View>
+                <View style={styles.notificationHeader}>
+                  <View style={styles.notificationHeadingBlock}>
+                    <Text style={styles.cardEyebrow}>NOTIFICATIONS</Text>
+                    <Text style={styles.opportunityTitle}>
+                      What’s happening
+                    </Text>
+                    <Text style={styles.opportunityIntro}>
+                      Updates from your Forge activity.
+                    </Text>
+                  </View>
+
+                  {unreadCount > 0 && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      disabled={notificationBusyId !== null}
+                      style={styles.markAllButton}
+                      onPress={handleMarkAllNotificationsRead}
+                    >
+                      <Text style={styles.markAllButtonText}>
+                        {notificationBusyId === 'all'
+                          ? 'Updating…'
+                          : 'Mark all read'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {notificationsLoading && notifications.length === 0 && (
+                  <View style={styles.profileCard}>
+                    <Text style={styles.profileBio}>
+                      Loading notifications…
+                    </Text>
+                  </View>
+                )}
+
+                {notificationsError && (
+                  <Text accessibilityRole="alert" style={styles.nativeError}>
+                    {notificationsError}
+                  </Text>
+                )}
+
+                {!notificationsLoading &&
+                  !notificationsError &&
+                  notifications.length === 0 && (
+                    <View style={styles.profileCard}>
+                      <Text style={styles.profileHeadline}>
+                        You’re all caught up
+                      </Text>
+                      <Text style={styles.profileBio}>
+                        New Forge activity will appear here.
+                      </Text>
+                    </View>
+                  )}
+
+                {notifications.map((notification: any) => (
+                  <View
+                    key={notification.id}
+                    style={[
+                      styles.notificationCard,
+                      !notification.read && styles.notificationCardUnread,
+                    ]}
+                  >
+                    <View style={styles.notificationTopRow}>
+                      <View style={styles.notificationTextBlock}>
+                        <View style={styles.notificationTypeRow}>
+                          {!notification.read && (
+                            <View
+                              accessible={false}
+                              style={styles.unreadDot}
+                            />
+                          )}
+
+                          <Text style={styles.notificationType}>
+                            {(notification.type || 'update')
+                              .replace(/[_-]/g, ' ')
+                              .toUpperCase()}
+                          </Text>
+                        </View>
+
+                        <Text style={styles.notificationText}>
+                          {notification.text}
+                        </Text>
+
+                        {!!notification.createdAt && (
+                          <Text style={styles.notificationDate}>
+                            {new Date(notification.createdAt).toLocaleDateString()}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {!notification.read && (
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        disabled={notificationBusyId !== null}
+                        style={styles.notificationReadButton}
+                        onPress={() =>
+                          handleMarkNotificationRead(notification.id)
+                        }
+                      >
+                        <Text style={styles.notificationReadButtonText}>
+                          {notificationBusyId === notification.id
+                            ? 'Updating…'
+                            : 'Mark as read'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </View>
@@ -963,6 +1226,110 @@ const styles = StyleSheet.create({
   },
   sectionTabTextActive: {
     color: '#b5432b',
+  },
+  notificationTabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: '#b5432b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadBadgeText: {
+    color: '#fff8ee',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 14,
+  },
+  notificationHeadingBlock: {
+    flex: 1,
+  },
+  markAllButton: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#b5432b',
+  },
+  markAllButtonText: {
+    color: '#b5432b',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  notificationCard: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  notificationCardUnread: {
+    borderColor: '#c46a54',
+  },
+  notificationTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  notificationTextBlock: {
+    flex: 1,
+  },
+  notificationTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 7,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#b5432b',
+  },
+  notificationType: {
+    color: '#8a7767',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  notificationText: {
+    color: '#1a1a1a',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  notificationDate: {
+    color: '#8a7767',
+    fontSize: 11,
+    marginTop: 8,
+  },
+  notificationReadButton: {
+    alignSelf: 'flex-start',
+    minHeight: 34,
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#efe4d6',
+  },
+  notificationReadButtonText: {
+    color: '#625a50',
+    fontSize: 11,
+    fontWeight: '700',
   },
   opportunityHeader: {
     marginBottom: 14,
