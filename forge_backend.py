@@ -2268,7 +2268,17 @@ def business_analytics():
         return err
     if user.role not in ("business", "admin"):
         return jsonify({"error": "business or admin only"}), 403
-    opps = Opportunity.query.filter_by(owner_user_id=user.id).all()
+    # Businesses receive only their own hiring funnel. Admins are authorized to
+    # inspect this dashboard as the platform-wide hiring funnel, not as an
+    # empty pseudo-business account.
+    if user.role == "business":
+        opps = Opportunity.query.filter_by(owner_user_id=user.id).all()
+        listings = BusinessListing.query.filter_by(owner_user_id=user.id).all()
+        profile_views = ProfileView.query.filter_by(viewed_user_id=user.id).count()
+    else:
+        opps = Opportunity.query.all()
+        listings = BusinessListing.query.all()
+        profile_views = ProfileView.query.count()
     pipeline, applicant_ids = [], []
     for opp in opps:
         apps = Application.query.filter_by(opportunity_id=opp.id).all()
@@ -2287,7 +2297,6 @@ def business_analytics():
         return sorted(({"label": k, "count": v} for k, v in d.items()),
                       key=lambda x: -x["count"])
 
-    listings = BusinessListing.query.filter_by(owner_user_id=user.id).all()
     impressions = sum(l.impressions for l in listings)
     total_apps = len(applicant_ids)
     rate = f"{round(100 * total_apps / impressions)}%" if impressions else "—"
@@ -2296,8 +2305,7 @@ def business_analytics():
         "engagement": {"impressions": impressions, "applications": total_apps, "rate": rate},
         "skillDistribution": dist(skill_counts),
         "demographics": {"byProgramme": dist(by_programme), "byYear": dist(by_year)},
-        "reach": {"profileViews": ProfileView.query
-                  .filter_by(viewed_user_id=user.id).count(),
+        "reach": {"profileViews": profile_views,
                   "impressions": impressions},
     })
 

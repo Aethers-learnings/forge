@@ -88,8 +88,8 @@ Status: route inventory for the current Flask prototype. All JSON routes return 
 | POST `/api/users/:id/testimonials` | Logged in | Adds testimonial for another user; no connection requirement. |
 | GET `/api/search/candidates?skills=csv` | Business or admin | Searches visible unsuspended students by skill and logs terms. |
 | GET `/api/analytics/student` | Logged in | Returns caller views, shared network-derived connections, engagement, peer comparison, searched skills. |
-| GET `/api/analytics/business` | Business or admin | Returns current user-owned opportunity/listing metrics. |
-| GET `/api/analytics/admin` | Admin | Returns platform counts, queues, registration series, and content totals. |
+| GET `/api/analytics/business` | Business or admin | For a business, returns metrics for opportunities and listings it owns. For an admin, returns the same hiring-funnel metrics platform-wide. `applications` is application-row count; `impressions` is the cumulative count of student opportunity-board reads against linked listings; `rate` is rounded applications ÷ impressions, or `—` when impressions are zero. `profileViews` is views of the business profile for businesses and all recorded profile views for admins. Applicant skills and demographics count application rows (so one applicant applying to multiple opportunities contributes once per application). |
+| GET `/api/analytics/admin` | Admin | Returns platform counts, queues, registration series, and content totals. `mau` is users whose `last_seen` is within the trailing 30 days; `pendingApprovals` is pending listing approvals + alumni verifications + unapproved business accounts; registration and content figures are all-time rows, with soft-removed posts excluded from posts/videos and flagged content limited to active posts. |
 | GET `/api/admin/users` | Admin | Returns administrative view of all users. |
 | POST `/api/admin/users/:id/:action` | Admin | `approve-business`, `suspend`, `unsuspend`, or `remove` (fallback suspension on delete failure). |
 | POST `/api/admin/announce` | Admin | Persists/sends an announcement to all or a role audience. |

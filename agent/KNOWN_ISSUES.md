@@ -10,7 +10,6 @@
 - Posts have no timestamp, author user ID, or feed membership policy beyond the role string; content moderation is a boolean flag/soft removal only.
 - CV upload accepts raw text and marks a CV as uploaded; it does not persist an original document or perform actual file upload/extraction.
 - Opportunity visibility is not filtered to approved/live BusinessListings; `/api/opportunities` returns all `Opportunity` rows.
-- Business analytics accepts admin access but queries opportunities/listings owned by the current admin account, producing empty/non-platform-wide data for admins.
 - The hard-delete admin user action attempts deletion without an explicit retention/cascade policy, then silently falls back to suspension on foreign-key failure.
 - There is no discovered automated test suite, lint configuration, database migration system, or CI workflow for the application.
 - The mobile README and unused Expo template components remain starter material; mobile parity is WebView-based rather than native.

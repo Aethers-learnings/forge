@@ -168,6 +168,57 @@ def test_business_cannot_access_admin_surfaces(client):
     assert client.get("/api/analytics/admin").status_code == 403
 
 
+def test_business_analytics_is_owner_scoped_and_admin_is_platform_scoped(client):
+    business = make_user("business", role="business", business_approved=True)
+    other_business = make_user("other-business", role="business", business_approved=True)
+    admin = make_user("admin", role="admin")
+    applicant = make_user("applicant", role="trade", skills="Python",
+                          programme="Software", year="2")
+
+    own_listing = backend.BusinessListing(owner_user_id=business.id, title="Own listing",
+                                           status="live", impressions=10)
+    other_listing = backend.BusinessListing(owner_user_id=other_business.id, title="Other listing",
+                                             status="live", impressions=20)
+    backend.db.session.add_all([own_listing, other_listing])
+    backend.db.session.flush()
+    own_opportunity = backend.Opportunity(title="Own opportunity", co="Forge",
+                                          owner_user_id=business.id, listing_id=own_listing.id)
+    other_opportunity = backend.Opportunity(title="Other opportunity", co="Forge",
+                                            owner_user_id=other_business.id,
+                                            listing_id=other_listing.id)
+    backend.db.session.add_all([own_opportunity, other_opportunity])
+    backend.db.session.flush()
+    backend.db.session.add_all([
+        backend.Application(opportunity_id=own_opportunity.id, user_id=applicant.id),
+        backend.Application(opportunity_id=other_opportunity.id, user_id=applicant.id),
+        backend.ProfileView(viewed_user_id=business.id, viewer_user_id=applicant.id),
+        backend.ProfileView(viewed_user_id=other_business.id, viewer_user_id=applicant.id),
+    ])
+    backend.db.session.commit()
+
+    sign_in(client, business)
+    business_response = client.get("/api/analytics/business")
+
+    assert business_response.status_code == 200
+    assert business_response.json["engagement"] == {
+        "impressions": 10, "applications": 1, "rate": "10%"
+    }
+    assert business_response.json["reach"] == {"profileViews": 1, "impressions": 10}
+    assert [item["title"] for item in business_response.json["pipeline"]] == ["Own opportunity"]
+
+    sign_in(client, admin)
+    admin_response = client.get("/api/analytics/business")
+
+    assert admin_response.status_code == 200
+    assert admin_response.json["engagement"] == {
+        "impressions": 30, "applications": 2, "rate": "7%"
+    }
+    assert admin_response.json["reach"] == {"profileViews": 2, "impressions": 30}
+    assert {item["title"] for item in admin_response.json["pipeline"]} == {
+        "Own opportunity", "Other opportunity"
+    }
+
+
 def test_unapproved_business_cannot_create_listing(client):
     user = make_user("pending-business", role="business", business_approved=False)
     sign_in(client, user)
