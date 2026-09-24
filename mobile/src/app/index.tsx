@@ -1,13 +1,20 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform,
-  View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
+  View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { allowedUrl, runtimeOrigins } from '../security/url-policy';
-import { currentUser, login, logout } from '../api/client';
+import {
+  currentUser,
+  login,
+  logout,
+  getOnboarding,
+  advanceOnboarding,
+  skipOnboarding,
+} from '../api/client';
 
 const STORAGE_KEY = 'forge_server_url';
 const ALLOWED_ORIGINS = runtimeOrigins(Constants.expoConfig?.extra?.forgeSecurity, __DEV__);
@@ -27,6 +34,9 @@ export default function Index() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [onboarding, setOnboarding] = useState<any>(null);
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
@@ -82,6 +92,8 @@ export default function Index() {
     try {
       await logout(serverUrl);
       setNativeUser(null);
+      setOnboarding(null);
+      setOnboardingError(null);
       setAuthChecked(true);
     } catch (error: any) {
       setAuthError(error?.message || 'Could not sign out.');
@@ -116,6 +128,78 @@ export default function Index() {
     };
   }, [nativeMode, ready, editing, authChecked, serverUrl]);
 
+  const nativeUserId = nativeUser?.id;
+
+  useEffect(() => {
+    if (!nativeMode || !serverUrl || !nativeUserId) return;
+
+    let cancelled = false;
+
+    void getOnboarding(serverUrl)
+      .then((value: any) => {
+        if (!cancelled) {
+          setOnboarding(value);
+          setOnboardingError(null);
+        }
+      })
+      .catch((error: any) => {
+        if (!cancelled) {
+          setOnboardingError(
+            error?.message || 'Could not load onboarding progress.'
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeMode, serverUrl, nativeUserId]);
+
+  const applyOnboardingState = (value: any) => {
+    setOnboarding(value);
+    setNativeUser((user: any) => user ? {
+      ...user,
+      onboarding: {
+        complete: !!value.complete,
+        step: value.step,
+      },
+    } : user);
+  };
+
+  const handleAdvanceOnboarding = async () => {
+    if (!serverUrl || onboardingBusy) return;
+
+    setOnboardingBusy(true);
+    setOnboardingError(null);
+
+    try {
+      applyOnboardingState(await advanceOnboarding(serverUrl));
+    } catch (error: any) {
+      setOnboardingError(
+        error?.message || 'Could not advance onboarding.'
+      );
+    } finally {
+      setOnboardingBusy(false);
+    }
+  };
+
+  const handleSkipOnboarding = async () => {
+    if (!serverUrl || onboardingBusy) return;
+
+    setOnboardingBusy(true);
+    setOnboardingError(null);
+
+    try {
+      applyOnboardingState(await skipOnboarding(serverUrl));
+    } catch (error: any) {
+      setOnboardingError(
+        error?.message || 'Could not skip onboarding.'
+      );
+    } finally {
+      setOnboardingBusy(false);
+    }
+  };
+
   const saveUrl = async () => {
     const url = allowedUrl(inputValue.trim(), ALLOWED_ORIGINS);
     if (!url) { setSettingsError(POLICY_ERROR); return; }
@@ -129,6 +213,8 @@ export default function Index() {
       setAuthChecked(false);
       setNativeUser(null);
       setAuthError(null);
+      setOnboarding(null);
+      setOnboardingError(null);
     } catch {
       setSettingsError('Could not save the address. Please try again.');
     }
@@ -194,40 +280,194 @@ export default function Index() {
     }
 
     if (nativeUser) {
+      const roleLabel =
+        nativeUser.role === 'business'
+          ? 'Business account'
+          : nativeUser.role === 'admin'
+            ? 'Administrator'
+            : nativeUser.role === 'grad'
+              ? 'Graduate'
+              : 'Student';
+
+      const roleDetail =
+        nativeUser.role === 'business'
+          ? nativeUser.company?.industry || nativeUser.headline || 'Business profile'
+          : nativeUser.role === 'admin'
+            ? 'Platform administration'
+            : nativeUser.programme || nativeUser.headline || 'Build your professional profile';
+
+      const onboardingSteps = onboarding?.steps || [];
+      const onboardingStep = onboarding?.step ?? nativeUser.onboarding?.step ?? 0;
+      const onboardingComplete =
+        onboarding?.complete ?? nativeUser.onboarding?.complete ?? false;
+      const currentStep = onboardingSteps[onboardingStep] || null;
+
       return (
         <SafeAreaView style={styles.container}>
           <StatusBar barStyle="dark-content" backgroundColor="#f4ede0" />
-          <View style={styles.nativeAuth}>
-            <Text style={styles.brand}>Forge</Text>
-            <Text style={styles.nativeTitle}>Welcome back</Text>
-            <Text style={styles.nativeName}>{nativeUser.name || nativeUser.username}</Text>
-            <Text style={styles.nativeMeta}>
-              {nativeUser.role === 'business'
-                ? 'Business account'
-                : nativeUser.role === 'admin'
-                  ? 'Administrator'
-                  : 'Forge member'}
-            </Text>
 
-            {authError && <Text style={styles.nativeError}>{authError}</Text>}
+          <ScrollView
+            contentContainerStyle={styles.nativeHome}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.homeHeader}>
+              <View>
+                <Text style={styles.brandCompact}>Forge</Text>
+                <Text style={styles.homeTitle}>
+                  {nativeUser.name || nativeUser.username}
+                </Text>
+                <Text style={styles.nativeMeta}>{roleLabel}</Text>
+              </View>
 
-            <TouchableOpacity
-              accessibilityRole="button"
-              disabled={authLoading}
-              style={[styles.button, authLoading && styles.buttonDisabled]}
-              onPress={submitNativeLogout}
-            >
-              <Text style={styles.buttonText}>
-                {authLoading ? 'Signing out…' : 'Sign out'}
+              <View
+                accessible
+                accessibilityLabel={`Profile ${nativeUser.completion || 0}% complete`}
+                style={styles.completionBadge}
+              >
+                <Text style={styles.completionValue}>
+                  {nativeUser.completion || 0}%
+                </Text>
+                <Text style={styles.completionLabel}>complete</Text>
+              </View>
+            </View>
+
+            <View style={styles.profileCard}>
+              <Text style={styles.cardEyebrow}>PROFILE</Text>
+              <Text style={styles.profileHeadline}>{roleDetail}</Text>
+
+              {!!nativeUser.bio && (
+                <Text style={styles.profileBio}>{nativeUser.bio}</Text>
+              )}
+
+              {nativeUser.role !== 'business' && (
+                <View style={styles.profileFacts}>
+                  {!!nativeUser.campus && (
+                    <Text style={styles.profileFact}>Campus · {nativeUser.campus}</Text>
+                  )}
+                  {!!nativeUser.year && (
+                    <Text style={styles.profileFact}>Year · {nativeUser.year}</Text>
+                  )}
+                </View>
+              )}
+
+              {nativeUser.role === 'business' && (
+                <View style={styles.profileFacts}>
+                  {!!nativeUser.company?.location && (
+                    <Text style={styles.profileFact}>
+                      Location · {nativeUser.company.location}
+                    </Text>
+                  )}
+                  {!!nativeUser.company?.talentSought && (
+                    <Text style={styles.profileFact}>
+                      Hiring · {nativeUser.company.talentSought}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {Array.isArray(nativeUser.skills) && nativeUser.skills.length > 0 && (
+                <View style={styles.skillsBlock}>
+                  <Text style={styles.skillsTitle}>Skills</Text>
+                  <View style={styles.skillsRow}>
+                    {nativeUser.skills.slice(0, 6).map((skill: string) => (
+                      <View key={skill} style={styles.skillChip}>
+                        <Text style={styles.skillText}>{skill}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {!onboardingComplete && (
+              <View style={styles.onboardingCard}>
+                <Text style={styles.cardEyebrow}>GET STARTED</Text>
+                <Text style={styles.onboardingTitle}>
+                  Finish setting up Forge
+                </Text>
+
+                {onboardingSteps.length > 0 && (
+                  <>
+                    <Text style={styles.onboardingProgress}>
+                      Step {Math.min(onboardingStep + 1, onboardingSteps.length)} of {onboardingSteps.length}
+                    </Text>
+
+                    {!!currentStep && (
+                      <Text style={styles.onboardingStep}>
+                        {currentStep
+                          .split('-')
+                          .map((part: string) =>
+                            part.charAt(0).toUpperCase() + part.slice(1)
+                          )
+                          .join(' ')}
+                      </Text>
+                    )}
+                  </>
+                )}
+
+                {onboardingError && (
+                  <Text accessibilityRole="alert" style={styles.nativeError}>
+                    {onboardingError}
+                  </Text>
+                )}
+
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={onboardingBusy}
+                  style={[
+                    styles.button,
+                    onboardingBusy && styles.buttonDisabled,
+                  ]}
+                  onPress={handleAdvanceOnboarding}
+                >
+                  <Text style={styles.buttonText}>
+                    {onboardingBusy ? 'Updating…' : 'Continue setup'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={onboardingBusy}
+                  style={styles.linkButton}
+                  onPress={handleSkipOnboarding}
+                >
+                  <Text style={styles.linkText}>Skip onboarding</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {onboardingComplete && (
+              <View style={styles.completeCard}>
+                <Text style={styles.cardEyebrow}>ONBOARDING</Text>
+                <Text style={styles.completeTitle}>You’re ready to use Forge.</Text>
+              </View>
+            )}
+
+            {authError && (
+              <Text accessibilityRole="alert" style={styles.nativeError}>
+                {authError}
               </Text>
-            </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               accessibilityRole="button"
               style={styles.secondaryButton}
               onPress={() => setNativeMode(false)}
             >
-              <Text style={styles.secondaryButtonText}>Open web experience</Text>
+              <Text style={styles.secondaryButtonText}>
+                Open full web experience
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={authLoading}
+              style={styles.linkButton}
+              onPress={submitNativeLogout}
+            >
+              <Text style={styles.linkText}>
+                {authLoading ? 'Signing out…' : 'Sign out'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -237,7 +477,7 @@ export default function Index() {
             >
               <Text style={styles.linkText}>Server settings</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </SafeAreaView>
       );
     }
@@ -408,6 +648,150 @@ function NativeLogin({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4ede0' },
+  nativeHome: {
+    paddingHorizontal: 22,
+    paddingTop: 26,
+    paddingBottom: 42,
+    backgroundColor: '#f4ede0',
+  },
+  homeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 22,
+  },
+  brandCompact: {
+    color: '#b5432b',
+    fontWeight: '800',
+    fontSize: 15,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  homeTitle: {
+    color: '#1a1a1a',
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '800',
+    maxWidth: 235,
+  },
+  completionBadge: {
+    minWidth: 72,
+    minHeight: 72,
+    borderRadius: 36,
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#d9cbbb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completionValue: {
+    color: '#b5432b',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  completionLabel: {
+    color: '#625a50',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  profileCard: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+  },
+  cardEyebrow: {
+    color: '#8a7767',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  profileHeadline: {
+    color: '#1a1a1a',
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '700',
+  },
+  profileBio: {
+    color: '#625a50',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 12,
+  },
+  profileFacts: {
+    marginTop: 14,
+    gap: 5,
+  },
+  profileFact: {
+    color: '#625a50',
+    fontSize: 13,
+  },
+  skillsBlock: {
+    marginTop: 18,
+  },
+  skillsTitle: {
+    color: '#39332d',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 9,
+  },
+  skillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  skillChip: {
+    backgroundColor: '#efe4d6',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  skillText: {
+    color: '#51483f',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  onboardingCard: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+  },
+  onboardingTitle: {
+    color: '#1a1a1a',
+    fontSize: 19,
+    fontWeight: '800',
+    marginBottom: 5,
+  },
+  onboardingProgress: {
+    color: '#8a7767',
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  onboardingStep: {
+    color: '#39332d',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  completeCard: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+  },
+  completeTitle: {
+    color: '#2c6e62',
+    fontSize: 17,
+    fontWeight: '800',
+  },
   nativeAuth: {
     flex: 1,
     justifyContent: 'center',

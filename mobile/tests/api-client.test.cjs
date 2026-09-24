@@ -106,3 +106,88 @@ test('network failure becomes a useful native error', async () => {
       error.message.includes('could not reach the server')
   );
 });
+
+test('onboarding can be loaded from the native client', async () => {
+  let requestUrl;
+
+  global.fetch = async (url) => {
+    requestUrl = url;
+    return new Response(JSON.stringify({
+      steps: ['welcome', 'add-photo'],
+      step: 0,
+      complete: false,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.getOnboarding('https://forge.example/');
+
+  assert.equal(requestUrl, 'https://forge.example/api/onboarding');
+  assert.equal(result.complete, false);
+  assert.deepEqual(result.steps, ['welcome', 'add-photo']);
+});
+
+test('advance onboarding uses CSRF protected POST', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({ csrfToken: 'native-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      steps: ['welcome', 'add-photo'],
+      step: 1,
+      complete: true,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.advanceOnboarding('https://forge.example/');
+
+  assert.equal(calls[1][0], 'https://forge.example/api/onboarding/advance');
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(calls[1][1].headers.Origin, 'https://forge.example');
+  assert.equal(calls[1][1].headers['X-CSRF-Token'], 'native-token');
+  assert.equal(result.complete, true);
+});
+
+test('skip onboarding uses the same CSRF protection', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({ csrfToken: 'skip-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      steps: ['welcome'],
+      step: 0,
+      complete: true,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  await client.skipOnboarding('https://forge.example/');
+
+  assert.equal(calls[1][0], 'https://forge.example/api/onboarding/skip');
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(calls[1][1].headers['X-CSRF-Token'], 'skip-token');
+});
+

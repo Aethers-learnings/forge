@@ -35,6 +35,21 @@ function screen(saved, options = {}) {
       currentUser: async () => null,
       login: async () => null,
       logout: async () => ({ ok: true }),
+      getOnboarding: async () => ({
+        steps: ['welcome'],
+        step: 0,
+        complete: false,
+      }),
+      advanceOnboarding: async () => ({
+        steps: ['welcome'],
+        step: 0,
+        complete: true,
+      }),
+      skipOnboarding: async () => ({
+        steps: ['welcome'],
+        step: 0,
+        complete: true,
+      }),
     },
   };
   const source = ts.transpileModule(fs.readFileSync(require.resolve('../src/app/index.tsx'), 'utf8'), {

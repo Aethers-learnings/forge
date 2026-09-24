@@ -61,16 +61,36 @@ async function csrfToken(baseUrl) {
   return request(baseUrl, '/api/auth/csrf-token');
 }
 
-async function logout(baseUrl) {
+async function csrfHeaders(baseUrl) {
   const token = await csrfToken(baseUrl);
-  const origin = new URL(baseUrl).origin;
+  return {
+    Origin: new URL(baseUrl).origin,
+    'X-CSRF-Token': token.csrfToken,
+  };
+}
 
+async function logout(baseUrl) {
   return request(baseUrl, '/api/auth/logout', {
     method: 'POST',
-    headers: {
-      Origin: origin,
-      'X-CSRF-Token': token.csrfToken,
-    },
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
+async function getOnboarding(baseUrl) {
+  return request(baseUrl, '/api/onboarding');
+}
+
+async function advanceOnboarding(baseUrl) {
+  return request(baseUrl, '/api/onboarding/advance', {
+    method: 'POST',
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
+async function skipOnboarding(baseUrl) {
+  return request(baseUrl, '/api/onboarding/skip', {
+    method: 'POST',
+    headers: await csrfHeaders(baseUrl),
   });
 }
 
@@ -79,4 +99,7 @@ module.exports = {
   currentUser,
   login,
   logout,
+  getOnboarding,
+  advanceOnboarding,
+  skipOnboarding,
 };
