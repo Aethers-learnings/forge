@@ -8,6 +8,8 @@ shift || true
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 
+GIT_MOUNT=()
+
 case "$MODE" in
     discover)
         WORKSPACE_MOUNT="type=bind,src=${ROOT},dst=/workspace,readonly"
@@ -15,10 +17,15 @@ case "$MODE" in
     develop)
         WORKSPACE_MOUNT="type=bind,src=${ROOT},dst=/workspace"
         ;;
+    agent)
+        WORKSPACE_MOUNT="type=bind,src=${ROOT},dst=/workspace"
+        GIT_MOUNT=(--mount "type=bind,src=${ROOT}/.git,dst=/workspace/.git,readonly")
+        ;;
     *)
         echo "Usage:"
         echo "  $0 discover"
         echo "  $0 develop"
+        echo "  $0 agent"
         exit 2
         ;;
 esac
@@ -47,6 +54,7 @@ exec docker run --rm "${DOCKER_TTY[@]}" \
     --tmpfs /run:rw,noexec,nosuid,nodev,size=64m \
     --tmpfs /home/node:rw,nosuid,nodev,size=512m \
     --mount "$WORKSPACE_MOUNT" \
+    "${GIT_MOUNT[@]}" \
     --mount type=volume,src=forge-codex-home,dst=/home/node/.codex \
     --workdir=/workspace \
     --user "$HOST_UID:$HOST_GID" \

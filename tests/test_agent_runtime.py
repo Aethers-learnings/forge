@@ -129,6 +129,7 @@ def test_agent_invocation_uses_outer_docker_sandbox_without_nested_workspace_san
     ForgeRuntime(tmp_path, runner=runner).invoke("reviewer", "packet", artifact)
 
     command = commands[0]
+    assert command[1] == "agent"
     sandbox_values = [
         command[i + 1]
         for i, value in enumerate(command[:-1])
@@ -164,4 +165,117 @@ def test_run_stops_before_review_when_implementer_makes_no_changes(tmp_path: Pat
 
     assert result["result"] == "IMPLEMENTER_NO_CHANGES"
     assert result["touched_files"] == []
+
+
+def test_project_python_prefers_host_venv(tmp_path: Path):
+    python = tmp_path / ".venv-host/bin/python"
+    python.parent.mkdir(parents=True)
+    python.write_text("")
+
+    runtime = ForgeRuntime(tmp_path)
+    checks = runtime.select_checks({"forge_backend.py"})
+
+    assert any(
+        command[:3] == (str(python), "-m", "pytest")
+        for command in checks
+    )
+
+
+def test_guarded_agent_unstages_worker_changes_without_discarding_them(tmp_path: Path, monkeypatch):
+    runtime = ForgeRuntime(tmp_path)
+    calls = []
+
+    monkeypatch.setattr(runtime, "invoke", lambda role, prompt, artifacts: "ok")
+
+    def fake_git(*args):
+        calls.append(args)
+        if args == ("rev-parse", "HEAD"):
+            return subprocess.CompletedProcess(args, 0, "abc123\\n", "")
+        if args == ("diff", "--cached", "--name-only"):
+            return subprocess.CompletedProcess(args, 0, "forge_backend.py\\n", "")
+        if args == ("restore", "--staged", "--", "."):
+            return subprocess.CompletedProcess(args, 0, "", "")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(runtime, "_git", fake_git)
+
+    assert runtime.invoke_guarded("implementer", "packet", tmp_path) == "ok"
+    assert ("restore", "--staged", "--", ".") in calls
+
+
+def test_guarded_agent_rejects_worker_commit(tmp_path: Path, monkeypatch):
+    runtime = ForgeRuntime(tmp_path)
+    heads = iter(("before\\n", "after\\n"))
+
+    monkeypatch.setattr(runtime, "invoke", lambda role, prompt, artifacts: "ok")
+
+    def fake_git(*args):
+        if args == ("rev-parse", "HEAD"):
+            return subprocess.CompletedProcess(args, 0, next(heads), "")
+        if args == ("diff", "--cached", "--name-only"):
+            return subprocess.CompletedProcess(args, 0, "", "")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(runtime, "_git", fake_git)
+
+    import pytest
+    with pytest.raises(RuntimeError, match="changed repository HEAD"):
+        runtime.invoke_guarded("implementer", "packet", tmp_path)
+
+
+def test_record_success_marks_task_and_writes_controller_records(tmp_path: Path):
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    (agent / "TASKS.md").write_text(
+        "- [ ] T-999 — Safe thing. Depends on: none. Classification: SAFE_INCREMENTAL.\\n"
+    )
+    for name in ("STATE.md", "TEST_RESULTS.md", "SESSION_LOG.md"):
+        (agent / name).write_text("")
+
+    artifacts = tmp_path / ".forge-agent/runs/example-T-999"
+    artifacts.mkdir(parents=True)
+
+    runtime = ForgeRuntime(tmp_path)
+    task = Task("T-999", False, "Safe thing.", (), Classification.SAFE_INCREMENTAL)
+    runtime._record_success(task, artifacts, [])
+
+    assert "- [x] T-999 " in (agent / "TASKS.md").read_text()
+    assert "T-999 completed" in (agent / "STATE.md").read_text()
+    assert "Reviewer: PASS" in (agent / "TEST_RESULTS.md").read_text()
+    assert "reviewer PASS" in (agent / "SESSION_LOG.md").read_text()
+
+def test_guarded_agent_restores_controller_owned_records(tmp_path: Path, monkeypatch):
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    originals = {
+        "TASKS.md": "original tasks\n",
+        "STATE.md": "original state\n",
+        "TEST_RESULTS.md": "original tests\n",
+        "SESSION_LOG.md": "original session\n",
+    }
+    for name, content in originals.items():
+        (agent / name).write_text(content)
+
+    runtime = ForgeRuntime(tmp_path)
+
+    def fake_invoke(role, prompt, artifacts):
+        for name in originals:
+            (agent / name).write_text("worker changed this\n")
+        return "ok"
+
+    monkeypatch.setattr(runtime, "invoke", fake_invoke)
+
+    def fake_git(*args):
+        if args == ("rev-parse", "HEAD"):
+            return subprocess.CompletedProcess(args, 0, "abc123\n", "")
+        if args == ("diff", "--cached", "--name-only"):
+            return subprocess.CompletedProcess(args, 0, "", "")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(runtime, "_git", fake_git)
+
+    assert runtime.invoke_guarded("implementer", "packet", tmp_path) == "ok"
+
+    for name, content in originals.items():
+        assert (agent / name).read_text() == content
 

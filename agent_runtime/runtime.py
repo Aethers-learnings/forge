@@ -157,14 +157,22 @@ class ForgeRuntime:
         checks: list[tuple[str, ...]] = [("git", "diff", "--check")]
         python_files = [path for path in changed if path.endswith(".py")]
         if python_files:
-            checks.append((sys.executable, "-m", "py_compile", *sorted(python_files)))
+            checks.append((self._project_python(), "-m", "py_compile", *sorted(python_files)))
         if any(path == "forge_backend.py" or path.startswith("tests/") for path in changed):
-            checks.append((sys.executable, "-m", "pytest", "-q"))
+            checks.append((self._project_python(), "-m", "pytest", "-q"))
         if any(path.startswith("static/") for path in changed):
             checks.append(("node", "tests/csrf_frontend.cjs"))
         if any(path.startswith("mobile/") for path in changed):
             checks.extend((("npm", "test", "--prefix", "mobile"), ("npm", "run", "lint", "--prefix", "mobile"), ("npx", "tsc", "--noEmit", "-p", "mobile")))
         return checks
+
+    def _project_python(self) -> str:
+        """Prefer Forge's managed Python environments for deterministic checks."""
+        for relative in (".venv-host/bin/python", ".venv/bin/python"):
+            candidate = self.root / relative
+            if candidate.is_file():
+                return str(candidate)
+        return sys.executable
 
     def run_checks(self, changed: set[str], artifacts: Path) -> list[CheckResult]:
         results: list[CheckResult] = []
@@ -210,7 +218,7 @@ class ForgeRuntime:
         container_output = Path("/workspace") / output.relative_to(self.root)
         command = (
             str(sandbox_runner),
-            "develop",
+            "agent",
             "exec",
             "--ephemeral",
             "--sandbox",
@@ -255,6 +263,49 @@ class ForgeRuntime:
             )
         return response
 
+    def invoke_guarded(self, role: str, prompt: str, artifacts: Path) -> str:
+        """Invoke an agent while keeping Git history and records controller-owned."""
+        before_head = self._git("rev-parse", "HEAD")
+        if before_head.returncode:
+            raise RuntimeError("Unable to snapshot HEAD before agent invocation")
+        before_sha = before_head.stdout.strip()
+
+        record_snapshots = {}
+        for relative in RECORD_PATHS:
+            path = self.root / relative
+            record_snapshots[relative] = path.read_bytes() if path.exists() else None
+
+        try:
+            return self.invoke(role, prompt, artifacts)
+        finally:
+            # Workers never own staging. Preserve their working-tree edits.
+            staged = self._git("diff", "--cached", "--name-only")
+            if staged.returncode:
+                raise RuntimeError("Unable to inspect staged files after agent invocation")
+            if staged.stdout.splitlines():
+                unstaged = self._git("restore", "--staged", "--", ".")
+                if unstaged.returncode:
+                    raise RuntimeError(
+                        "Agent staged files and controller could not safely unstage them"
+                    )
+
+            # Workers may read these records but completion state is deterministic
+            # controller output written only after review/check success.
+            for relative, original in record_snapshots.items():
+                path = self.root / relative
+                if original is None:
+                    if path.exists():
+                        path.unlink()
+                elif not path.exists() or path.read_bytes() != original:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(original)
+
+            after_head = self._git("rev-parse", "HEAD")
+            if after_head.returncode or after_head.stdout.strip() != before_sha:
+                raise RuntimeError(
+                    f"{role} changed repository HEAD; agents must not commit or rewrite history"
+                )
+
     def validate_staging(self, allowed: set[str], preexisting: set[str]) -> None:
         result = self._git("diff", "--cached", "--name-only")
         staged = {line for line in result.stdout.splitlines() if line}
@@ -293,8 +344,8 @@ class ForgeRuntime:
         context = self._context_packet(task, preexisting)
         (artifacts / "context.txt").write_text(context)
         if self.env.get("FORGE_AUTO_PLAN", "0") == "1":
-            self.invoke("planner", context, artifacts)
-        self.invoke(self._implementation_role(task), context, artifacts)
+            self.invoke_guarded("planner", context, artifacts)
+        self.invoke_guarded(self._implementation_role(task), context, artifacts)
         touched = self.task_touched_paths(preexisting)
         if not touched:
             return self._finish(
@@ -309,31 +360,72 @@ class ForgeRuntime:
         while not all(check.passed for check in checks):
             if repairs >= self.max_repairs:
                 return self._finish(artifacts, "FAILED_CHECKS", touched, checks, repairs)
-            self.invoke("repair", context + "\nDeterministic check failures:\n" + self._check_summary(checks), artifacts)
+            self.invoke_guarded("repair", context + "\nDeterministic check failures:\n" + self._check_summary(checks), artifacts)
             repairs += 1
             touched = self.task_touched_paths(preexisting)
             checks = self.run_checks(touched, artifacts)
         reviewer_role = self._reviewer_role(task)
-        review = parse_reviewer_result(self.invoke(reviewer_role, context + "\nDiff:\n" + self._diff() + "\nChecks:\n" + self._check_summary(checks), artifacts))
+        review = parse_reviewer_result(self.invoke_guarded(reviewer_role, context + "\nDiff:\n" + self._diff() + "\nChecks:\n" + self._check_summary(checks), artifacts))
         (artifacts / "review.json").write_text(json.dumps(review, indent=2))
         while review["result"] == "NEEDS_CHANGES":
             if repairs >= self.max_repairs:
                 return self._finish(artifacts, "REVIEW_LIMIT", touched, checks, repairs, review)
-            self.invoke("repair", context + "\nReviewer findings:\n" + json.dumps(review["findings"]), artifacts)
+            self.invoke_guarded("repair", context + "\nReviewer findings:\n" + json.dumps(review["findings"]), artifacts)
             repairs += 1
             touched = self.task_touched_paths(preexisting)
             checks = self.run_checks(touched, artifacts)
             if not all(check.passed for check in checks):
                 continue  # Never spend a reviewer call while deterministic checks fail.
-            review = parse_reviewer_result(self.invoke(reviewer_role, context + "\nDiff:\n" + self._diff() + "\nChecks:\n" + self._check_summary(checks), artifacts))
+            review = parse_reviewer_result(self.invoke_guarded(reviewer_role, context + "\nDiff:\n" + self._diff() + "\nChecks:\n" + self._check_summary(checks), artifacts))
             (artifacts / "review.json").write_text(json.dumps(review, indent=2))
-        self._record_success(task, artifacts, checks)
         touched = self.task_touched_paths(preexisting)
         final_checks = self.run_checks(touched, artifacts)
         if not all(check.passed for check in final_checks):
-            return self._finish(artifacts, "FINAL_CHECKS_FAILED", touched, final_checks, repairs, review)
+            return self._finish(
+                artifacts,
+                "FINAL_CHECKS_FAILED",
+                touched,
+                final_checks,
+                repairs,
+                review,
+            )
+
+        # Completion records are controller-owned and written only after the
+        # implementation, deterministic checks, and reviewer have all passed.
+        self._record_success(task, artifacts, final_checks)
+        touched = self.task_touched_paths(preexisting)
+
+        record_check_process = self._git("diff", "--check")
+        record_check = CheckResult(
+            ("git", "diff", "--check"),
+            record_check_process.returncode,
+            record_check_process.stdout,
+            record_check_process.stderr,
+        )
+        (artifacts / "checks" / "post-record.log").write_text(
+            json.dumps(asdict(record_check), indent=2)
+        )
+        final_checks = [*final_checks, record_check]
+        if not record_check.passed:
+            return self._finish(
+                artifacts,
+                "RECORD_CHECK_FAILED",
+                touched,
+                final_checks,
+                repairs,
+                review,
+            )
+
         sha = self.stage_and_commit(task, touched, preexisting)
-        return self._finish(artifacts, "COMMITTED", touched, final_checks, repairs, review, sha)
+        return self._finish(
+            artifacts,
+            "COMMITTED",
+            touched,
+            final_checks,
+            repairs,
+            review,
+            sha,
+        )
 
     def _context_packet(self, task: Task, preexisting: set[str]) -> str:
         return "\n".join((
@@ -343,6 +435,8 @@ class ForgeRuntime:
             "Constraints: SAFE_INCREMENTAL only; no architecture, framework, backend, auth, destructive migration, irreversible operation, or major subsystem removal.",
             "Protected pre-existing dirty paths: " + (", ".join(sorted(preexisting)) or "none"),
             "Read relevant source/tests and governing records; do not send or rely on the entire repository documentation.",
+            "Do not run git add, git commit, git push, git reset, or alter Git history; the controller owns staging and commits.",
+            "Do not edit agent/TASKS.md, agent/STATE.md, agent/TEST_RESULTS.md, or agent/SESSION_LOG.md; the controller owns completion records.",
         ))
 
     @staticmethod
@@ -355,10 +449,39 @@ class ForgeRuntime:
         return "security_reviewer" if any(word in task.title.lower() for word in sensitive) else "reviewer"
 
     def _record_success(self, task: Task, artifacts: Path, checks: list[CheckResult]) -> None:
-        log = self.root / "agent/SESSION_LOG.md"
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        with log.open("a") as handle:
-            handle.write(f"\n- {timestamp}: autonomous run for {task.id}; reviewer PASS; artifacts `{artifacts.relative_to(self.root)}`; checks: {self._check_summary(checks)}.\n")
+        check_summary = self._check_summary(checks)
+
+        tasks_path = self.root / "agent/TASKS.md"
+        tasks_text = tasks_path.read_text()
+        incomplete = f"- [ ] {task.id} "
+        complete = f"- [x] {task.id} "
+        if incomplete not in tasks_text:
+            raise RuntimeError(f"Could not mark {task.id} complete in agent/TASKS.md")
+        tasks_path.write_text(tasks_text.replace(incomplete, complete, 1))
+
+        with (self.root / "agent/SESSION_LOG.md").open("a") as handle:
+            handle.write(
+                f"\n- {timestamp}: autonomous {task.id} completed after reviewer PASS; "
+                f"artifacts `{artifacts.relative_to(self.root)}`; checks: {check_summary}.\n"
+            )
+
+        with (self.root / "agent/TEST_RESULTS.md").open("a") as handle:
+            handle.write(
+                f"\n## {timestamp} — {task.id} autonomous verification\n\n"
+                f"- Reviewer: PASS\n"
+                f"- Deterministic checks: {check_summary}\n"
+                f"- Run artifacts: `{artifacts.relative_to(self.root)}`\n"
+            )
+
+        remaining = next_safe_task(self.tasks())
+        next_text = remaining.id if remaining else "none currently eligible"
+        with (self.root / "agent/STATE.md").open("a") as handle:
+            handle.write(
+                f"\n## {timestamp} — Autonomous {task.id}\n\n"
+                f"- {task.id} completed with reviewer PASS and deterministic checks passing.\n"
+                f"- Next dependency-satisfied SAFE_INCREMENTAL task: {next_text}.\n"
+            )
 
     def _diff(self) -> str:
         result = self._git("diff", "--", ".")
