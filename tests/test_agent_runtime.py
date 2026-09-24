@@ -83,6 +83,8 @@ def test_security_reviewer_uses_the_strict_reviewer_contract(tmp_path: Path):
     artifact = tmp_path / "artifact"; artifact.mkdir()
     prompts = tmp_path / "agent_runtime/prompts"; prompts.mkdir(parents=True)
     (prompts / "reviewer.txt").write_text("Return exactly JSON")
+    sandbox = tmp_path / "sandbox"; sandbox.mkdir()
+    (sandbox / "run-locked.sh").write_text("#!/usr/bin/env bash\n")
     ForgeRuntime(tmp_path, runner=runner).invoke("security_reviewer", "packet", artifact)
     assert "Return exactly JSON" in commands[0][-1]
 

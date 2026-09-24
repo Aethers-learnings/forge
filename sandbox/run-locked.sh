@@ -29,7 +29,12 @@ if [ "$HOST_UID" != "1000" ] || [ "$HOST_GID" != "1000" ]; then
     exit 1
 fi
 
-exec docker run --rm -it \
+DOCKER_TTY=()
+if [ -t 0 ] && [ -t 1 ]; then
+    DOCKER_TTY=(-it)
+fi
+
+exec docker run --rm "${DOCKER_TTY[@]}" \
     --name forge-codex \
     --network=bridge \
     --cap-drop=ALL \

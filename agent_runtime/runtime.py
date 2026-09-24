@@ -113,6 +113,10 @@ class ForgeRuntime:
         self.runner = runner
         self.max_calls = int(self.env.get("FORGE_AUTO_MAX_CALLS", "4"))
         self.max_repairs = int(self.env.get("FORGE_AUTO_MAX_REPAIRS", "2"))
+        self.max_prompt_chars = int(self.env.get("FORGE_AUTO_MAX_PROMPT_CHARS", "24000"))
+        self.max_diff_chars = int(self.env.get("FORGE_AUTO_MAX_DIFF_CHARS", "16000"))
+        self.max_output_chars = int(self.env.get("FORGE_AUTO_MAX_OUTPUT_CHARS", "12000"))
+        self.agent_timeout_seconds = int(self.env.get("FORGE_AUTO_AGENT_TIMEOUT", "300"))
         self.calls = 0
 
     def tasks(self) -> list[Task]:
@@ -183,19 +187,73 @@ class ForgeRuntime:
     def invoke(self, role: str, prompt: str, artifacts: Path) -> str:
         if self.calls >= self.max_calls:
             raise RuntimeError(f"Model-call budget exhausted ({self.max_calls})")
+
         routes = model_routing(self.env)
         model = routes[role]
-        output = artifacts / f"{role}-{self.calls + 1}.txt"
+        call_number = self.calls + 1
+        output = artifacts / f"{role}-{call_number}.txt"
         template_name = "reviewer" if role == "security_reviewer" else role
         template = self.root / "agent_runtime/prompts" / f"{template_name}.txt"
         instructions = template.read_text().strip() if template.exists() else ""
-        command = ("codex", "exec", "--ephemeral", "--sandbox", "workspace-write", "-C", str(self.root), "-m", model, "-o", str(output), f"{instructions}\n\n{prompt}".strip())
-        result = self.runner(command, cwd=self.root, text=True, capture_output=True, check=False)
+        combined_prompt = f"{instructions}\n\n{prompt}".strip()
+
+        if len(combined_prompt) > self.max_prompt_chars:
+            raise RuntimeError(
+                f"Refusing oversized model prompt: {len(combined_prompt)} chars "
+                f"(limit {self.max_prompt_chars})"
+            )
+
+        sandbox_runner = self.root / "sandbox/run-locked.sh"
+        if not sandbox_runner.is_file():
+            raise RuntimeError("sandbox/run-locked.sh is missing")
+
+        container_output = Path("/workspace") / output.relative_to(self.root)
+        command = (
+            str(sandbox_runner),
+            "develop",
+            "exec",
+            "--ephemeral",
+            "--sandbox",
+            "workspace-write",
+            "-C",
+            "/workspace",
+            "-m",
+            model,
+            "-c",
+            'model_reasoning_effort="none"',
+            "-o",
+            str(container_output),
+            combined_prompt,
+        )
+
         self.calls += 1
-        (artifacts / f"{role}-{self.calls}.stderr.txt").write_text(result.stderr)
+        try:
+            result = self.runner(
+                command,
+                cwd=self.root,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=self.agent_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            (artifacts / f"{role}-{call_number}.stderr.txt").write_text(
+                f"Agent timed out after {self.agent_timeout_seconds}s\n"
+            )
+            raise RuntimeError(
+                f"{role} exceeded {self.agent_timeout_seconds}s agent timeout"
+            ) from exc
+
+        (artifacts / f"{role}-{call_number}.stderr.txt").write_text(result.stderr)
         if result.returncode:
             raise RuntimeError(f"{role} subprocess failed: {result.returncode}")
-        return output.read_text() if output.exists() else ""
+
+        response = output.read_text() if output.exists() else ""
+        if len(response) > self.max_output_chars:
+            raise RuntimeError(
+                f"{role} output exceeded {self.max_output_chars} characters"
+            )
+        return response
 
     def validate_staging(self, allowed: set[str], preexisting: set[str]) -> None:
         result = self._git("diff", "--cached", "--name-only")
@@ -224,6 +282,11 @@ class ForgeRuntime:
         """Execute the bounded normal flow; all branching outside models is deterministic."""
         self.safety_gate(task)
         preexisting = self.dirty_paths()
+        if preexisting:
+            raise RuntimeError(
+                "Refusing autonomous execution with pre-existing dirty files: "
+                + ", ".join(sorted(preexisting))
+            )
         if self._git("diff", "--cached", "--name-only").stdout.splitlines():
             raise RuntimeError("Refusing a run with pre-existing staged files")
         artifacts = self.make_artifacts(task)
@@ -291,7 +354,13 @@ class ForgeRuntime:
 
     def _diff(self) -> str:
         result = self._git("diff", "--", ".")
-        return result.stdout
+        diff = result.stdout
+        if len(diff) > self.max_diff_chars:
+            raise RuntimeError(
+                f"Refusing oversized reviewer diff: {len(diff)} chars "
+                f"(limit {self.max_diff_chars})"
+            )
+        return diff
 
     @staticmethod
     def _check_summary(checks: list[CheckResult]) -> str:
