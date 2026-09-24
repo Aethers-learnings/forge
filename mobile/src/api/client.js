@@ -76,6 +76,30 @@ async function logout(baseUrl) {
   });
 }
 
+async function updateProfilePortfolio(baseUrl, fields) {
+  return request(baseUrl, '/api/profile/portfolio', {
+    method: 'PATCH',
+    body: JSON.stringify(fields),
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
+async function updateProfileSkill(baseUrl, action, skill) {
+  return request(baseUrl, '/api/profile/skills', {
+    method: 'PATCH',
+    body: JSON.stringify({ action, skill }),
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
+async function updateProfileVisibility(baseUrl, visibility) {
+  return request(baseUrl, '/api/profile/visibility', {
+    method: 'PATCH',
+    body: JSON.stringify(visibility),
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
 async function getFeed(baseUrl) {
   return request(baseUrl, '/api/feed');
 }
@@ -155,6 +179,9 @@ module.exports = {
   currentUser,
   login,
   logout,
+  updateProfilePortfolio,
+  updateProfileSkill,
+  updateProfileVisibility,
   getFeed,
   createPost,
   togglePostLike,

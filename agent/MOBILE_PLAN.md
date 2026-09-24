@@ -32,6 +32,7 @@ Native Expo workflows currently implemented and test-protected:
 
 - authentication/session check and sign in/out;
 - profile display and onboarding progress/advance/skip;
+- native role-appropriate profile editing, including student/graduate skills and profile visibility controls;
 - student/graduate opportunities and application toggle;
 - notifications, unread counts, mark-one-read, and mark-all-read;
 - role-scoped feed loading, text post creation, likes, and comments.
@@ -46,7 +47,7 @@ Native messaging remains blocked by the existing conversation/network ownership 
 
 1. T-004 implementation complete; perform the release-device gates above before release. Classification: SAFE_INCREMENTAL.
 2. Establish a tested API contract shared with web, including session/CSRF behavior and error schemas. Classification: SAFE_INCREMENTAL.
-3. Native authentication/session and profile/onboarding flows are implemented; retain WebView fallback and complete signed-device session/CSRF verification. Classification: SAFE_INCREMENTAL.
+3. Native authentication/session, profile/onboarding, profile editing, skills, and visibility flows are implemented; retain WebView fallback and complete signed-device session/CSRF verification. Classification: SAFE_INCREMENTAL.
 4. Native opportunities/applications, notifications, and feed/post interactions are implemented. Continue safe native product slices; messaging remains blocked until ownership/realtime policy is corrected. Classification: SAFE_INCREMENTAL.
 5. Add lifecycle-aware networking, caching, retry/error states, accessibility, touch/keyboard support, and device notification strategy. Classification: SAFE_INCREMENTAL.
 6. Decide whether WebView retirement is appropriate only after measurable native parity, security, and support evidence. Classification: MAJOR_REVIEW.

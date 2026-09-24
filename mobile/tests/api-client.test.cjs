@@ -191,6 +191,147 @@ test('skip onboarding uses the same CSRF protection', async () => {
   assert.equal(calls[1][1].headers['X-CSRF-Token'], 'skip-token');
 });
 
+test('native portfolio update uses CSRF protected PATCH', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({
+        csrfToken: 'profile-token',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      id: 7,
+      username: 'sam',
+      role: 'trade',
+      bio: 'Updated',
+      completion: 80,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.updateProfilePortfolio(
+    'https://forge.example/',
+    { bio: 'Updated', headline: 'Builder' }
+  );
+
+  assert.equal(
+    calls[1][0],
+    'https://forge.example/api/profile/portfolio'
+  );
+  assert.equal(calls[1][1].method, 'PATCH');
+  assert.equal(
+    calls[1][1].headers['X-CSRF-Token'],
+    'profile-token'
+  );
+  assert.deepEqual(
+    JSON.parse(calls[1][1].body),
+    { bio: 'Updated', headline: 'Builder' }
+  );
+  assert.equal(result.completion, 80);
+});
+
+test('native skill update uses contracted add/remove shape', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({
+        csrfToken: 'skill-token',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      id: 7,
+      role: 'trade',
+      skills: ['Python', 'Rust'],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.updateProfileSkill(
+    'https://forge.example/',
+    'add',
+    'Rust'
+  );
+
+  assert.equal(
+    calls[1][0],
+    'https://forge.example/api/profile/skills'
+  );
+  assert.equal(calls[1][1].method, 'PATCH');
+  assert.deepEqual(
+    JSON.parse(calls[1][1].body),
+    { action: 'add', skill: 'Rust' }
+  );
+  assert.deepEqual(result.skills, ['Python', 'Rust']);
+});
+
+test('native visibility update uses partial CSRF protected PATCH', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({
+        csrfToken: 'visibility-token',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      id: 7,
+      role: 'trade',
+      visibility: {
+        profileVisible: false,
+        showEmail: false,
+        showSkills: true,
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.updateProfileVisibility(
+    'https://forge.example/',
+    { profileVisible: false }
+  );
+
+  assert.equal(
+    calls[1][0],
+    'https://forge.example/api/profile/visibility'
+  );
+  assert.equal(calls[1][1].method, 'PATCH');
+  assert.equal(
+    calls[1][1].headers.Origin,
+    'https://forge.example'
+  );
+  assert.deepEqual(
+    JSON.parse(calls[1][1].body),
+    { profileVisible: false }
+  );
+  assert.equal(result.visibility.profileVisible, false);
+});
+
 test('feed uses the stable authenticated post contract', async () => {
   let requestUrl;
 

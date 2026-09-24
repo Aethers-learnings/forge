@@ -11,6 +11,9 @@ import {
   currentUser,
   login,
   logout,
+  updateProfilePortfolio,
+  updateProfileSkill,
+  updateProfileVisibility,
   getFeed,
   createPost,
   togglePostLike,
@@ -981,6 +984,12 @@ export default function Index() {
               )}
             </View>
 
+            <NativeProfileEditor
+              user={nativeUser}
+              serverUrl={sourceUrl}
+              onUserUpdated={setNativeUser}
+            />
+
             {!onboardingComplete && (
               <View style={styles.onboardingCard}>
                 <Text style={styles.cardEyebrow}>GET STARTED</Text>
@@ -1480,6 +1489,406 @@ function NativeLogin({
   );
 }
 
+
+function profileDraftFromUser(user: any) {
+  return {
+    bio: user?.bio || '',
+    headline: user?.headline || '',
+    programme: user?.programme || '',
+    year: user?.year || '',
+    campus: user?.campus || '',
+    github: user?.portfolio?.github || '',
+    linkedin: user?.portfolio?.linkedin || '',
+    credly: user?.portfolio?.credly || '',
+    website: user?.portfolio?.website || '',
+    industry: user?.company?.industry || '',
+    companyDescription: user?.company?.description || '',
+    location: user?.company?.location || '',
+    talentSought: user?.company?.talentSought || '',
+  };
+}
+
+function NativeProfileEditor({
+  user,
+  serverUrl,
+  onUserUpdated,
+}: {
+  user: any;
+  serverUrl: string;
+  onUserUpdated: (user: any) => void;
+}) {
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [draft, setDraft] = useState(() => profileDraftFromUser(user));
+  const [skillInput, setSkillInput] = useState('');
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const isStudent =
+    user?.role === 'trade' || user?.role === 'grad';
+
+  const updateDraft = (key: string, value: string) => {
+    setDraft((current: any) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const saveProfile = async () => {
+    if (profileBusy) return;
+
+    let payload: any;
+
+    if (isStudent) {
+      payload = {
+        bio: draft.bio,
+        headline: draft.headline,
+        programme: draft.programme,
+        year: draft.year,
+        campus: draft.campus,
+        github: draft.github,
+        linkedin: draft.linkedin,
+        credly: draft.credly,
+        website: draft.website,
+      };
+    } else if (user.role === 'business') {
+      payload = {
+        bio: draft.bio,
+        headline: draft.headline,
+        industry: draft.industry,
+        companyDescription: draft.companyDescription,
+        location: draft.location,
+        talentSought: draft.talentSought,
+        website: draft.website,
+      };
+    } else {
+      payload = { bio: draft.bio };
+    }
+
+    setProfileBusy(true);
+    setProfileError(null);
+
+    try {
+      const updated = await updateProfilePortfolio(
+        serverUrl,
+        payload
+      );
+      onUserUpdated(updated);
+      setDraft(profileDraftFromUser(updated));
+      setEditingProfile(false);
+    } catch (error: any) {
+      setProfileError(
+        error?.message || 'Could not save your profile.'
+      );
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const changeSkill = async (
+    action: 'add' | 'remove',
+    skill: string
+  ) => {
+    const value = skill.trim();
+    if (!value || profileBusy || !isStudent) return;
+
+    setProfileBusy(true);
+    setProfileError(null);
+
+    try {
+      const updated = await updateProfileSkill(
+        serverUrl,
+        action,
+        value
+      );
+      onUserUpdated(updated);
+      if (action === 'add') setSkillInput('');
+    } catch (error: any) {
+      setProfileError(
+        error?.message || 'Could not update your skills.'
+      );
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const toggleVisibility = async (
+    key: 'profileVisible' | 'showEmail' | 'showSkills'
+  ) => {
+    if (profileBusy) return;
+
+    const current = !!user?.visibility?.[key];
+
+    setProfileBusy(true);
+    setProfileError(null);
+
+    try {
+      const updated = await updateProfileVisibility(
+        serverUrl,
+        { [key]: !current }
+      );
+      onUserUpdated(updated);
+    } catch (error: any) {
+      setProfileError(
+        error?.message || 'Could not update profile visibility.'
+      );
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const field = (
+    key: string,
+    label: string,
+    options: {
+      multiline?: boolean;
+      keyboardType?: 'default' | 'url';
+      autoCapitalize?: 'none' | 'sentences' | 'words';
+    } = {}
+  ) => (
+    <View style={styles.profileEditField} key={key}>
+      <Text style={styles.profileEditLabel}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        style={[
+          styles.profileEditInput,
+          options.multiline && styles.profileEditTextArea,
+        ]}
+        value={(draft as any)[key]}
+        onChangeText={(value) => updateDraft(key, value)}
+        editable={!profileBusy}
+        multiline={options.multiline}
+        textAlignVertical={options.multiline ? 'top' : 'center'}
+        keyboardType={options.keyboardType || 'default'}
+        autoCapitalize={options.autoCapitalize || 'sentences'}
+        autoCorrect={options.keyboardType !== 'url'}
+      />
+    </View>
+  );
+
+  return (
+    <View style={styles.profileEditor}>
+      <View style={styles.profileEditorHeader}>
+        <View style={styles.profileEditorHeading}>
+          <Text style={styles.cardEyebrow}>PROFILE SETTINGS</Text>
+          <Text style={styles.profileEditorTitle}>
+            Keep your profile current
+          </Text>
+        </View>
+
+        {!editingProfile && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={profileBusy}
+            style={styles.profileEditButton}
+            onPress={() => {
+              setDraft(profileDraftFromUser(user));
+              setProfileError(null);
+              setEditingProfile(true);
+            }}
+          >
+            <Text style={styles.profileEditButtonText}>
+              Edit profile
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {editingProfile && (
+        <View>
+          {field('bio', 'Bio', { multiline: true })}
+
+          {user.role !== 'admin' && (
+            <>
+              {field('headline', 'Headline')}
+
+              {isStudent && (
+                <>
+                  {field('programme', 'Programme')}
+                  {field('year', 'Year')}
+                  {field('campus', 'Campus')}
+                  {field('github', 'GitHub URL', {
+                    keyboardType: 'url',
+                    autoCapitalize: 'none',
+                  })}
+                  {field('linkedin', 'LinkedIn URL', {
+                    keyboardType: 'url',
+                    autoCapitalize: 'none',
+                  })}
+                  {field('credly', 'Credly URL', {
+                    keyboardType: 'url',
+                    autoCapitalize: 'none',
+                  })}
+                  {field('website', 'Website', {
+                    keyboardType: 'url',
+                    autoCapitalize: 'none',
+                  })}
+                </>
+              )}
+
+              {user.role === 'business' && (
+                <>
+                  {field('industry', 'Industry')}
+                  {field(
+                    'companyDescription',
+                    'Company description',
+                    { multiline: true }
+                  )}
+                  {field('location', 'Location')}
+                  {field('talentSought', 'Talent sought')}
+                  {field('website', 'Website', {
+                    keyboardType: 'url',
+                    autoCapitalize: 'none',
+                  })}
+                </>
+              )}
+            </>
+          )}
+
+          <View style={styles.profileEditorActions}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={profileBusy}
+              style={[
+                styles.profileSaveButton,
+                profileBusy && styles.buttonDisabled,
+              ]}
+              onPress={saveProfile}
+            >
+              <Text style={styles.profileSaveButtonText}>
+                {profileBusy ? 'Saving…' : 'Save changes'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={profileBusy}
+              style={styles.profileCancelButton}
+              onPress={() => {
+                setDraft(profileDraftFromUser(user));
+                setProfileError(null);
+                setEditingProfile(false);
+              }}
+            >
+              <Text style={styles.profileCancelButtonText}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {isStudent && (
+        <View style={styles.profileSettingsSection}>
+          <Text style={styles.profileSettingsTitle}>Skills</Text>
+
+          {Array.isArray(user.skills) && user.skills.length > 0 && (
+            <View style={styles.skillsRow}>
+              {user.skills.map((skill: string) => (
+                <TouchableOpacity
+                  key={skill}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove skill ${skill}`}
+                  disabled={profileBusy}
+                  style={styles.editableSkillChip}
+                  onPress={() => changeSkill('remove', skill)}
+                >
+                  <Text style={styles.skillText}>{skill}</Text>
+                  <Text style={styles.skillRemoveText}>×</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <View style={styles.skillEditorRow}>
+            <TextInput
+              accessibilityLabel="Add skill"
+              style={styles.skillEditorInput}
+              value={skillInput}
+              onChangeText={setSkillInput}
+              placeholder="Add a skill"
+              editable={!profileBusy}
+              returnKeyType="done"
+              onSubmitEditing={() =>
+                void changeSkill('add', skillInput)
+              }
+            />
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={profileBusy || !skillInput.trim()}
+              style={[
+                styles.skillAddButton,
+                (profileBusy || !skillInput.trim()) &&
+                  styles.buttonDisabled,
+              ]}
+              onPress={() => changeSkill('add', skillInput)}
+            >
+              <Text style={styles.skillAddButtonText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.profileSettingsSection}>
+        <Text style={styles.profileSettingsTitle}>Visibility</Text>
+
+        {[
+          ['profileVisible', 'Profile visible'],
+          ['showEmail', 'Show email'],
+          ['showSkills', 'Show skills'],
+        ].map(([key, label]) => {
+          const active = !!user?.visibility?.[key];
+
+          return (
+            <View key={key} style={styles.profileVisibilityRow}>
+              <Text style={styles.profileVisibilityLabel}>
+                {label}
+              </Text>
+
+              <TouchableOpacity
+                accessibilityRole="switch"
+                accessibilityState={{
+                  checked: active,
+                  disabled: profileBusy,
+                }}
+                accessibilityLabel={label}
+                disabled={profileBusy}
+                style={[
+                  styles.profileToggle,
+                  active && styles.profileToggleActive,
+                ]}
+                onPress={() =>
+                  toggleVisibility(
+                    key as
+                      | 'profileVisible'
+                      | 'showEmail'
+                      | 'showSkills'
+                  )
+                }
+              >
+                <Text
+                  style={[
+                    styles.profileToggleText,
+                    active && styles.profileToggleTextActive,
+                  ]}
+                >
+                  {active ? 'On' : 'Off'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </View>
+
+      {profileError && (
+        <Text accessibilityRole="alert" style={styles.nativeError}>
+          {profileError}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4ede0' },
   nativeHome: {
@@ -1575,6 +1984,184 @@ const styles = StyleSheet.create({
     color: '#fff8ee',
     fontSize: 10,
     fontWeight: '800',
+  },
+  profileEditor: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 14,
+  },
+  profileEditorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  profileEditorHeading: {
+    flex: 1,
+  },
+  profileEditorTitle: {
+    color: '#1a1a1a',
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '800',
+  },
+  profileEditButton: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    borderColor: '#b5432b',
+    borderRadius: 9,
+  },
+  profileEditButtonText: {
+    color: '#b5432b',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  profileEditField: {
+    marginTop: 14,
+  },
+  profileEditLabel: {
+    color: '#625a50',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  profileEditInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: '#d8c9b8',
+    borderRadius: 10,
+    backgroundColor: '#fffdf8',
+    color: '#1a1a1a',
+    fontSize: 13,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  profileEditTextArea: {
+    minHeight: 90,
+  },
+  profileEditorActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
+  },
+  profileSaveButton: {
+    flex: 1,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: '#b5432b',
+  },
+  profileSaveButtonText: {
+    color: '#fff8ee',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  profileCancelButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#efe4d6',
+  },
+  profileCancelButtonText: {
+    color: '#625a50',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  profileSettingsSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#eadfce',
+    marginTop: 18,
+    paddingTop: 16,
+  },
+  profileSettingsTitle: {
+    color: '#1a1a1a',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  editableSkillChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#efe4d6',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  skillRemoveText: {
+    color: '#b5432b',
+    fontSize: 15,
+    lineHeight: 15,
+    fontWeight: '800',
+  },
+  skillEditorRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  skillEditorInput: {
+    flex: 1,
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: '#d8c9b8',
+    borderRadius: 10,
+    backgroundColor: '#fffdf8',
+    color: '#1a1a1a',
+    paddingHorizontal: 11,
+    fontSize: 12,
+  },
+  skillAddButton: {
+    minWidth: 62,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: '#2c6e62',
+  },
+  skillAddButtonText: {
+    color: '#fff8ee',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  profileVisibilityRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee2d5',
+  },
+  profileVisibilityLabel: {
+    color: '#514a42',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  profileToggle: {
+    minWidth: 52,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: '#ddd1c2',
+  },
+  profileToggleActive: {
+    backgroundColor: '#2c6e62',
+  },
+  profileToggleText: {
+    color: '#625a50',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  profileToggleTextActive: {
+    color: '#fff8ee',
   },
   feedComposer: {
     backgroundColor: '#fff8ee',
