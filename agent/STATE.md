@@ -110,3 +110,7 @@ This is a bounded first increment of T-203 for PR review against `master`; wider
 Notification/onboarding PR #2 is merged in starting commit `5dafe2a`. On `codex/t-203-profile-extraction`, 50 new profile regression cases passed before moving the five required handlers to `forge_routes/profile.py`. The factory reuses the existing app/database dependencies and security policy. Image/storage/public-profile handlers remain in place (D-010); API contract, schema, clients, session/CSRF, Socket.IO, and retention are unchanged.
 
 Full suite passes before and after: **256 tests**, no skips. Route/schema/AST comparisons and `git diff --check` pass; detailed evidence is in TEST_RESULTS.md. This increment is prepared for human review against `master`, without merging. T-203 stays open for the remaining extraction work.
+
+## 2026-09-24 — Issue #6 web profile export
+
+On `codex/web-profile-data-export` from `0706445`, replaced the existing student/business export links with a shared accessible button and added the same control for admins. The existing session API helper now optionally returns successful raw responses for downloading. Busy deduplication, persistent live status, retryable errors, filename fallback, and stale-account protection are covered by Node regressions invoked through pytest. Backend, mobile, API payload/auth policy, and navigation remain unchanged. Full suite: 257 passed; prepared for PR review against `master`, without merging.

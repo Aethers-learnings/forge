@@ -1044,7 +1044,7 @@ async function csrfHeaders(method) {
   return { 'X-CSRF-Token': token };
 }
 
-async function api(path, opts = {}) {
+async function api(path, opts = {}, rawResponse = false) {
   const method = (opts.method || 'GET').toUpperCase();
   const headers = new Headers({ 'Content-Type': 'application/json' });
   new Headers(opts.headers).forEach((value, key) => headers.set(key, value));
@@ -1079,6 +1079,8 @@ async function api(path, opts = {}) {
       }
     };
   }
+
+  if (res.ok && rawResponse) return res;
 
   let body = null;
   try { body = await res.json(); } catch (e) { /* no body */ }
@@ -2387,6 +2389,61 @@ async function sendCoach(ev) {
 /* ==================================================================== */
 /*  PROFILE — student/alumni portfolio OR business company profile      */
 /* ==================================================================== */
+let profileExportBusy = false;
+
+function profileExportControls() {
+  return `<div style="margin-top:14px;">
+    <button type="button" id="profile-export" class="btn btn-ghost btn-sm"
+      onclick="downloadProfileData()" aria-describedby="profile-export-status"
+      aria-busy="${profileExportBusy}" ${profileExportBusy ? 'disabled' : ''}>${profileExportBusy ? 'Preparing download…' : 'Download my data (POPIA)'}</button>
+    <div id="profile-export-status" role="status" aria-live="polite" aria-atomic="true">${profileExportBusy ? 'Preparing your data…' : ''}</div>
+  </div>`;
+}
+
+function updateProfileExport(busy, message) {
+  profileExportBusy = busy;
+  const button = document.getElementById('profile-export');
+  const status = document.getElementById('profile-export-status');
+  if (button) {
+    button.disabled = busy;
+    button.setAttribute('aria-busy', String(busy));
+    button.textContent = busy ? 'Preparing download…' : 'Download my data (POPIA)';
+  }
+  if (status) status.textContent = message;
+}
+
+async function downloadProfileData() {
+  if (profileExportBusy) return;
+  updateProfileExport(true, 'Preparing your data…');
+  const generation = csrfGeneration;
+  let message;
+  try {
+    const response = await api('/api/profile/export', { cache: 'no-store' }, true);
+    const blob = await response.blob();
+    if (generation !== csrfGeneration) throw { body: { error: 'Account changed. Please try again.' } };
+    const filename = /filename="([^"/\\]+)"/i.exec(response.headers.get('Content-Disposition') || '');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    try {
+      link.href = url;
+      link.download = filename ? filename[1] : 'forge-my-data.json';
+      document.body.appendChild(link);
+      link.click();
+    } finally {
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    message = 'Download started. Check your browser’s downloads.';
+  } catch (e) {
+    message = e.status === 401
+      ? 'Your session has expired. Sign in again to download your data.'
+      : generation !== csrfGeneration ? 'Account changed. Please try again.'
+      : `Could not download your data. ${e.body?.error || 'Please try again.'}`;
+  } finally {
+    updateProfileExport(false, message);
+  }
+}
+
 async function renderProfileView() {
   const u = await api('/api/auth/me');
   setCurrentUser(u);
@@ -2505,9 +2562,7 @@ async function renderProfileView() {
           ${visibilityToggle('profileVisible', 'Profile visible to others', u.visibility.profileVisible)}
           ${visibilityToggle('showEmail', 'Show email on public profile', u.visibility.showEmail)}
           ${visibilityToggle('showSkills', 'Show skills on public profile', u.visibility.showSkills)}
-          <div style="margin-top:14px;">
-            <a class="btn btn-ghost btn-sm" href="/api/profile/export" style="text-decoration:none;">Download my data (POPIA)</a>
-          </div>
+          ${profileExportControls()}
         </section>
 
         ${showAlumniVerify ? `
@@ -2546,9 +2601,7 @@ async function renderProfileView() {
           ${visibilityToggle('profileVisible', 'Profile visible to others', u.visibility.profileVisible)}
           ${visibilityToggle('showEmail', 'Show email on public profile', u.visibility.showEmail)}
           ${visibilityToggle('showSkills', 'Show skills on public profile', u.visibility.showSkills)}
-          <div style="margin-top:14px;">
-            <a class="btn btn-ghost btn-sm" href="/api/profile/export" style="text-decoration:none;">Download my data (POPIA)</a>
-          </div>
+          ${profileExportControls()}
         </section>
       </div>` : `
       <section class="card">
@@ -2557,6 +2610,7 @@ async function renderProfileView() {
         ${visibilityToggle('profileVisible', 'Profile visible to others', u.visibility.profileVisible)}
         ${visibilityToggle('showEmail', 'Show email on public profile', u.visibility.showEmail)}
         ${visibilityToggle('showSkills', 'Show skills on public profile', u.visibility.showSkills)}
+        ${profileExportControls()}
       </section>`
     }
   `;
