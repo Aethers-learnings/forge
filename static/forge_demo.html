@@ -695,15 +695,91 @@
     outline:3px solid rgba(255,90,54,.32);
     outline-offset:2px;
   }
+
+  .skip-link{
+    position:absolute;
+    left:14px;
+    top:10px;
+    z-index:200;
+    transform:translateY(-160%);
+    background:#111827;
+    color:#fff;
+    padding:10px 14px;
+    border-radius:10px;
+    font-size:12px;
+    font-weight:700;
+    text-decoration:none;
+    box-shadow:var(--shadow-md);
+  }
+  .skip-link:focus{
+    transform:translateY(0);
+  }
+
+  .network-status{
+    position:absolute;
+    top:12px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:150;
+    max-width:min(440px,calc(100% - 28px));
+    padding:9px 13px;
+    border-radius:11px;
+    background:#fff7ed;
+    border:1px solid #fed7aa;
+    color:#9a3412;
+    box-shadow:var(--shadow-md);
+    font-size:12px;
+    font-weight:700;
+    text-align:center;
+  }
+  .network-status[hidden]{display:none;}
+
+  @media (max-width:760px){
+    .network-status{
+      top:calc(8px + env(safe-area-inset-top));
+      font-size:11.5px;
+    }
+  }
 </style>
 </head>
 <body>
+  <a class="skip-link" href="#content">Skip to main content</a>
   <div id="phone">
     <div id="app"></div>
-    <div id="toast"></div>
+    <div id="network-status"
+         class="network-status"
+         role="status"
+         aria-live="polite"
+         aria-atomic="true"
+         hidden></div>
+    <div id="toast"
+         role="status"
+         aria-live="polite"
+         aria-atomic="true"></div>
   </div>
 <script>
 /* ====================== application code follows ====================== */
+
+function syncNetworkStatus(){
+  const banner = document.getElementById('network-status');
+  if(!banner) return;
+  const online = navigator.onLine !== false;
+  banner.hidden = online;
+  banner.textContent = online
+    ? ''
+    : 'You’re offline. Some actions may not save until your connection returns.';
+}
+
+window.addEventListener('online', syncNetworkStatus);
+window.addEventListener('offline', syncNetworkStatus);
+syncNetworkStatus();
+
+document.querySelector('.skip-link')?.addEventListener('click', () => {
+  const main = document.getElementById('content');
+  if(!main) return;
+  if(!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+  requestAnimationFrame(() => main.focus());
+});
 
 /* ------------------------------------------------------------------ logo */
 const LOGO_MARK = `
