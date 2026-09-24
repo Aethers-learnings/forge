@@ -50,6 +50,16 @@ function screen(saved, options = {}) {
         step: 0,
         complete: true,
       }),
+      getOpportunities: async () => [],
+      toggleOpportunityApplication: async (_url, id) => ({
+        id,
+        title: 'Junior developer',
+        co: 'Forge',
+        match: 80,
+        matchIsFallback: true,
+        tags: ['Python'],
+        applied: true,
+      }),
     },
   };
   const source = ts.transpileModule(fs.readFileSync(require.resolve('../src/app/index.tsx'), 'utf8'), {

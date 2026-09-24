@@ -14,6 +14,8 @@ import {
   getOnboarding,
   advanceOnboarding,
   skipOnboarding,
+  getOpportunities,
+  toggleOpportunityApplication,
 } from '../api/client';
 
 const STORAGE_KEY = 'forge_server_url';
@@ -37,6 +39,11 @@ export default function Index() {
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [nativeSection, setNativeSection] = useState<'profile' | 'opportunities'>('profile');
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
+  const [opportunitiesError, setOpportunitiesError] = useState<string | null>(null);
+  const [opportunityBusyId, setOpportunityBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
@@ -94,6 +101,9 @@ export default function Index() {
       setNativeUser(null);
       setOnboarding(null);
       setOnboardingError(null);
+      setNativeSection('profile');
+      setOpportunities([]);
+      setOpportunitiesError(null);
       setAuthChecked(true);
     } catch (error: any) {
       setAuthError(error?.message || 'Could not sign out.');
@@ -155,6 +165,72 @@ export default function Index() {
     };
   }, [nativeMode, serverUrl, nativeUserId]);
 
+  const canUseOpportunities =
+    nativeUser?.role === 'trade' || nativeUser?.role === 'grad';
+
+  useEffect(() => {
+    if (
+      !nativeMode ||
+      !serverUrl ||
+      !nativeUserId ||
+      !canUseOpportunities ||
+      nativeSection !== 'opportunities'
+    ) return;
+
+    let cancelled = false;
+
+    void getOpportunities(serverUrl)
+      .then((items: any[]) => {
+        if (!cancelled) setOpportunities(Array.isArray(items) ? items : []);
+      })
+      .catch((error: any) => {
+        if (!cancelled) {
+          setOpportunitiesError(
+            error?.message || 'Could not load opportunities.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setOpportunitiesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    nativeMode,
+    serverUrl,
+    nativeUserId,
+    canUseOpportunities,
+    nativeSection,
+  ]);
+
+  const handleToggleApplication = async (opportunityId: number) => {
+    if (!serverUrl || opportunityBusyId !== null) return;
+
+    setOpportunityBusyId(opportunityId);
+    setOpportunitiesError(null);
+
+    try {
+      const updated = await toggleOpportunityApplication(
+        serverUrl,
+        opportunityId
+      );
+
+      setOpportunities((items: any[]) =>
+        items.map((item: any) =>
+          item.id === opportunityId ? updated : item
+        )
+      );
+    } catch (error: any) {
+      setOpportunitiesError(
+        error?.message || 'Could not update your application.'
+      );
+    } finally {
+      setOpportunityBusyId(null);
+    }
+  };
+
   const applyOnboardingState = (value: any) => {
     setOnboarding(value);
     setNativeUser((user: any) => user ? {
@@ -215,6 +291,9 @@ export default function Index() {
       setAuthError(null);
       setOnboarding(null);
       setOnboardingError(null);
+      setNativeSection('profile');
+      setOpportunities([]);
+      setOpportunitiesError(null);
     } catch {
       setSettingsError('Could not save the address. Please try again.');
     }
@@ -331,6 +410,54 @@ export default function Index() {
               </View>
             </View>
 
+            {canUseOpportunities && (
+              <View style={styles.sectionTabs}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: nativeSection === 'profile' }}
+                  style={[
+                    styles.sectionTab,
+                    nativeSection === 'profile' && styles.sectionTabActive,
+                  ]}
+                  onPress={() => setNativeSection('profile')}
+                >
+                  <Text
+                    style={[
+                      styles.sectionTabText,
+                      nativeSection === 'profile' && styles.sectionTabTextActive,
+                    ]}
+                  >
+                    Profile
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: nativeSection === 'opportunities' }}
+                  style={[
+                    styles.sectionTab,
+                    nativeSection === 'opportunities' && styles.sectionTabActive,
+                  ]}
+                  onPress={() => {
+                    setOpportunitiesLoading(true);
+                    setOpportunitiesError(null);
+                    setNativeSection('opportunities');
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.sectionTabText,
+                      nativeSection === 'opportunities' && styles.sectionTabTextActive,
+                    ]}
+                  >
+                    Opportunities
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {nativeSection === 'profile' && (
+              <>
             <View style={styles.profileCard}>
               <Text style={styles.cardEyebrow}>PROFILE</Text>
               <Text style={styles.profileHeadline}>{roleDetail}</Text>
@@ -440,6 +567,124 @@ export default function Index() {
               <View style={styles.completeCard}>
                 <Text style={styles.cardEyebrow}>ONBOARDING</Text>
                 <Text style={styles.completeTitle}>You’re ready to use Forge.</Text>
+              </View>
+            )}
+
+              </>
+            )}
+
+            {nativeSection === 'opportunities' && canUseOpportunities && (
+              <View>
+                <View style={styles.opportunityHeader}>
+                  <Text style={styles.cardEyebrow}>OPPORTUNITIES</Text>
+                  <Text style={styles.opportunityTitle}>
+                    Find your next move
+                  </Text>
+                  <Text style={styles.opportunityIntro}>
+                    Roles approved for Forge students and graduates.
+                  </Text>
+                </View>
+
+                {opportunitiesLoading && opportunities.length === 0 && (
+                  <View style={styles.profileCard}>
+                    <Text style={styles.profileBio}>
+                      Loading opportunities…
+                    </Text>
+                  </View>
+                )}
+
+                {opportunitiesError && (
+                  <Text accessibilityRole="alert" style={styles.nativeError}>
+                    {opportunitiesError}
+                  </Text>
+                )}
+
+                {!opportunitiesLoading &&
+                  !opportunitiesError &&
+                  opportunities.length === 0 && (
+                    <View style={styles.profileCard}>
+                      <Text style={styles.profileHeadline}>
+                        No opportunities yet
+                      </Text>
+                      <Text style={styles.profileBio}>
+                        Check back as new approved roles are published.
+                      </Text>
+                    </View>
+                  )}
+
+                {opportunities.map((opportunity: any) => (
+                  <View
+                    key={opportunity.id}
+                    style={styles.opportunityCard}
+                  >
+                    <View style={styles.opportunityTopRow}>
+                      <View style={styles.opportunityTitleBlock}>
+                        <Text style={styles.opportunityRole}>
+                          {opportunity.title}
+                        </Text>
+                        <Text style={styles.opportunityCompany}>
+                          {opportunity.co}
+                        </Text>
+                      </View>
+
+                      <View
+                        accessible
+                        accessibilityLabel={`${opportunity.match}% match`}
+                        style={styles.matchBadge}
+                      >
+                        <Text style={styles.matchValue}>
+                          {opportunity.match}%
+                        </Text>
+                        <Text style={styles.matchLabel}>match</Text>
+                      </View>
+                    </View>
+
+                    {Array.isArray(opportunity.tags) &&
+                      opportunity.tags.length > 0 && (
+                        <View style={styles.skillsRow}>
+                          {opportunity.tags.slice(0, 5).map((tag: string) => (
+                            <View key={tag} style={styles.skillChip}>
+                              <Text style={styles.skillText}>{tag}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                    {opportunity.matchIsFallback && (
+                      <Text style={styles.matchNote}>
+                        Match based on available profile information
+                      </Text>
+                    )}
+
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      disabled={opportunityBusyId !== null}
+                      style={[
+                        opportunity.applied
+                          ? styles.appliedButton
+                          : styles.button,
+                        opportunityBusyId !== null && styles.buttonDisabled,
+                      ]}
+                      onPress={() =>
+                        handleToggleApplication(opportunity.id)
+                      }
+                    >
+                      <Text
+                        style={
+                          opportunity.applied
+                            ? styles.appliedButtonText
+                            : styles.buttonText
+                        }
+                      >
+                        {opportunityBusyId === opportunity.id
+                          ? 'Updating…'
+                          : opportunity.applied
+                            ? 'Withdraw application'
+                            : 'Apply'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
             )}
 
@@ -693,6 +938,113 @@ const styles = StyleSheet.create({
     color: '#625a50',
     fontSize: 10,
     marginTop: 1,
+  },
+  sectionTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#eadfce',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  sectionTab: {
+    flex: 1,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  sectionTabActive: {
+    backgroundColor: '#fff8ee',
+  },
+  sectionTabText: {
+    color: '#716558',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sectionTabTextActive: {
+    color: '#b5432b',
+  },
+  opportunityHeader: {
+    marginBottom: 14,
+  },
+  opportunityTitle: {
+    color: '#1a1a1a',
+    fontSize: 23,
+    fontWeight: '800',
+    marginBottom: 5,
+  },
+  opportunityIntro: {
+    color: '#625a50',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  opportunityCard: {
+    backgroundColor: '#fff8ee',
+    borderWidth: 1,
+    borderColor: '#dfd2c2',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 14,
+  },
+  opportunityTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 15,
+  },
+  opportunityTitleBlock: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  opportunityRole: {
+    color: '#1a1a1a',
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '800',
+  },
+  opportunityCompany: {
+    color: '#625a50',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  matchBadge: {
+    minWidth: 62,
+    minHeight: 58,
+    borderRadius: 12,
+    backgroundColor: '#efe4d6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchValue: {
+    color: '#2c6e62',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  matchLabel: {
+    color: '#716558',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  matchNote: {
+    color: '#8a7767',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  appliedButton: {
+    minHeight: 46,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2c6e62',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 15,
+  },
+  appliedButtonText: {
+    color: '#2c6e62',
+    fontWeight: '700',
+    fontSize: 14,
   },
   profileCard: {
     backgroundColor: '#fff8ee',

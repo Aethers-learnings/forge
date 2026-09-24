@@ -191,3 +191,80 @@ test('skip onboarding uses the same CSRF protection', async () => {
   assert.equal(calls[1][1].headers['X-CSRF-Token'], 'skip-token');
 });
 
+test('opportunities use the stable authenticated list contract', async () => {
+  let requestUrl;
+
+  global.fetch = async (url) => {
+    requestUrl = url;
+
+    return new Response(JSON.stringify([
+      {
+        id: 8,
+        title: 'Junior developer',
+        co: 'Forge',
+        match: 80,
+        matchIsFallback: true,
+        tags: ['Python'],
+        applied: false,
+      },
+    ]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.getOpportunities('https://forge.example/');
+
+  assert.equal(
+    requestUrl,
+    'https://forge.example/api/opportunities'
+  );
+  assert.equal(result[0].id, 8);
+  assert.equal(result[0].applied, false);
+});
+
+test('native opportunity application toggle is CSRF protected', async () => {
+  const calls = [];
+
+  global.fetch = async (url, options) => {
+    calls.push([url, options]);
+
+    if (url.endsWith('/api/auth/csrf-token')) {
+      return new Response(JSON.stringify({ csrfToken: 'apply-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      id: 8,
+      title: 'Junior developer',
+      co: 'Forge',
+      match: 80,
+      matchIsFallback: true,
+      tags: ['Python'],
+      applied: true,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await client.toggleOpportunityApplication(
+    'https://forge.example/',
+    8
+  );
+
+  assert.equal(
+    calls[1][0],
+    'https://forge.example/api/opportunities/8/apply'
+  );
+  assert.equal(calls[1][1].method, 'POST');
+  assert.equal(calls[1][1].headers.Origin, 'https://forge.example');
+  assert.equal(
+    calls[1][1].headers['X-CSRF-Token'],
+    'apply-token'
+  );
+  assert.equal(result.applied, true);
+});
+

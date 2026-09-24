@@ -76,6 +76,17 @@ async function logout(baseUrl) {
   });
 }
 
+async function getOpportunities(baseUrl) {
+  return request(baseUrl, '/api/opportunities');
+}
+
+async function toggleOpportunityApplication(baseUrl, opportunityId) {
+  return request(baseUrl, `/api/opportunities/${opportunityId}/apply`, {
+    method: 'POST',
+    headers: await csrfHeaders(baseUrl),
+  });
+}
+
 async function getOnboarding(baseUrl) {
   return request(baseUrl, '/api/onboarding');
 }
@@ -99,6 +110,8 @@ module.exports = {
   currentUser,
   login,
   logout,
+  getOpportunities,
+  toggleOpportunityApplication,
   getOnboarding,
   advanceOnboarding,
   skipOnboarding,
