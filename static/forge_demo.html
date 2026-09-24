@@ -357,6 +357,9 @@
     background:#fff3f1;border:1px solid #ffc9be;
     color:#a93420;padding:11px 13px;border-radius:12px;font-size:12.5px;margin-bottom:14px;line-height:1.45;
   }
+  .error-actions{
+    display:flex;align-items:center;gap:8px;margin-top:10px;
+  }
   .success-banner{
     background:#ecfdf5;border:1px solid #a7f3d0;color:#066b4f;padding:11px 13px;border-radius:12px;font-size:12.5px;margin-bottom:14px;
   }
@@ -989,15 +992,46 @@ async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
   const headers = new Headers({ 'Content-Type': 'application/json' });
   new Headers(opts.headers).forEach((value, key) => headers.set(key, value));
-  const securityHeaders = await csrfHeaders(method);
+
+  let securityHeaders;
+  try {
+    securityHeaders = await csrfHeaders(method);
+  } catch (e) {
+    if (e && (e.body || e.status)) throw e;
+    throw {
+      network: true,
+      body: {
+        error: navigator.onLine === false
+          ? 'You’re offline. Reconnect and try again.'
+          : 'Forge could not reach the server. Check your connection and try again.'
+      }
+    };
+  }
+
   Object.entries(securityHeaders).forEach(([key, value]) => headers.set(key, value));
-  const res = await fetch(path, { ...opts, method, credentials: 'same-origin', headers });
+
+  let res;
+  try {
+    res = await fetch(path, { ...opts, method, credentials: 'same-origin', headers });
+  } catch (e) {
+    throw {
+      network: true,
+      body: {
+        error: navigator.onLine === false
+          ? 'You’re offline. Reconnect and try again.'
+          : 'Forge could not reach the server. Check your connection and try again.'
+      }
+    };
+  }
+
   let body = null;
   try { body = await res.json(); } catch (e) { /* no body */ }
+
   if (!res.ok) {
     if (res.status === 401 || body?.code === 'csrf_failed') clearCsrfState();
     throw { status: res.status, body };
   }
+
   return body;
 }
 
@@ -1010,9 +1044,44 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+async function runBusyButton(button, busyText, task) {
+  if (!button) return await task();
+  if (button.disabled) return;
+
+  const originalHtml = button.innerHTML;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  if (busyText) button.textContent = busyText;
+
+  try {
+    return await task();
+  } finally {
+    // Successful mutations usually re-render the view, so only restore a
+    // button that still belongs to the current document.
+    if (button.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      button.innerHTML = originalHtml;
+    }
+  }
+}
+
 function renderError(e) {
-  const msg = (e && e.body && e.body.error) ? e.body.error : 'Could not load this right now.';
-  return `<div class="error-banner">${esc(msg)}</div>`;
+  const msg = (e && e.body && e.body.error)
+    ? e.body.error
+    : 'Could not load this right now.';
+
+  const retryable = !!(e && e.network) || !e || !e.status || e.status >= 500;
+
+  return `
+    <div class="error-banner" role="alert">
+      <strong>Couldn’t load this view.</strong>
+      <div style="margin-top:3px;">${esc(msg)}</div>
+      ${retryable ? `
+        <div class="error-actions">
+          <button class="btn btn-ghost btn-sm" onclick="loadView()">Try again</button>
+        </div>` : ''}
+    </div>`;
 }
 
 /* Inline SVG sparkline — no charting library needed. */
@@ -1470,7 +1539,9 @@ function renderShell() {
           </button>
         </div>
       </header>
-      <div id="content"><div class="loading">Loading Forge…</div></div>
+      <div id="content" role="main" tabindex="-1" aria-busy="true">
+        <div class="loading" role="status" aria-live="polite">Loading Forge…</div>
+      </div>
       <nav class="bottomnav">${mobileNavButtons}</nav>
     </section>
     <div class="account-menu" id="account-menu" aria-hidden="true">
@@ -1531,17 +1602,26 @@ function goto(view) {
   loadView();
 }
 
+let viewLoadGeneration = 0;
+
 async function loadView() {
   const content = document.getElementById('content');
   if (!content) return;
-  // Don't blank the screen the instant a request starts — most of these
-  // calls resolve in well under 200ms on the demo backend, and clearing
-  // the content first is exactly what produced the "everything blinks"
-  // flash on every tap. Only show a loading state if it's genuinely slow.
-  const showSpinner = setTimeout(() => {
-    content.innerHTML = '<div class="loading">Loading…</div>';
-  }, 200);
+
+  const generation = ++viewLoadGeneration;
   const requestedView = state.view;
+  content.setAttribute('aria-busy', 'true');
+
+  // Preserve the existing no-flicker behavior. Only replace current content
+  // with a loading state when the request is genuinely taking a moment.
+  const showSpinner = setTimeout(() => {
+    if (generation !== viewLoadGeneration || state.view !== requestedView) return;
+    content.innerHTML = `
+      <div class="loading" role="status" aria-live="polite">
+        Loading ${esc(viewTitle(requestedView))}…
+      </div>`;
+  }, 200);
+
   try {
     let html;
     switch (requestedView) {
@@ -1557,15 +1637,21 @@ async function loadView() {
       case 'user': html = await renderUserProfileView(); break;
       default: html = await renderFeedView();
     }
+
     clearTimeout(showSpinner);
-    // If the user navigated again while this was in flight, don't stomp
-    // on the newer view with a stale response.
-    if (state.view !== requestedView) return;
+
+    // Protect against both navigation races and two in-flight loads for the
+    // same top-level view, such as rapidly switching Discover/Admin tabs.
+    if (generation !== viewLoadGeneration || state.view !== requestedView) return;
+
     content.innerHTML = html;
+    content.setAttribute('aria-busy', 'false');
   } catch (e) {
     clearTimeout(showSpinner);
-    if (state.view !== requestedView) return;
+    if (generation !== viewLoadGeneration || state.view !== requestedView) return;
+
     content.innerHTML = renderError(e);
+    content.setAttribute('aria-busy', 'false');
   }
 }
 
@@ -1633,7 +1719,7 @@ function postCard(p) {
     </div>
 
     <div class="post-actions">
-      <button class="btn btn-ghost btn-sm ${p.likedByMe ? 'active' : ''}" onclick="likePost(${p.id})">♥ ${p.likeCount}</button>
+      <button class="btn btn-ghost btn-sm ${p.likedByMe ? 'active' : ''}" onclick="likePost(${p.id}, this)">♥ ${p.likeCount}</button>
       <button class="btn btn-ghost btn-sm" onclick="toggleComments(${p.id})">${p.comments.length} comment${p.comments.length===1?'':'s'}</button>
       ${role !== 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="flagPost(${p.id})">Report</button>` : ''}
       ${role === 'admin' ? `<button class="btn btn-danger btn-sm" onclick="removePost(${p.id})">Remove</button>` : ''}
@@ -1658,12 +1744,24 @@ function toggleComments(id) {
   if (el) el.hidden = !el.hidden;
 }
 
+
 async function submitPost(ev) {
   ev.preventDefault();
   const body = new FormData(ev.target).get('body');
   if (!body || !body.trim()) return false;
-  try { await api('/api/posts', { method: 'POST', body: JSON.stringify({ body }) }); loadView(); }
-  catch (e) { toast('Could not post that.'); }
+
+  try {
+    await runBusyButton(ev.submitter, 'Publishing…', async () => {
+      await api('/api/posts', {
+        method: 'POST',
+        body: JSON.stringify({ body }),
+      });
+      await loadView();
+    });
+  } catch (e) {
+    toast((e.body && e.body.error) || 'Could not post that.');
+  }
+
   return false;
 }
 
@@ -1691,9 +1789,16 @@ async function uploadVideo(input) {
   }
 }
 
-async function likePost(id) {
-  try { await api(`/api/posts/${id}/like`, { method: 'POST' }); loadView(); }
-  catch (e) { toast('Could not update like.'); }
+
+async function likePost(id, button) {
+  try {
+    await runBusyButton(button, 'Updating…', async () => {
+      await api(`/api/posts/${id}/like`, { method: 'POST' });
+      await loadView();
+    });
+  } catch (e) {
+    toast((e.body && e.body.error) || 'Could not update like.');
+  }
 }
 
 async function flagPost(id) {
@@ -1707,11 +1812,23 @@ async function removePost(id) {
   catch (e) { toast('Could not remove that post.'); }
 }
 
+
 async function submitComment(ev, id) {
   ev.preventDefault();
   const text = new FormData(ev.target).get('text');
-  try { await api(`/api/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }); loadView(); }
-  catch (e) { toast('Could not post that comment.'); }
+
+  try {
+    await runBusyButton(ev.submitter, 'Sending…', async () => {
+      await api(`/api/posts/${id}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      });
+      await loadView();
+    });
+  } catch (e) {
+    toast((e.body && e.body.error) || 'Could not post that comment.');
+  }
+
   return false;
 }
 
@@ -1823,16 +1940,23 @@ async function opportunitiesHtml() {
         </div>
         <div class="opportunity-tags">${o.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
         <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-          <button class="btn ${o.applied ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="applyOpp(${o.id})">
+          <button class="btn ${o.applied ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="applyOpp(${o.id}, this)">
             ${o.applied ? 'Applied · withdraw' : 'Apply now'}
           </button>
         </div>
       </div>`).join('')}`;
 }
 
-async function applyOpp(id) {
-  try { await api(`/api/opportunities/${id}/apply`, { method: 'POST' }); loadView(); }
-  catch (e) { toast('Could not update your application.'); }
+
+async function applyOpp(id, button) {
+  try {
+    await runBusyButton(button, 'Updating…', async () => {
+      await api(`/api/opportunities/${id}/apply`, { method: 'POST' });
+      await loadView();
+    });
+  } catch (e) {
+    toast((e.body && e.body.error) || 'Could not update your application.');
+  }
 }
 
 async function eventsHtml() {
@@ -1848,15 +1972,22 @@ async function eventsHtml() {
         <div style="font-weight:600;font-size:13.5px;">${esc(e.title)}</div>
         <div class="muted">${esc(e.place)}</div>
       </div>
-      <button class="btn ${e.interested ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="toggleInterest(${e.id})">
+      <button class="btn ${e.interested ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="toggleInterest(${e.id}, this)">
         ${e.interested ? 'Going' : 'Interested'}
       </button>
     </div>`).join('');
 }
 
-async function toggleInterest(id) {
-  try { await api(`/api/events/${id}/interest`, { method: 'POST' }); loadView(); }
-  catch (e) { toast('Could not update that.'); }
+
+async function toggleInterest(id, button) {
+  try {
+    await runBusyButton(button, 'Updating…', async () => {
+      await api(`/api/events/${id}/interest`, { method: 'POST' });
+      await loadView();
+    });
+  } catch (e) {
+    toast((e.body && e.body.error) || 'Could not update that.');
+  }
 }
 
 async function pathwaysHtml() {
@@ -2107,11 +2238,23 @@ async function threadHtml(slug) {
     </div>`;
 }
 
+
 async function sendMessage(ev, slug) {
   ev.preventDefault();
   const text = new FormData(ev.target).get('text');
-  try { await api(`/api/conversations/${slug}/messages`, { method: 'POST', body: JSON.stringify({ text }) }); loadView(); }
-  catch (e) { toast('Could not send that message.'); }
+
+  try {
+    await runBusyButton(ev.submitter, 'Sending…', async () => {
+      await api(`/api/conversations/${slug}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      });
+      await loadView();
+    });
+  } catch (e) {
+    toast((e.body && e.body.error) || 'Could not send that message.');
+  }
+
   return false;
 }
 
@@ -2154,11 +2297,23 @@ function prefillCoach(text) {
   input.focus();
 }
 
+
 async function sendCoach(ev) {
   ev.preventDefault();
   const text = new FormData(ev.target).get('text');
-  try { await api('/api/coach/chat', { method: 'POST', body: JSON.stringify({ text }) }); loadView(); }
-  catch (e) { toast('Could not reach the coach.'); }
+
+  try {
+    await runBusyButton(ev.submitter, 'Thinking…', async () => {
+      await api('/api/coach/chat', {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      });
+      await loadView();
+    });
+  } catch (e) {
+    toast((e.body && e.body.error) || 'Could not reach the coach.');
+  }
+
   return false;
 }
 
