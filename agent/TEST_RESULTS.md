@@ -219,3 +219,11 @@ Limits: content inspection is container-signature-level validation, not malware 
 - Runtime snapshots preserve all **66 URL rules** (paths, methods, subdomains, strict-slash behavior) and **23 tables** (column types, nullability, primary keys, foreign keys). Snapshot imports used an in-memory database; tests use the existing isolated harness, never the application database.
 - `git diff --check` passes. Production diff is restricted to importing/registering the new blueprint and moving the five handlers. Models, shared helpers, image storage/serving, global security hooks, and clients remain unchanged.
 - Limits: automated Flask/Node and script-startup verification; no manual browser/mobile-device/deployment testing. Optional image extraction and broader T-203 remain deferred.
+
+## 2026-09-24 — Issue #6 web profile export
+
+- `.venv/bin/python -m pytest -q tests/test_profile_export_frontend.py tests/test_web_quality.py tests/test_csrf_frontend.py tests/test_security_headers.py`: **17 passed in 1.06s**.
+- `.venv/bin/python -m pytest -q`: **257 passed, 1276 existing datetime/SQLAlchemy warnings in 48.03s**, no skips.
+- Node executes the actual static API/profile functions: exactly one semantic export button for trade/grad/business/admin; same-origin GET with no-store; exact response bytes, server filename and fallback; busy/re-render/concurrent-click protection; 500/401/403/network failure and successful retry; object URL cleanup; no stale-account download. Existing script syntax, CSRF, CSP, responsive and keyboard assertions remain green.
+- `git diff --check` passes. Production changes are web-only; backend and mobile files are unchanged. No dependencies added.
+- Limits: mocked DOM/download behavior plus Flask/Node regressions; no manual browser, screen-reader, mobile-device, or deployment testing.

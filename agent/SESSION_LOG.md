@@ -129,3 +129,9 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Moved only the five required profile handlers into an explicitly injected blueprint. Kept image routes and shared helpers in place; documented D-010 and remaining T-203 boundaries.
 - Reviewed source diff and compared all original top-level definitions, URL rules, and schema metadata. Full suite after extraction: 256 passed; evidence and limitations are in TEST_RESULTS.md.
 - Preparing a PR to `master` for human review. No merge, auto-merge, schema/ownership/retention change, or client work is included.
+
+## 2026-09-24 — GitHub Issue #6
+
+- Inspected required web/API/security records and reused the existing export location instead of adding duplicate actions. Kept implementation within the static client and its tests.
+- Added all-role rendering and behavioral export regressions using the existing Node/pytest style; a focused test caught and corrected an expired-session message being overwritten by the account-change guard.
+- Full suite and focused web/security checks pass; details and verification limits are in TEST_RESULTS.md. Prepared a review PR to `master`; no merge or auto-merge.
