@@ -23,7 +23,7 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 
 - [ ] T-201 — Add reversible schema migration tooling and explicit indexes/constraints appropriate to verified access patterns. Depends on: T-104 data design. Classification: MAJOR_REVIEW.
 - [x] T-202 — Add stable API contract documentation and request/response tests before route extraction. Depends on: T-101. Classification: SAFE_INCREMENTAL.
-- [ ] T-203 — Incrementally extract Flask blueprints/services around identity, workflows, media, and analytics. Depends on: T-101, T-202. Classification: SAFE_INCREMENTAL.
+- [ ] T-203 — Incrementally extract Flask blueprints/services around identity, workflows, media, and analytics. Depends on: T-101, T-202. Classification: SAFE_INCREMENTAL. First increment (Issue #1, 2026-09-24): notification/onboarding blueprints extracted with behavior tests; pending PR review. Remaining identity, workflow, profile, media, and analytics extraction stays open; do not combine it with T-104/T-201 ownership/schema changes.
 - [ ] T-204 — Improve web accessibility, responsive behavior, error handling, CSP/security headers, and client tests without replacing the static frontend. Depends on: T-003, T-202. Classification: SAFE_INCREMENTAL.
 - [ ] T-205 — Implement native Expo workflows in priority order while WebView stays available. Depends on: T-004, T-202. Classification: SAFE_INCREMENTAL.
 

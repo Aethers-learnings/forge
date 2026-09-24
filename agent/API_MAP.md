@@ -98,3 +98,7 @@ Status: route inventory for the current Flask prototype. All JSON routes return 
 
 - GET `/` serves `static/forge_demo.html`; GET `/manifest.webmanifest` and GET `/icons/:name` serve PWA assets.
 - Socket.IO connections require an active authenticated Flask session. User/role rooms are derived server-side from session identity; client-supplied identity claims are ignored. Server emits `notification`, `new_comment`, `new_message`, `job_match`, and `new_applicant`.
+
+## T-203 implementation locations (2026-09-24)
+
+The three `/api/onboarding*` handlers are now in `forge_routes/onboarding.py`; the three `/api/notifications*` handlers are in `forge_routes/notifications.py`. Their paths/methods and externally visible behavior are unchanged. `require_login` and the application-wide CSRF/origin hook remain in `forge_backend.py`. Notification creation, Socket.IO pushes, account models, and all other routes remain in the entrypoint. The T-202 API contract remains unchanged.

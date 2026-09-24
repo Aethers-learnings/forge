@@ -113,3 +113,11 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - 2026-09-24 14:11 UTC: autonomous T-106 completed after reviewer PASS; artifacts `.forge-agent/runs/20260924T140842Z-T-106`; checks: git diff --check => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m py_compile forge_backend.py tests/test_authz_regressions.py => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m pytest -q => 0.
 
 - 2026-09-24 14:44 UTC: autonomous T-202 completed after reviewer PASS; artifacts `.forge-agent/runs/20260924T141111Z-T-202`; checks: git diff --check => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m py_compile tests/test_api_contract.py => 0; /home/pablo/Documents/Programming/04-Projects/forge/.venv-host/bin/python -m pytest -q => 0.
+
+## 2026-09-24 — T-203 / GitHub Issue #1
+
+- Read Issue #1, AGENTS.md, and all eight issue-required records before source edits. Checked out the existing branch `codex/t-203-backend-extraction` at `e03c0a3` into the initially empty working environment; it matched master.
+- Selected notifications/onboarding because their operations are cohesive and need only the existing login guard, database, model, and step mapping. Added and verified 30 behavior cases against the monolith before extraction; preserved all existing tests.
+- Extracted six handlers into two blueprint factories without changing their operations. Reviewed original-vs-extracted ASTs: all 129 original class/function definitions are preserved after normalizing only the six moved handlers' blueprint/dependency identifiers.
+- Documented factory wiring, internal endpoint namespaces, security invariants, and remaining extraction boundaries. No schema migration, authentication/CSRF redesign, ownership repair, or retention change was attempted.
+- Full-suite and diff-check evidence is in TEST_RESULTS.md. Changes are prepared for a review PR to master; do not merge automatically.
