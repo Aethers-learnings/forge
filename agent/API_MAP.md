@@ -1,6 +1,6 @@
 # API map
 
-Status: verified from 61 Flask route decorators in `forge_backend.py`. All JSON routes return 401 through `require_login()` unless marked public/session-aware. No version prefix exists. State-changing cookie routes have no discovered CSRF protection.
+Status: route inventory for the current Flask prototype. All JSON routes return 401 through `require_login()` unless marked public/session-aware. No version prefix exists. Authenticated unsafe `/api/` requests are protected by the session-bound CSRF token plus same-origin Origin/Referer validation added in T-003.
 
 ## Auth and session
 
@@ -11,7 +11,7 @@ Status: verified from 61 Flask route decorators in `forge_backend.py`. All JSON 
 | POST `/api/auth/login` | Public | Username/password login; in-memory 5-attempt/300-second per-username throttle; creates session. |
 | POST `/api/auth/forgot-password` | Public | Creates 30-minute reset token for matching username; sends SMTP email if configured; returns token in debug. |
 | POST `/api/auth/reset-password` | Public token | Exchanges a valid stored token for a password of at least 8 characters. |
-| POST `/api/auth/demo-login` | Debug only | Selects seeded `demo_<role>` user; 404 outside debug. |
+| POST `/api/auth/demo-login` | Explicit local demo mode | Selects seeded `demo_<role>` user only when `FORGE_DEMO_MODE=1` with `FORGE_ENV=development`; otherwise 404. Flask debug alone does not enable it. |
 | POST `/api/auth/logout` | Session-aware | Removes `user_id` from session. |
 | GET `/api/auth/me` | Session-aware | Returns current public user object or `null`; does not call `require_login()`. |
 
@@ -97,4 +97,4 @@ Status: verified from 61 Flask route decorators in `forge_backend.py`. All JSON 
 ## Static and realtime
 
 - GET `/` serves `static/forge_demo.html`; GET `/manifest.webmanifest` and GET `/icons/:name` serve PWA assets.
-- Socket.IO event `join` currently accepts client-supplied `userId` and `role` and joins both rooms; this is a P0 defect. Server emits `notification`, `new_comment`, `new_message`, `job_match`, and `new_applicant`.
+- Socket.IO connections require an active authenticated Flask session. User/role rooms are derived server-side from session identity; client-supplied identity claims are ignored. Server emits `notification`, `new_comment`, `new_message`, `job_match`, and `new_applicant`.

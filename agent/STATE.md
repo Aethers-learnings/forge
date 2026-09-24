@@ -18,8 +18,8 @@ Establish a secure, tested baseline around the existing Flask/web/WebView protot
 
 ## Immediate gates
 
-1. Begin T-101: extend the isolated Flask regression harness across registration/login, role gates, notification ownership, profile visibility, and approval actions.
-2. Continue into upload, reset-token, ownership, listing-lifecycle, and analytics hardening only after the corresponding regression baseline exists.
+1. Begin T-102: harden upload request-size handling, content validation, authorization/retention policy, and upload regressions.
+2. Continue into reset-token, ownership, listing-lifecycle, and analytics hardening only after the corresponding regression baseline exists.
 3. Keep the prototype architecture in place while extracting only tested seams.
 
 ## Deliberate non-decisions
@@ -66,3 +66,15 @@ T-005 is verified. Runtime debug and demo behavior are now explicit configuratio
 Verification: focused configuration/CSRF suite **73 passed, 288 warnings in 9.65s**; full isolated Forge suite **93 passed, 377 warnings in 10.60s**. Backend compilation, frontend CSRF/logout regressions, and `git diff --check` passed. Warnings remain existing datetime/SQLAlchemy deprecations. `sandbox/Dockerfile` remains unrelated and excluded.
 
 All roadmap P0 implementation tasks T-001 through T-005 are now complete. T-101 is next.
+
+## 2026-09-24 — T-101 SAFE_INCREMENTAL
+
+T-101 is verified as a regression-baseline task with no production behavior change.
+
+Added `tests/test_authz_regressions.py` covering public self-registration roles, admin self-registration rejection, student email-domain enforcement, duplicate usernames, failed/suspended/successful login behavior, student/business/admin role boundaries, unapproved business listing denial, alumni-verification role gating, notification list/read/read-all ownership, hidden-profile owner/admin exceptions, profile-view recording, business approval, listing approval creating a live opportunity, and alumni-verification approval.
+
+The initial run exposed a test-fixture schema mistake (`Notification.kind` instead of the real `Notification.type`); production code was not changed. After correcting the fixture, the dedicated T-101 suite passed **25 tests with 133 warnings in 5.94s**.
+
+Full verification: **118 passed, 510 warnings in 15.04s**. Frontend CSRF/multipart/identity/concurrency/logout regressions, backend compilation, and `git diff --check` passed. Existing datetime/SQLAlchemy deprecation warnings remain out of scope.
+
+T-102 is next. `sandbox/Dockerfile` remains unrelated and excluded.

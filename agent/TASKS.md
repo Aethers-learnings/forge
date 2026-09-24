@@ -12,8 +12,8 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 
 ## P1
 
-- [ ] T-101 — **Next task.** Create a Flask regression suite for registration/login, role gates, notification ownership, profile visibility, and approval actions. Depends on: T-001. Classification: SAFE_INCREMENTAL.
-- [ ] T-102 — Add request-size preflight, media content validation, upload authorization/retention policy, and upload tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
+- [x] T-101 — Completed 2026-09-24: added `tests/test_authz_regressions.py` covering self-registration/admin exclusion, student email-domain checks, duplicate usernames, login identity/suspension handling, student/business/admin role gates, notification ownership, hidden-profile access, profile-view recording, business approval, listing approval, and alumni verification. Dedicated suite: 25 passed; full Forge suite: 118 passed. Depends on: T-001. Classification: SAFE_INCREMENTAL.
+- [ ] T-102 — **Next task.** Add request-size preflight, media content validation, upload authorization/retention policy, and upload tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 - [ ] T-103 — Hash password-reset tokens; establish non-debug reset delivery behavior and avoid sensitive logging. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 - [ ] T-104 — Define ownership and authorization rules for network, suggestions, endorsements, and conversations; introduce a migration plan before code changes. Depends on: T-101. Classification: MAJOR_REVIEW.
 - [ ] T-105 — Ensure only approved/live listings produce student-visible opportunities; cover lifecycle with tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.

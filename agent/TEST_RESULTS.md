@@ -62,7 +62,7 @@ Test environment note: the host Python lacked Forge dependencies and disallowed 
 
 ## Required next evidence
 
-Socket.IO identity-bound rooms, authenticated HTTP CSRF/origin protection, mobile HTTPS/navigation policy, and debug/demo deployment configuration now have regression evidence. T-101 authentication/authorization and ownership coverage is the next roadmap test expansion.
+Socket.IO identity-bound rooms, authenticated HTTP CSRF/origin protection, mobile HTTPS/navigation policy, debug/demo deployment configuration, and T-101 authentication/authorization ownership behaviors now have regression evidence. T-102 upload-boundary hardening is next.
 
 ## 2026-09-18 — documentation-session verification
 
@@ -115,3 +115,22 @@ Preservation: Dockerfile hash matches the starting baseline. The static frontend
 Warnings are existing `datetime.utcnow()` deprecations and SQLAlchemy `Query.get()` legacy warnings exercised by the wider suite; T-005 does not attempt their cleanup.
 
 Limits: these checks validate application configuration and import behavior, not a real reverse-proxy or production-host deployment. Binding policy, TLS termination, signed mobile release-device verification, operational secret provisioning, and remaining non-P0 security concerns require separate verification.
+
+## 2026-09-24 — T-101 authentication/authorization regression baseline
+
+| Check | Result | Evidence / scope |
+| --- | --- | --- |
+| Dedicated T-101 suite | PASS | `pytest -q tests/test_authz_regressions.py`: **25 passed, 133 warnings in 5.94s**. |
+| Registration/login | PASS | Self-register roles, admin exclusion, student-domain enforcement, duplicate username handling, failed/suspended login rejection, successful identity/session establishment. |
+| Role gates | PASS | Student/business/admin separation, unapproved business listing denial, alumni-verification role restriction. |
+| Notification ownership | PASS | Caller-only listing, cross-user read rejection, read-all constrained to caller. |
+| Profile visibility | PASS | Hidden profiles unavailable to ordinary users, available to owner/admin; visible-profile views recorded with correct viewer/target identity. |
+| Approval actions | PASS | Non-admin business approval rejected; admin business approval, listing approval/live opportunity creation, and alumni verification approval verified. |
+| Full Forge suite | PASS | `pytest -q`: **118 passed, 510 warnings in 15.04s**. |
+| Frontend regression suite | PASS | CSRF helper, multipart, identity, concurrency, and logout regressions passed. |
+| Syntax / whitespace | PASS | `python -m py_compile forge_backend.py` and `git diff --check`. |
+| Production behavior | UNCHANGED | T-101 adds regression coverage only; no application source modified. |
+
+Initial T-101 execution had 3 test failures because the new fixture used `Notification.kind`; inspection confirmed the real model field is `Notification.type`. The test fixture was corrected without changing production behavior.
+
+Warnings remain existing `datetime.utcnow()` deprecations and SQLAlchemy `Query.get()` legacy warnings.

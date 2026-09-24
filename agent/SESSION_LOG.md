@@ -73,3 +73,14 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Verification after final hardening: focused configuration/CSRF suite **73 passed, 288 warnings in 9.65s**; full isolated Forge suite **93 passed, 377 warnings in 10.60s**; Python compilation, Node frontend CSRF/logout regressions, and `git diff --check` passed.
 - Existing datetime/SQLAlchemy deprecation warnings remain out of scope. No architecture, authentication model, schema, frontend framework, or deployment platform replacement was introduced.
 - T-005 completes roadmap P0 T-001 through T-005. T-101 regression coverage is next. `sandbox/Dockerfile` remains unrelated, modified, uncommitted, and excluded.
+
+## 2026-09-24 — IMPLEMENTATION_1 T-101: authentication/authorization regression baseline
+
+- Began from pushed T-005 master `2321515decc63ece7bd71ae2805dbcf3b7263a18`; unrelated `sandbox/Dockerfile` remained outside task scope.
+- Added `tests/test_authz_regressions.py` only; no production application behavior changed.
+- Covered registration/login, role gates, notification ownership, profile visibility, business/admin approval, listing approval, and alumni-verification approval behavior.
+- First run: 22 passed / 3 failed because the new notification fixtures guessed `kind`; model inspection confirmed `Notification.type`. Corrected the tests only.
+- Final dedicated suite: **25 passed, 133 warnings in 5.94s**.
+- Full isolated Forge suite: **118 passed, 510 warnings in 15.04s**. Frontend CSRF/logout regressions, Python compilation, and `git diff --check` passed.
+- T-101 complete; T-102 upload-boundary hardening is next.
+- `sandbox/Dockerfile` remains modified, unrelated, uncommitted, and excluded.
