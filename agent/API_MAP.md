@@ -110,3 +110,7 @@ The three `/api/onboarding*` handlers are now in `forge_routes/onboarding.py`; t
 ## 2026-09-26 — Analytics implementation location
 
 `GET /api/analytics/student`, `/api/analytics/business`, and `/api/analytics/admin` are implemented in `forge_routes/analytics.py`, registered by the entrypoint with existing dependencies. The T-106 metric definitions and access rules above remain unchanged, including the student endpoint's existing logged-in-only gate (not a student-role restriction). Public paths, methods, response bodies, status codes, ordering, and empty states are preserved.
+
+## T-104 future ownership mapping (2026-09-26)
+
+The implemented network/conversation paths and response shapes above remain unchanged. [OWNERSHIP_DESIGN sections 1 and 4](OWNERSHIP_DESIGN.md) trace all seven current handlers, web/WebView/native consumers, notifications, Socket.IO and shared analytics, and map them to a proposed secure contract. That mapping includes deliberate precondition/body/status/pagination/read-semantics changes, two new conversation operations, and a proposed capability boundary; it is **not** the current API. D-014 needs human approval before any route/client edits.

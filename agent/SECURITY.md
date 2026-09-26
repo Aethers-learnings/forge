@@ -59,3 +59,9 @@ The five moved routes use the existing session-derived login guard and applicati
 ## 2026-09-26 — Issue #5 analytics extraction review
 
 All three moved handlers use the unchanged session-derived login guard, including suspension rejection and last-seen commit. Business analytics retains owner-scoped opportunities/listings/profile views; admin access remains platform-wide. Student profile views and peer context follow the caller, while existing shared-network/display-name attribution limitations remain untouched. All role/dashboard combinations and anonymous/missing/suspended sessions are covered. No session/CSRF/origin, Socket.IO, upload/media, model, client, or retention changes.
+
+## T-104 design review — ownership remains unresolved (2026-09-26)
+
+The seven network/conversation handlers still accept any active authenticated account against shared rows. Existing session/CSRF protections and session-derived Socket.IO rooms do not authorize those row accesses; GET conversation detail also clears global unread. Existing sockets are not automatically disconnected on later suspension. Social notification emission currently precedes its caller's commit; student analytics also exposes shared network counts.
+
+[OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) provides the current source trace, per-operation anonymous/participant/nonparticipant/suspended/admin matrix, concealed-404 policy, proposed actor/membership enforcement, race/revocation defenses and required future tests. D-012–D-015 are **PROPOSED / REQUIRES HUMAN APPROVAL**. This documentation does not fix any of these gaps, authorize private admin access, change authentication/CSRF, or approve retention/deletion policy.

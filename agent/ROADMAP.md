@@ -31,3 +31,7 @@ Exit: every mutable resource has an ownership and authorization rule covered by 
 
 - Assess PostgreSQL migration, backups, operational ownership, data migration and rollback — HUMAN_APPROVAL_REQUIRED.
 - Replace Flask, replace frontend framework, introduce a major third-party service, or fundamentally change authentication — HUMAN_APPROVAL_REQUIRED.
+
+## T-104 review gate (2026-09-26)
+
+Issue #9 submits [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) for human architecture review. Design preparation does not complete ownership implementation or unblock T-201/native messaging automatically. Review proposed D-012–D-015 first; then approve migration tooling/FK and legacy-data treatment, followed by regression-protected service/API/client increments and a gated cutover. T-203 extraction must continue preserving existing behavior rather than implementing this proposal incidentally.
