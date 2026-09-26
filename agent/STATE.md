@@ -114,3 +114,9 @@ Full suite passes before and after: **256 tests**, no skips. Route/schema/AST co
 ## 2026-09-24 — Issue #6 web profile export
 
 On `codex/web-profile-data-export` from `0706445`, replaced the existing student/business export links with a shared accessible button and added the same control for admins. The existing session API helper now optionally returns successful raw responses for downloading. Busy deduplication, persistent live status, retryable errors, filename fallback, and stale-account protection are covered by Node regressions invoked through pytest. Backend, mobile, API payload/auth policy, and navigation remain unchanged. Full suite: 257 passed; prepared for PR review against `master`, without merging.
+
+## 2026-09-26 — T-203 / Issue #5 analytics increment
+
+Starting from `2193553` on `master` (profile PR #4 and web export PR #7 merged), added 28 analytics regression cases and extended direct-script startup coverage before production extraction. The three analytics GET handlers now live in `forge_routes/analytics.py`, using explicit existing dependencies and unchanged T-106 metrics. No client, model, security-policy, or transaction changes.
+
+Full suite before/after: **285 passed**, no skips; all **66 URL rules**, **23 tables** including constraints/indexes, and **118 original top-level definitions** match after normalizing moved dependency names. Prepared on `codex/t-203-analytics-extraction` for human PR review against `master`, without merging. T-203 stays open for identity/remaining workflow/media work.

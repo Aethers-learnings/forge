@@ -64,3 +64,9 @@ These small handlers retain their route-local queries and mutations; a separate 
 The five profile workflow handlers (CV text, skills, portfolio, visibility, export) now live in `forge_routes/profile.py`. `create_profile_blueprint` receives the existing `db`, `require_login`, `STUDENT_ROLES`, `extract_skills`, `recalc_completion`, `Notification`, `CoachMessage`, and `Application` dependencies. It is registered once at the former handler location and creates no app/database or alternate service stack. Small queries/mutations remain route-local; shared completion and keyword helpers remain in the entrypoint.
 
 Internal endpoint identifiers acquire the `profile.` namespace; repository inspection found no references to their old names via `url_for` or `request.endpoint`. Public paths/methods, serialization, query ordering, transactions, and the global security hook are preserved. Image upload/delete/serving, filesystem cleanup/rollback, public-profile reads, and all remaining workflows stay in `forge_backend.py` (D-010). T-203 remains open.
+
+## 2026-09-26 — T-203 analytics extraction (Issue #5)
+
+The three analytics GET handlers now live in `forge_routes/analytics.py`. Its blueprint factory receives the existing login guard, models, and `daily_series`/`cumulative` helpers explicitly; `forge_backend.py` registers it once at the former route-group location. No second app/database or service/repository layer is introduced. Queries, aggregation, ordering, serialization, and the login guard's activity-update commit are unchanged. Shared helpers remain in the entrypoint.
+
+Internal endpoint identifiers acquire the `analytics.` prefix; no repository code references the old identifiers through `url_for` or `request.endpoint`. All public URL rules and schema metadata match the branch base. Identity, remaining workflows, image/media, and public-profile extraction remain follow-up work.

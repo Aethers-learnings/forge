@@ -55,3 +55,7 @@ Only notification read and onboarding handlers moved. They still call the existi
 ## 2026-09-24 — Issue #3 profile extraction review
 
 The five moved routes use the existing session-derived login guard and application-wide CSRF/origin enforcement. Skills retain their student/alumni-only 400 gate; other profile workflows retain their current role-specific behavior. Forged user identifiers cannot redirect edits or exports. Exports retain caller-scoped notification/coach/application queries, full history, and existing serialization. Visibility truthiness and owner/admin access semantics remain intact. Image/media authorization, cleanup, retention, Socket.IO, models, and clients are unchanged. Existing security concerns above remain separate work.
+
+## 2026-09-26 — Issue #5 analytics extraction review
+
+All three moved handlers use the unchanged session-derived login guard, including suspension rejection and last-seen commit. Business analytics retains owner-scoped opportunities/listings/profile views; admin access remains platform-wide. Student profile views and peer context follow the caller, while existing shared-network/display-name attribution limitations remain untouched. All role/dashboard combinations and anonymous/missing/suspended sessions are covered. No session/CSRF/origin, Socket.IO, upload/media, model, client, or retention changes.

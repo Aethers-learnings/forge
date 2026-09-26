@@ -161,7 +161,9 @@ def inspect_startup(self, app, **kwargs):
                  '/api/notifications', '/api/notifications/<int:note_id>/read',
                  '/api/notifications/read-all', '/api/profile/cv-upload',
                  '/api/profile/skills', '/api/profile/portfolio',
-                 '/api/profile/visibility', '/api/profile/export'):
+                 '/api/profile/visibility', '/api/profile/export',
+                 '/api/analytics/student', '/api/analytics/business',
+                 '/api/analytics/admin'):
         assert rules.count(path) == 1, path
     calls.append(app)
 

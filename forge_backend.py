@@ -46,6 +46,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+from forge_routes.analytics import create_analytics_blueprint
 from forge_routes.notifications import create_notifications_blueprint
 from forge_routes.onboarding import create_onboarding_blueprint
 from forge_routes.profile import create_profile_blueprint
@@ -2109,134 +2110,23 @@ def search_candidates():
 
 
 # ------------------------------------------------------------- analytics --
-@app.get("/api/analytics/student")
-def student_analytics():
-    user, err = require_login()
-    if err:
-        return err
-    views = ProfileView.query.filter_by(viewed_user_id=user.id).all()
-    accepted = NetworkRequest.query.filter_by(status="accepted") \
-        .order_by(NetworkRequest.created_at).all()
-    my_posts = Post.query.filter(Post.author_name == user.name,
-                                 Post.removed.is_(False)).all()
-    likes_received = sum(p.base_likes + Like.query.filter_by(post_id=p.id).count()
-                         for p in my_posts)
-    comments_received = sum(Comment.query.filter_by(post_id=p.id).count()
-                            for p in my_posts)
-    peers = User.query.filter(User.role == user.role,
-                              User.programme == user.programme,
-                              User.id != user.id).all()
-    programme_avg = int(sum(p.completion for p in peers) / len(peers)) if peers else None
-    mine = {s.strip().lower() for s in (user.skills or "").split(",") if s.strip()}
-    counts = defaultdict(int)
-    for search in SkillSearch.query.all():
-        if search.skill.lower() in mine:
-            counts[search.skill] += 1
-    top = sorted(({"skill": k, "count": v} for k, v in counts.items()),
-                 key=lambda x: -x["count"])[:5]
-    return jsonify({
-        "profileViews": {"total": len(views),
-                         "series": daily_series([v.created_at for v in views])},
-        "connections": {"total": len(accepted) + ConnectionNPC.query.count(),
-                        "series": cumulative(daily_series([r.created_at for r in accepted]))},
-        "engagement": {"posts": len(my_posts), "likes": likes_received,
-                       "comments": comments_received},
-        "peerComparison": {"me": user.completion, "programmeAvg": programme_avg,
-                           "programme": user.programme},
-        "topSearchedSkills": top,
-    })
-
-
-@app.get("/api/analytics/business")
-def business_analytics():
-    user, err = require_login()
-    if err:
-        return err
-    if user.role not in ("business", "admin"):
-        return jsonify({"error": "business or admin only"}), 403
-    # Businesses receive only their own hiring funnel. Admins are authorized to
-    # inspect this dashboard as the platform-wide hiring funnel, not as an
-    # empty pseudo-business account.
-    if user.role == "business":
-        opps = Opportunity.query.filter_by(owner_user_id=user.id).all()
-        listings = BusinessListing.query.filter_by(owner_user_id=user.id).all()
-        profile_views = ProfileView.query.filter_by(viewed_user_id=user.id).count()
-    else:
-        opps = Opportunity.query.all()
-        listings = BusinessListing.query.all()
-        profile_views = ProfileView.query.count()
-    pipeline, applicant_ids = [], []
-    for opp in opps:
-        apps = Application.query.filter_by(opportunity_id=opp.id).all()
-        pipeline.append({"title": opp.title, "applicants": len(apps), "status": "live"})
-        applicant_ids.extend(a.user_id for a in apps)
-    applicants = [u for u in (User.query.get(i) for i in applicant_ids) if u]
-    skill_counts, by_programme, by_year = defaultdict(int), defaultdict(int), defaultdict(int)
-    for a in applicants:
-        for s in (a.skills or "").split(","):
-            if s.strip():
-                skill_counts[s.strip()] += 1
-        by_programme[a.programme or "Unspecified"] += 1
-        by_year[a.year or "Unspecified"] += 1
-
-    def dist(d):
-        return sorted(({"label": k, "count": v} for k, v in d.items()),
-                      key=lambda x: -x["count"])
-
-    impressions = sum(l.impressions for l in listings)
-    total_apps = len(applicant_ids)
-    rate = f"{round(100 * total_apps / impressions)}%" if impressions else "—"
-    return jsonify({
-        "pipeline": pipeline,
-        "engagement": {"impressions": impressions, "applications": total_apps, "rate": rate},
-        "skillDistribution": dist(skill_counts),
-        "demographics": {"byProgramme": dist(by_programme), "byYear": dist(by_year)},
-        "reach": {"profileViews": profile_views,
-                  "impressions": impressions},
-    })
-
-
-@app.get("/api/analytics/admin")
-def admin_analytics():
-    user, err = require_login()
-    if err:
-        return err
-    if user.role != "admin":
-        return jsonify({"error": "admin only"}), 403
-    users = User.query.all()
-    roles = defaultdict(int)
-    for u in users:
-        roles[u.role] += 1
-    month_ago = datetime.utcnow() - timedelta(days=30)
-    mau = sum(1 for u in users if u.last_seen and u.last_seen >= month_ago)
-    pending = (ApprovalQueueItem.query.filter_by(status="pending").count()
-               + AlumniVerification.query.filter_by(status="pending").count()
-               + User.query.filter_by(role="business", business_approved=False).count())
-    return jsonify({
-        "usersByType": [
-            {"label": "Students", "count": roles["trade"]},
-            {"label": "Alumni", "count": roles["grad"]},
-            {"label": "Businesses", "count": roles["business"]},
-            {"label": "Admins", "count": roles["admin"]},
-        ],
-        "totals": {"users": len(users), "mau": mau,
-                   "flagged": Post.query.filter_by(flagged=True, removed=False).count(),
-                   "pendingApprovals": pending},
-        "registrationSeries": daily_series([u.created_at for u in users]),
-        "content": {
-            "posts": Post.query.filter_by(removed=False).count(),
-            "videos": Post.query.filter(Post.media.is_(True),
-                                        Post.removed.is_(False)).count(),
-            "opportunities": Opportunity.query.count(),
-            "events": Event.query.count(),
-        },
-        "pipeline": {
-            "listingQueue": ApprovalQueueItem.query.filter_by(status="pending").count(),
-            "alumniQueue": AlumniVerification.query.filter_by(status="pending").count(),
-            "businessVerifications":
-                User.query.filter_by(role="business", business_approved=False).count(),
-        },
-    })
+app.register_blueprint(create_analytics_blueprint(
+    require_login=require_login, daily_series=daily_series, cumulative=cumulative,
+    profile_view_model=ProfileView,
+    network_request_model=NetworkRequest,
+    post_model=Post,
+    like_model=Like,
+    comment_model=Comment,
+    user_model=User,
+    skill_search_model=SkillSearch,
+    connection_npc_model=ConnectionNPC,
+    opportunity_model=Opportunity,
+    business_listing_model=BusinessListing,
+    application_model=Application,
+    approval_queue_item_model=ApprovalQueueItem,
+    alumni_verification_model=AlumniVerification,
+    event_model=Event,
+))
 
 
 # -------------------------------------------------------- admin console --

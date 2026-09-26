@@ -227,3 +227,19 @@ Limits: content inspection is container-signature-level validation, not malware 
 - Node executes the actual static API/profile functions: exactly one semantic export button for trade/grad/business/admin; same-origin GET with no-store; exact response bytes, server filename and fallback; busy/re-render/concurrent-click protection; 500/401/403/network failure and successful retry; object URL cleanup; no stale-account download. Existing script syntax, CSRF, CSP, responsive and keyboard assertions remain green.
 - `git diff --check` passes. Production changes are web-only; backend and mobile files are unchanged. No dependencies added.
 - Limits: mocked DOM/download behavior plus Flask/Node regressions; no manual browser, screen-reader, mobile-device, or deployment testing.
+
+## 2026-09-26 — T-203 / Issue #5 analytics baseline before extraction
+
+- Branch base: `2193553` (`master`, including merged profile PR #4 and web export PR #7).
+- Added 28 cases in `tests/test_analytics_routes.py` before moving production code: anonymous/missing/suspended sessions; every role/dashboard combination; exact empty response shapes; caller scope; 14-day series versus all-time totals; shared connection counts; display-name post attribution; peer filtering/truncation; case-sensitive search aggregation/top-five/tie order; application-row and repeated-skill counting; pipeline order; unspecified demographics; zero/rounded/over-100% rates; cumulative student-board impressions; exact trailing-30-day MAU inclusion; pending approval composition; registration/content counts.
+- Extended direct-script startup coverage to require all three analytics routes exactly once without a second entrypoint import.
+- `.venv/bin/python -m pytest -q`: **285 passed, 1394 existing SQLAlchemy legacy warnings in 16.35s**, no skips. Existing T-106 owner/admin scope regression remains unchanged and passing. Isolated SQLite/storage harness only.
+- Captured runtime baseline: **66 URL rules**, **23 tables**, including SQLite DDL constraints/defaults and indexes, with an in-memory database. `git diff --check` passed. No production source changed in this baseline commit.
+
+## 2026-09-26 — T-203 / Issue #5 extraction verification
+
+- `.venv/bin/python -m pytest -q`: **285 passed, 1394 existing SQLAlchemy legacy warnings in 15.83s**, no skips; test/warning counts match the pre-extraction baseline. Includes the unchanged T-106 owner/admin regression, new analytics semantics, direct-script startup, API/auth/CSRF, media, Socket.IO, frontend Node, and runtime coverage.
+- Runtime snapshots taken before/after extraction with `FORGE_DATABASE_URI=sqlite://` match exactly: **66 URL rules** (paths, methods, subdomains, strict slashes) and **23 tables** (SQLite DDL, constraints/defaults, and indexes). No production database opened.
+- AST comparison against `2193553`: all **118 original top-level class/function definitions** match, including the three moved handlers, normalizing only `blueprint`/`app` and injected model parameter names. The remaining monolith definitions are unchanged.
+- `git diff --check` passes. Production diff contains only the new analytics module and entrypoint import/registration. Internal Flask endpoint names gain `analytics.`; repository search found no old endpoint-name consumers. Direct-script startup registers all three paths exactly once without importing a second entrypoint.
+- Limits: automated Flask/Node/startup verification; no manual browser, mobile-device, or deployment testing. No unrelated ownership/schema/retention defects addressed; broader T-203 remains open.

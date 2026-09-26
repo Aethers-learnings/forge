@@ -106,3 +106,7 @@ The three `/api/onboarding*` handlers are now in `forge_routes/onboarding.py`; t
 ## T-203 profile implementation locations (Issue #3, 2026-09-24)
 
 `POST /api/profile/cv-upload`, `PATCH /api/profile/skills`, `PATCH /api/profile/portfolio`, `PATCH /api/profile/visibility`, and `GET /api/profile/export` now live in `forge_routes/profile.py`. Their existing API contract, status codes, response bodies, and authentication/role rules are unchanged. The earlier location note predates this second increment. Profile image routes and public-profile reads remain in the entrypoint; no upload or serving policy changed.
+
+## 2026-09-26 — Analytics implementation location
+
+`GET /api/analytics/student`, `/api/analytics/business`, and `/api/analytics/admin` are implemented in `forge_routes/analytics.py`, registered by the entrypoint with existing dependencies. The T-106 metric definitions and access rules above remain unchanged, including the student endpoint's existing logged-in-only gate (not a student-role restriction). Public paths, methods, response bodies, status codes, ordering, and empty states are preserved.
