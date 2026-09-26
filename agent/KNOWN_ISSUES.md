@@ -27,3 +27,7 @@ The first notification/onboarding extraction requires no migration or architectu
 ## Issue #3 follow-up boundary (2026-09-24)
 
 The five profile workflow routes are extracted with regression evidence; the earlier first-increment note is historical. Image upload/delete/serving and public-profile reads remain in the entrypoint under D-010. Identity, remaining workflows, media, and analytics extraction keep T-203 open. CV upload still accepts text only; substring matching, permissive JSON handling, and visibility truthiness are preserved baseline behavior, not redesigned here. T-104/T-201 ownership/schema and irreversible-retention boundaries remain unchanged.
+
+## Issue #5 follow-up boundary (2026-09-26)
+
+The three analytics handlers are now extracted under D-011 with T-106 semantics preserved. Earlier notes listing analytics extraction as unimplemented are historical. T-203 remains open for identity, remaining workflows, image/media, and public-profile routes. Shared networking counts and display-name post attribution remain existing data-model limitations; no T-104/T-201 ownership/schema or retention work is included.

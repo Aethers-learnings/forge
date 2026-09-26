@@ -63,3 +63,11 @@ Status: implemented for T-203 / Issue #3 (2026-09-24), pending PR review
 Continue D-009's explicit blueprint-factory injection in `forge_routes/profile.py`. Preserve the original operations and transaction boundaries; retain existing shared completion/keyword helpers in the entrypoint and avoid an unnecessary service layer. Classification: SAFE_INCREMENTAL.
 
 Leave optional profile image routes in `forge_backend.py`: they combine canonicalization, filesystem writes/unlinks, database rollback/commit ordering, private caching, and visibility-based serving. Moving that storage/security boundary would broaden this increment. This is a scope deferral, not a retention or authorization change. Public-profile reads and identity/workflow/media/analytics extraction remain follow-up work. No schema, authentication, ownership, or irreversible-data decision was needed or implemented.
+
+## D-011: Extract only the three analytics handlers for Issue #5
+
+Status: implemented for T-203 / Issue #5 (2026-09-26), pending PR review
+
+Continue D-009's explicit dependency injection in one cohesive `forge_routes/analytics.py` blueprint. Retain route-local queries and the existing `daily_series`/`cumulative` helpers; no generic repository/service abstraction is needed. Add behavior regressions before moving production code and compare runtime URL/schema snapshots and normalized ASTs. Classification: SAFE_INCREMENTAL.
+
+Preserve T-106 metrics and all existing quirks, including shared network counts, display-name post attribution, application-row demographic counting, duplicate skill tokens, and the login guard's last-seen transaction. Do not repair ownership, schema, authentication, media, or retention behavior in this extraction. T-203 remains open for identity/remaining workflow/media work.

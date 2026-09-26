@@ -235,3 +235,11 @@ Limits: content inspection is container-signature-level validation, not malware 
 - Extended direct-script startup coverage to require all three analytics routes exactly once without a second entrypoint import.
 - `.venv/bin/python -m pytest -q`: **285 passed, 1394 existing SQLAlchemy legacy warnings in 16.35s**, no skips. Existing T-106 owner/admin scope regression remains unchanged and passing. Isolated SQLite/storage harness only.
 - Captured runtime baseline: **66 URL rules**, **23 tables**, including SQLite DDL constraints/defaults and indexes, with an in-memory database. `git diff --check` passed. No production source changed in this baseline commit.
+
+## 2026-09-26 — T-203 / Issue #5 extraction verification
+
+- `.venv/bin/python -m pytest -q`: **285 passed, 1394 existing SQLAlchemy legacy warnings in 15.83s**, no skips; test/warning counts match the pre-extraction baseline. Includes the unchanged T-106 owner/admin regression, new analytics semantics, direct-script startup, API/auth/CSRF, media, Socket.IO, frontend Node, and runtime coverage.
+- Runtime snapshots taken before/after extraction with `FORGE_DATABASE_URI=sqlite://` match exactly: **66 URL rules** (paths, methods, subdomains, strict slashes) and **23 tables** (SQLite DDL, constraints/defaults, and indexes). No production database opened.
+- AST comparison against `2193553`: all **118 original top-level class/function definitions** match, including the three moved handlers, normalizing only `blueprint`/`app` and injected model parameter names. The remaining monolith definitions are unchanged.
+- `git diff --check` passes. Production diff contains only the new analytics module and entrypoint import/registration. Internal Flask endpoint names gain `analytics.`; repository search found no old endpoint-name consumers. Direct-script startup registers all three paths exactly once without importing a second entrypoint.
+- Limits: automated Flask/Node/startup verification; no manual browser, mobile-device, or deployment testing. No unrelated ownership/schema/retention defects addressed; broader T-203 remains open.

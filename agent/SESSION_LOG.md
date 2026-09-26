@@ -135,3 +135,11 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Inspected required web/API/security records and reused the existing export location instead of adding duplicate actions. Kept implementation within the static client and its tests.
 - Added all-role rendering and behavioral export regressions using the existing Node/pytest style; a focused test caught and corrected an expired-session message being overwritten by the account-change guard.
 - Full suite and focused web/security checks pass; details and verification limits are in TEST_RESULTS.md. Prepared a review PR to `master`; no merge or auto-merge.
+
+## 2026-09-26 — Issue #5 analytics extraction
+
+- Read Issue #5, required architecture/API/security/decision/task/test records, and existing T-106 coverage. Started from clean `master` at `2193553`; created the requested `codex/t-203-analytics-extraction` branch.
+- Committed the regression baseline separately before moving production code: 28 new analytics cases plus expanded direct-script startup coverage; full suite 285 passed.
+- Extracted only the three analytics handlers into an explicitly injected blueprint. Preserved all metrics, response shapes/order, role/owner scope, and activity-update transaction behavior. Shared helpers and all unrelated routes/models/clients remain unchanged.
+- Full post-extraction suite 285 passed; 66 URL rules/23 table definitions and indexes match the base; normalized AST comparison preserves all 118 original definitions; diff check passes.
+- Updated durable records and prepared a second reviewable extraction/documentation commit for a PR to `master`. No merge. Identity, remaining workflows, image/media, and public-profile extraction keep T-203 open.
