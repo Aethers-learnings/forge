@@ -73,3 +73,7 @@ This update supersedes the earlier statements that D-012–D-015 await approval:
 ## Issue #16 readiness guard (2026-09-28)
 
 Persistent application startup fails closed before an application DB connection for missing/unmanaged/behind-head/drifted or checksum-invalid state. The verifier uses read-only SQLite (including WAL), not immutable reads or application write-oriented pragmas. Command discovery remains possible for explicit recovery commands; it does not exempt Flask run/WSGI or permit demo seeding without schema verification and the existing local-demo flag. Production/staging config rules, session/CSRF semantics and social ownership/safety boundaries are unchanged. No global FK change or production rollout claim.
+
+## Issue #18 — internal service security boundary (2026-09-29)
+
+The owned-social service accepts an application `User` object and rechecks the actor and relevant peer inside the serialized write transaction. It enforces pair and member authorization without an admin private-history bypass, exact versions for state changes, retry-key identity for messages, and member-only retained read access after disconnection. Audit and mutation roll back together on failure; service calls emit no notification or socket event. The new focused concurrency/rollback tests and migration/bootstrap tests passed, followed by the full suite on current master (366 passed). This is internal coverage only: the existing legacy social routes remain unchanged, and ownership-v2 and T-107 safety cutovers are still required before production use.
