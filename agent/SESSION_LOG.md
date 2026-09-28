@@ -192,3 +192,8 @@ the sole owner of revision-02 schema creation.
 - Replaced ORM bootstrap with frozen-baseline/ordered-revision initialization and read-only persistent startup verification. Added explicit new-file CLI initialization; preserved confirmation, recovery-command access, demo gates and engine-local application pragmas without global FK changes.
 - Added fresh-schema/constraint, refusal/non-mutation, checksum/physical-tamper, server-entrypoint, CLI/demo and interruption regressions. Updated fixtures to migration HEAD; removed their metadata-only baseline dependency.
 - Validation is in TEST_RESULTS. All tests use isolated databases; no real instance/forge.db access, migration, baseline or seed occurred. No social ORM/API/client work or historical migration changes. T-201 remains open; PR is for review only, no merge.
+## 2026-09-28 — Issue #19 browser quality coverage
+
+- Started a dedicated branch from current master. Added optional Playwright/Chromium regression tests for the existing static web client, a disposable migrated local server, ignored failure screenshots, and usage guidance.
+- Browser checks cover login, roles, focus/keyboard cards, form labels, loading/retry, offline recovery, pending mutation dedup, user text escaping, responsive widths, reduced motion and served CSP/security headers. Existing production code and migration history are untouched.
+- Focused/full validation and database isolation evidence are recorded in TEST_RESULTS. Review PR only; no merge.
