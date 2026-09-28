@@ -1,8 +1,8 @@
 # T-104: networking and conversation ownership
 
-Status: **PROPOSED / REQUIRES HUMAN APPROVAL** — Issue #9 architecture-review package, 2026-09-26. This document does not authorize implementation or declare the ownership defect fixed. T-104 remains open pending review; T-201 remains blocked on an approved design.
+Status: **DESIGN APPROVED — D-012–D-015 accepted by the user as proposed on 2026-09-28.** Originally submitted 2026-09-26 and merged in PR #10. T-104 design/review is complete; ownership implementation is not. T-201’s design-approval dependency is satisfied; its migration/integrity/recovery gates remain. Blocking/reporting is an additional mandatory production-completion gate (section 8, D-016, T-107).
 
-Evidence base: commit `d4a0516c3d053010a4a9c1a21208ff4f0021c5ee`. Read with [ARCHITECTURE](ARCHITECTURE.md), [API_CONTRACT](API_CONTRACT.md), [API_MAP](API_MAP.md), [SECURITY](SECURITY.md), [DATA_MODEL](DATA_MODEL.md), and proposed D-012–D-015 in [DECISIONS](DECISIONS.md). Names below identify source symbols, not new implemented classes. All target tables, constraints, endpoints, statuses, client changes, and migration commands below are proposals only.
+Evidence base: commit `d4a0516c3d053010a4a9c1a21208ff4f0021c5ee`. Read with [ARCHITECTURE](ARCHITECTURE.md), [API_CONTRACT](API_CONTRACT.md), [API_MAP](API_MAP.md), [SECURITY](SECURITY.md), [DATA_MODEL](DATA_MODEL.md), and accepted D-012–D-015 in [DECISIONS](DECISIONS.md). Names below identify source symbols, not new implemented classes. All target tables, constraints, endpoints, statuses, client changes, and migration commands below describe the approved future design, not implemented behavior. References below to the original proposal/review alternatives preserve the design rationale; the recommendations in D-012–D-015 have now been approved. Separate retention, import and migration-execution gates remain.
 
 ## 1. Current behavior and evidence
 
@@ -49,7 +49,7 @@ This is source tracing, not a production exploit or production-data inspection. 
 
 New references use `ON DELETE RESTRICT`, not cascade/SET NULL. Index both endpoint lookup directions/state, recipient/state request lookup, active endorsement recipient/context, member user/conversation, and message conversation/sequence; uniqueness supplies pair and retry indexes. Social integer IDs must not be reused; public conversation identifiers are opaque, but secrecy is never authorization. All times are server-generated UTC. SQLite constraints, triggers, and `PRAGMA foreign_keys=ON` need migration review; current `_set_sqlite_pragma` configures WAL/synchronous but does not explicitly enable foreign keys.
 
-Suggestions are a query over active users with `profile_visible=true`, using the ordinary public-profile field visibility rules without the admin inspection bypass: exclude self, accepted/pending pairs, and ineligible targets. Return only already-discoverable profile fields; never reveal hidden profiles through suggestion counts, sorting, or errors. No new suggestion table or copied NPCs. Selection is revalidated at request time. Terminal pairs may reappear only after a proposed 24-hour cooldown; do not disclose whether the peer ignored a request. Product approval is required for cooldown and discovery policy.
+Suggestions are a query over active users with `profile_visible=true`, using the ordinary public-profile field visibility rules without the admin inspection bypass: exclude self, accepted/pending pairs, and ineligible targets. Return only already-discoverable profile fields; never reveal hidden profiles through suggestion counts, sorting, or errors. No new suggestion table or copied NPCs. Selection is revalidated at request time. Terminal pairs may reappear only after a proposed 24-hour cooldown; do not disclose whether the peer ignored a request. The proposed cooldown and discovery policy were approved with D-012 on 2026-09-28. Blocking exclusions must additionally be specified/tested under section 8.
 
 Initially use general endorsements (`skill_key=''`) in the existing button. Future explicit skill context normalizes a submitted skill using NFKC, trim, and case-fold, validates it against the recipient's current skills, and stores a stable key/label. Removing a profile skill does not rewrite historical endorsement context. Enabling skill-specific endorsement UI is a separate compatibility step; arbitrary recipient/sender claims are never accepted.
 
@@ -216,7 +216,7 @@ Existing suite execution on this docs-only branch protects the current baseline;
 
 ## 7. Review decisions and implementation gates
 
-The recommendations below intentionally expose choices that current source cannot settle. Approval must name the selected alternative; developers must not infer a policy from a sample schema.
+The recommendations below intentionally expose choices that current source cannot settle. The user selected the recommendations by approving D-012–D-015 as proposed on 2026-09-28. Alternatives below remain rationale, not unresolved choices; developers must not infer additional policies from a sample schema.
 
 | Human choice | Recommendation and cost | Alternative and tradeoff |
 | --- | --- | --- |
@@ -228,11 +228,30 @@ The recommendations below intentionally expose choices that current source canno
 | Deletion/admin access | Restrict referenced identity deletion, no private-data admin bypass; erasure/support requests may need a later workflow. | Anonymization or audited support access needs explicit policy, actor retention rules and new authorization tests; it cannot be inferred here. |
 | Availability during rollback | Maintenance response preserves confidentiality/data while recovery runs. | Continuous availability requires a compatible secure rollback release validated in advance; ownerless fallback is not acceptable. |
 
-Reviewers should explicitly accept or amend each of the following before any production work:
+The following design choices were approved as proposed on 2026-09-28; their implementation and verification remain outstanding:
 
 1. **D-012 / ownership:** user pair model, accepted-only direct messaging, immutable authors, per-member read state, no admin private-data override; whether organizational isolation is actually required.
 2. **D-013 / data safety:** retain and quarantine all unprovable legacy rows; no guessed import, dual-read or dual-write; RESTRICT identity references and separate retention/erasure review.
 3. **D-014 / compatibility:** coordinated v2 capability boundary, exact deliberate semantic/status/body changes, explicit reads, idempotent sends, bounded results and generic socket invalidations; maintenance rather than unsafe fallback.
 4. **D-015 / sequencing:** T-201 migration tooling and whole-schema FK review first, then regression-protected model/service/API/client increments; backup/restore and revocation/delivery tests before enablement. Approve discovery/cooldown, text limit and general endorsement launch policy.
 
-This PR submits the design for architecture review only. It neither approves those decisions nor completes their implementation. Stop and record any request to change production schema/runtime, decide permanent retention, broaden to tenant/auth architecture, or infer ownership without evidence. No merge is authorized by this task.
+The original design PR did not approve or implement these decisions. The user subsequently approved D-012–D-015 on 2026-09-28. This follow-up records that approval and the additional safety gate; it makes no runtime/schema changes. Permanent retention, tenant/auth architecture changes and unproven ownership still require separate decisions. No merge is authorized by this follow-up.
+
+## 8. Blocking and reporting production-completion gate
+
+**Required by the user on 2026-09-28; not implemented.** Social networking must not be described as production-complete or pass its production-readiness gate until both blocking and reporting have a reviewed design, working implementation, client coverage and security regression evidence. Controlled implementation/rehearsal may proceed under D-015; ownership-only success does not waive this gate. Track this work as T-107 and D-016.
+
+The requirement is approved. The following are implementation acceptance requirements and design questions to resolve explicitly, not silently added production semantics or an already-approved seventh table/API:
+
+| Area | Required design and implementation evidence |
+| --- | --- |
+| Blocking authority | Session-derived blocker; only that actor may create/remove their block. Define directed storage, pair-wide interaction enforcement, uniqueness and idempotent block/unblock. Reject forged actor/role claims. Unblocking must not silently reinstate consent or replay queued contact. |
+| Blocking coverage | Enforce blocks server-side against suggestions, new/repeated connection requests, connection acceptance, conversation creation, message sends, endorsement activation and social socket/notification delivery. Specify effects on existing pending/accepted edges, active endorsements, discovery, retained history/read cursors, queued notifications and unblock/reconnect. Preserve data under D-013; no implicit history deletion. |
+| Block privacy and races | Do not disclose who blocked whom through errors, lists, counts or delivery payloads. Recheck eligibility in mutation transactions and before delivery; test block racing accept/connect/send/endorse and cached clients. Previously delivered packets cannot be recalled; no newly authorized contact after a committed block. |
+| Reporting authority and evidence | An authenticated user can report an eligible user or social interaction they are entitled to observe. Derive reporter identity from session; verify access to referenced message/conversation/edge without allowing arbitrary private evidence lookup. Specify bounded reason/context, retry/duplicate handling, abuse/rate controls and a nonleaking acknowledgement. Reporting must remain available for otherwise reportable abusive interactions after blocking/disconnection. |
+| Moderation workflow | Define authorized reviewers, triage/status/action transitions, audit records and reporter feedback. Reporter identity and evidence are private to the reporter and explicitly authorized reviewers, not the reported user or unrelated users. Report submission must not automatically punish an account. Resolve any access to user-submitted private-message evidence through a narrow audited policy; D-012's prohibition on blanket admin conversation access remains. |
+| Retention and recovery | Review minimal block/report persistence, indexes/FKs, migrations, rollback and evidence retention before implementation. Do not copy entire histories unnecessarily, guess legacy owners or authorize permanent deletion. Retention/erasure changes still follow D-013's separate human decision gate. |
+| Client readiness | Accessible block/unblock/report entry points, clear confirmation/error states and report acknowledgement on responsive web/WebView and any native social workflow released. Account changes clear private state. Server enforcement works for stale clients and direct HTTP callers, not only hidden buttons. |
+| Release tests | Use A/B/C plus admin/reviewer and suspended accounts: cross-user denials, own block management, report access/identity, report availability after block, evidence confidentiality, moderator authorization/audit, race/idempotency constraints, socket/notification isolation and client behavior. Test migration/rollback without silently losing active blocks/reports or restoring blocked contact. Record the evidence before checking T-107 or declaring social networking production-complete. |
+
+Detailed choices above must be captured in a follow-up design and the authorization/API/migration matrices before coding. This does not reopen the approved user-pair model, require an authentication replacement, grant new admin privileges, or expand this documentation update into runtime work.

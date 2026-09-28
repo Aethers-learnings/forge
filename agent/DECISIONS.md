@@ -74,32 +74,40 @@ Preserve T-106 metrics and all existing quirks, including shared network counts,
 
 ## D-012: User-pair ownership and participant authorization
 
-Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+Status: **ACCEPTED — user approved as proposed on 2026-09-28** (T-104 / Issue #9). Design approval; implementation remains outstanding. Social networking also requires blocking/reporting before production completion; see D-016.
 
 Recommend one canonical user-pair edge for request/accepted relationship state, derived discoverable-user suggestions, actor-owned revocable endorsements, unique direct conversations with explicit immutable membership, session-authored messages and per-member read cursors. Accepted connections may create/send; disconnected members retain read-only history. Admin status does not grant private-message access. Existing Flask/session/CSRF/SQLite architecture remains. See [OWNERSHIP_DESIGN sections 2–3](OWNERSHIP_DESIGN.md#2-target-model-and-invariants) for constraints, transitions and authorization.
 
-Human decision: approve user-to-user scope (or require a separate organizational model), discovery/cooldown, connected-only messaging, endorsement context and text limit. Separate request/connection tables and open messaging are alternatives with more reconciliation/moderation complexity. Classification: MAJOR_REVIEW; no schema/runtime approval or implementation occurs in this PR.
+Approved choice: user-to-user scope, discovery/cooldown, connected-only messaging, general endorsement context and text limit as proposed. Separate request/connection tables and open messaging are alternatives with more reconciliation/moderation complexity. Classification: MAJOR_REVIEW; design approval is recorded here, with no runtime implementation in this documentation update.
 
 ## D-013: Preserve and quarantine unprovable legacy ownership
 
-Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+Status: **ACCEPTED — user approved as proposed on 2026-09-28** (T-104 / Issue #9). Design approval; implementation remains outstanding. Social networking also requires blocking/reporting before production completion; see D-016.
 
 Keep all five ownerless legacy social tables intact and inaccessible through the future real-user APIs; start a separate empty owned graph. No guessed identity from display names, seed text or `me/them`, and no dual-read/dual-write. Independently proven imports require an approved mapping manifest. New identity references use RESTRICT; review current admin-remove fallback before enforcing FKs. Permanent erasure, anonymization, legacy cleanup and retention remain separate decisions. See [migration stages](OWNERSHIP_DESIGN.md#5-staged-sqlite-migration-and-rollback-plan-not-executable-here).
 
-Human decision: accept loss of legacy UI visibility while retaining its data, or commission evidence-based mapping. Automatic reassignment/discard is rejected without evidence and explicit approval. Classification: MAJOR_REVIEW; destructive policy remains HUMAN_APPROVAL_REQUIRED.
+Approved choice: quarantine and retain legacy data, accepting loss of its ordinary UI visibility; any exceptional evidence-based import still needs its mapping review. Automatic reassignment/discard is rejected without evidence and explicit approval. Classification: MAJOR_REVIEW; destructive policy remains HUMAN_APPROVAL_REQUIRED.
 
 ## D-014: Explicit social API compatibility boundary
 
-Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+Status: **ACCEPTED — user approved as proposed on 2026-09-28** (T-104 / Issue #9). Design approval; implementation remains outstanding. Social networking also requires blocking/reporting before production completion; see D-016.
 
 Recommend preserving existing paths behind an ownership-v2 capability header and coordinated web/WebView transition. Required preconditions, desired-state endorsements, pure GET plus explicit read, paged results, stable send retry keys and real participant-relative messages deliberately change the social contract. Old clients must receive an update response rather than reinterpret legacy NPC IDs. Participant-only sockets carry minimal invalidations after committed writes; persistent notification shape remains stable. The capability header does not authorize access. See [endpoint mapping](OWNERSHIP_DESIGN.md#4-api-and-client-transition--proposed-contract-boundary).
 
-Human decision: approve the header boundary and listed status/body/semantic changes, or choose explicit versioned paths before coding; no transparent unsafe fallback. Native messaging remains unimplemented and blocked on the approved contract. Classification: MAJOR_REVIEW. This record does not amend the currently implemented API_CONTRACT.
+Approved choice: the header boundary and listed status/body/semantic changes; no transparent unsafe fallback. Native messaging remains unimplemented and depends on implementing/testing the approved contract and migration readiness. Classification: MAJOR_REVIEW. This record does not amend the currently implemented API_CONTRACT.
 
 ## D-015: Migration gates and secure rollback
 
-Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+Status: **ACCEPTED — user approved as proposed on 2026-09-28** (T-104 / Issue #9). Design approval; implementation remains outstanding. Social networking also requires blocking/reporting before production completion; see D-016.
 
 T-201 must provide migration/version tooling, consistent SQLite backups and restore rehearsals before additive tables/indexes/constraints. Enabling foreign keys needs whole-schema orphan and admin-removal review. Future implementation proceeds behind a gate with three-user authorization, independent-connection race, client, notification/socket, migration and rollback tests. Include the shared network analytics consumer in cutover. After new writes, rollback preserves new data and uses a secure compatible release or maintenance response, never an ownerless legacy fallback or an older snapshot over new messages.
 
-Human decision: approve staged rollout/maintenance and recovery ownership after reviewing the [plan and required tests](OWNERSHIP_DESIGN.md#6-threat-model-and-required-future-tests). Any unrelated data repair, irreversible cleanup or fundamental authentication change stops for separate review. Classification: MAJOR_REVIEW; this design authorizes none of those operations.
+Approved choice: staged rollout/maintenance and recovery requirements in the [plan and required tests](OWNERSHIP_DESIGN.md#6-threat-model-and-required-future-tests). Any unrelated data repair, irreversible cleanup or fundamental authentication change stops for separate review. Classification: MAJOR_REVIEW; this design authorizes none of those operations.
+
+## D-016: Blocking and reporting are required for production completion
+
+Status: **ACCEPTED requirement — user directed on 2026-09-28**. Detailed implementation design remains outstanding.
+
+The user approved D-012–D-015 as proposed and added: “Add blocking/reporting before social networking is considered production-complete.” Their approval is recorded without reopening those four decisions. Ownership/migration progress alone must not mark social networking production-complete; [T-107](TASKS.md) is a mandatory release/completion gate.
+
+Blocking and reporting must be implemented and tested across the API, web/WebView and any released native social workflows. The [ownership design safety gate](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate) defines required review/test coverage. Precise block effects, report schema/routes, moderation evidence access and retention need an explicit design increment. This requirement does not authorize blanket admin access to private conversations, irreversible deletion, a new authentication system, or a production rollout. Classification: MAJOR_REVIEW for the cross-cutting design; implementation follows the approved incremental migration/test process.

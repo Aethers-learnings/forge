@@ -19,3 +19,7 @@ The current web frontend remains until an incremental migration path is proven. 
 ## T-104 contract dependency (2026-09-26)
 
 [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) traces the existing network/message renderers and proposes required capability/precondition handling, desired-state endorsements, real-peer thread creation, pagination, explicit read cursors and send retry keys. These are deliberate future contract changes requiring D-014 approval and coordinated cutover; no static-client behavior changes in Issue #9. WebView runs the same client and must be tested with cached old pages; do not replay legacy numeric IDs into the new graph.
+
+## Ownership approval and production gate (2026-09-28)
+
+This update supersedes the earlier statements that D-012–D-015 await approval: the user approved all four decisions as proposed. Their target remains unimplemented; current schema, API, authentication and client behavior are unchanged. T-104 design/review is complete and T-201's design dependency is satisfied, with migration/integrity/recovery verification still required. Social networking is **not production-complete** until blocking/reporting is designed, implemented and tested under D-016 / T-107 and [OWNERSHIP_DESIGN section 8](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate). This includes server enforcement, private report handling, explicitly authorized audited moderation, web/WebView and released-native coverage, and security/race/rollback tests. No blanket admin private-message access or irreversible retention policy is approved.
