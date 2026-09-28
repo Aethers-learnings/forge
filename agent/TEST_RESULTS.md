@@ -5,6 +5,8 @@
 - Isolated `.venv/bin/python -m pytest -q`: **290 passed, 1394 warnings in 28.76s**. Warnings are existing datetime and SQLAlchemy deprecations; no safety implementation tests exist yet.
 - `git diff --check` and documentation link/anchor check passed. Diff contains only `agent/*.md`; no migration, runtime, client or dependency files changed.
 
+Follow-up recording core design approval: full `.venv/bin/python -m pytest -q --disable-warnings` passed **290 tests, 1394 warnings in 34.10s**. Documentation-only status update; future blocking/reporting behavior is still unimplemented and untested.
+
 
 Date: 2026-09-24
 

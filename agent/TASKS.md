@@ -19,7 +19,7 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 - [x] T-105 — Ensure only approved/live listings produce student-visible opportunities; cover lifecycle with tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 - [x] T-106 — Correct business/admin analytics scope and document metric semantics. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 
-- [ ] T-107 — Design, implement and test user blocking/reporting before social networking is considered production-complete. Depends on: T-104; persistence rollout depends on T-201. Classification: MAJOR_REVIEW. [SAFETY_DESIGN](SAFETY_DESIGN.md) is the proposed design/review package for Issue #12; policy choices marked **PROPOSED / REQUIRES HUMAN APPROVAL** remain open. Implementation, migration, client coverage and security tests remain outstanding. No blanket admin message access or destructive retention approval.
+- [ ] T-107 — Design, implement and test user blocking/reporting before social networking is considered production-complete. Depends on: T-104; persistence rollout depends on T-201. Classification: MAJOR_REVIEW. The core behavior in [SAFETY_DESIGN](SAFETY_DESIGN.md) was approved on 2026-09-28; retention, erasure, appeals/notices, emergency access, reviewer provisioning, anonymous reporting, evidence-window size and rate-limit policy remain separate later decisions. Implementation, migration, client coverage and security tests remain outstanding. No blanket admin message access or destructive retention approval.
 
 ## P2
 
