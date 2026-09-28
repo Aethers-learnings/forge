@@ -1,5 +1,12 @@
 # Test results
 
+## 2026-09-28 — PR #17 review fixes
+
+- Focused bootstrap/migration suite: `.venv/bin/python -m pytest -q --disable-warnings tests/test_database_bootstrap.py tests/test_migration_tooling.py` — **50 passed**. New subprocess cases compare bytes, size, mtime and sidecars for `db-status`/`db-verify` on existing DELETE-journal databases.
+- Full backend/web suite: `.venv/bin/python -m pytest -q --disable-warnings` — **335 passed, 1394 warnings in 66.69s**.
+- `git diff --check` passed. All databases in these tests were isolated fixtures; no persistent Forge instance database was inspected or modified.
+
+
 ## 2026-09-28 — repository cleanup
 
 - Full backend/web suite: `.venv/bin/python -m pytest -q --disable-warnings` — **298 passed, 1394 warnings in 22.10s**.

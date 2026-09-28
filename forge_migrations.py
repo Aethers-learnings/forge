@@ -1081,30 +1081,41 @@ def _require_head(engine):
     return status
 
 
-def verify_application_database(engine):
-    """Read-only persistent startup verification, before any app connection."""
+@contextmanager
+def _inspection_engine(engine):
+    """Inspect persistent SQLite without the application's WAL/NORMAL hook."""
     path = _sqlite_database_path(engine)
-    if path is None:
-        return _require_head(engine)
-    if not path.is_file():
-        raise MigrationError(
-            "Database is missing. Explicitly run flask --app forge_backend "
-            "db-init --confirm-schema-change for a new database."
-        )
+    if path is None or not path.exists():
+        # Status/verify check a missing path before opening a connection.
+        yield engine
+        return
     readonly = create_engine(
         "sqlite://", poolclass=NullPool,
         creator=lambda: sqlite3.connect(path.as_uri() + "?mode=ro", uri=True),
     )
     try:
-        return _require_head(readonly)
+        yield readonly
+    finally:
+        readonly.dispose()
+
+
+def verify_application_database(engine):
+    """Read-only persistent startup verification, before any app connection."""
+    path = _sqlite_database_path(engine)
+    if path is not None and not path.is_file():
+        raise MigrationError(
+            "Database is missing. Explicitly run flask --app forge_backend "
+            "db-init --confirm-schema-change for a new database."
+        )
+    try:
+        with _inspection_engine(engine) as readonly:
+            return _require_head(readonly)
     except (MigrationError, SQLAlchemyError, sqlite3.Error) as exc:
         raise MigrationError(
             f"Startup refused: {exc} Inspect with flask --app forge_backend "
             "db-status / db-verify; repair or restore from a verified backup. "
             "No automatic schema change was attempted."
         ) from exc
-    finally:
-        readonly.dispose()
 
 
 def prepare_application_database(engine, environment):
@@ -1150,12 +1161,13 @@ def register_migration_commands(app, db):
     def db_status_command():
         """Show migration state without changing the database."""
         try:
-            click.echo(json.dumps(
-                migration_status(db.engine),
-                indent=2,
-                sort_keys=True,
-            ))
-        except MigrationError as exc:
+            with _inspection_engine(db.engine) as readonly:
+                click.echo(json.dumps(
+                    migration_status(readonly),
+                    indent=2,
+                    sort_keys=True,
+                ))
+        except (MigrationError, SQLAlchemyError, sqlite3.Error) as exc:
             raise click.ClickException(str(exc)) from exc
 
     @app.cli.command("db-baseline")
@@ -1273,12 +1285,13 @@ def register_migration_commands(app, db):
     def db_verify_command():
         """Run schema/integrity/FK diagnostics without mutation."""
         try:
-            click.echo(json.dumps(
-                verify_database(db.engine),
-                indent=2,
-                sort_keys=True,
-            ))
-        except MigrationError as exc:
+            with _inspection_engine(db.engine) as readonly:
+                click.echo(json.dumps(
+                    verify_database(readonly),
+                    indent=2,
+                    sort_keys=True,
+                ))
+        except (MigrationError, SQLAlchemyError, sqlite3.Error) as exc:
             raise click.ClickException(str(exc)) from exc
 
     @app.cli.command("db-backup")

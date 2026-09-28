@@ -86,6 +86,23 @@ def database_at(tmp_path, state="head"):
     return engine, path
 
 
+@pytest.mark.parametrize("state", ["unmanaged", "operator_head"])
+@pytest.mark.parametrize("command", ["db-status", "db-verify"])
+def test_inspection_cli_preserves_existing_non_wal_database(tmp_path, state, command):
+    _, path = database_at(tmp_path, state)
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+    before = file_state(path)
+    result = application_process(
+        path, args=["-m", "flask", "--app", "forge_backend", command]
+    )
+    assert result.returncode == 0, result.stderr
+    assert file_state(path) == before
+    assert set(file_state(path)) == {""}  # no WAL/SHM/journal sidecar
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+
+
 @pytest.mark.parametrize("memory", [False, True])
 def test_fresh_bootstrap_head_is_independent_of_orm(tmp_path, monkeypatch, memory):
     def forbid(*args, **kwargs):
