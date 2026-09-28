@@ -161,3 +161,23 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 ## 2026-09-28 — T-201 migration foundation
 
 Started T-201 after approval of D-012–D-015. Added a conservative SQLite migration foundation: frozen current-schema manifest, explicit migration ledger/baseline command, status/verification commands, and consistent backup support. No ownership schema, FK enforcement, automatic migrations, or persistent database mutation was performed. Validation: 5 focused migration tests and 290 full-suite tests passed; diff check clean.
+
+## 2026-09-28 — T-201 owned-social migration revision
+
+Built and reviewed the second T-201 increment:
+`20260928_02_owned_social_schema`. Added ordered revision handling,
+checksum-protected manifests, explicit atomic SQLite DDL transactions,
+guarded upgrade/downgrade commands, six approved owned-social tables,
+constraints/indexes/triggers, and regression coverage.
+
+A manual staged-diff review identified Python sqlite3 legacy DDL transaction
+behavior as a rollback risk; the migration engine was corrected to use explicit
+`BEGIN IMMEDIATE`, with injected failure tests for baseline, upgrade and
+downgrade atomicity.
+
+Validation finished at 13 focused migration tests and 298 full-suite tests.
+Copy-only rehearsal proved reversible empty migration, refusal to discard owned
+data and exact source-database non-mutation. No real database baseline/upgrade
+was performed. Next prerequisite before ORM ownership models is removing or
+guarding historical `db.create_all()` bootstrap behavior so migrations remain
+the sole owner of revision-02 schema creation.

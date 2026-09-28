@@ -136,3 +136,23 @@ The user approved D-012–D-015 as proposed. PR #10 is already merged; this docu
 ## 2026-09-28 — T-107 core design approved
 
 The user approved directed pair-wide blocking, cancellation/disconnection and endorsement revocation with retained member-only read-only history; unblock restores nothing and follows the normal cooldown. Authenticated authorized-evidence reports, explicitly audited reviewer access without ordinary admin access, and no automatic sanction on submission are approved. Retention, erasure, appeals/notices, emergency access, reviewer provisioning, anonymous reporting, evidence-window size and rate-limit policy are separate later decisions. This status update changes documentation only; T-107 implementation, tests and the production gate remain open.
+
+## 2026-09-28 — T-201 owned-social revision rehearsed
+
+Implemented ordered atomic SQLite revision
+`20260928_02_owned_social_schema` on top of the frozen baseline. It adds the six
+approved D-012 owned-social tables without moving legacy data, switching
+runtime routes, or globally enabling FK enforcement.
+
+Migration failure injection tests now prove baseline, upgrade and downgrade DDL
+roll back atomically. Copy-only rehearsal against a consistent real-database
+backup proved 23→29→23→29 schema round trips, physical preservation of all five
+legacy social tables, membership triggers/message retry uniqueness, clean
+integrity/FK checks, live-owned-data downgrade refusal and repeatable final
+upgrade. The real `instance/forge.db` remained unchanged, unmanaged and without
+owned-social tables.
+
+T-201 remains open. Before owned-social ORM/service integration, replace or
+guard the historical `db.create_all()` bootstrap so migration-owned tables
+cannot be created outside the ledger. Runtime ownership enforcement and D-014
+client cutover remain unimplemented.

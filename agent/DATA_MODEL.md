@@ -63,3 +63,38 @@ This update supersedes the earlier statements that D-012–D-015 await approval:
 The first approved T-201 implementation increment adds explicit SQLite migration tracking without changing the application schema. `forge_migrations.py` provides a frozen 23-table baseline manifest, migration-ledger baselining, schema-drift verification, SQLite integrity/FK diagnostics, and consistent backup support using SQLite's backup API.
 
 No ownership tables, indexes, constraints, foreign-key enforcement changes, automatic startup migrations, or production database mutations are included in this increment. Existing `db.create_all()` startup behavior remains temporarily unchanged. Applying the baseline to an existing persistent database is an explicit operator action and must refuse schema drift.
+
+## T-201 owned-social schema revision — 2026-09-28
+
+Ordered migration revision `20260928_02_owned_social_schema` now defines the
+approved D-012 owned-social persistence layer: `network_edge`, `endorsement`,
+`direct_conversation`, `conversation_member`, `direct_message`, and
+`ownership_event`. The revision is additive. It leaves the five ownerless
+legacy social tables physically intact and performs no legacy ownership import.
+
+The revision includes canonical user-pair constraints, directed
+requester/recipient identity, state/version checks, `ON DELETE RESTRICT`
+identity references, endorsement provenance, opaque direct-conversation IDs,
+two endpoint-only conversation-member triggers, per-member read cursors,
+member-authored message foreign keys, `(conversation, sender,
+client_message_id)` retry uniqueness, 4,000-character message limits, and
+single-target ownership audit events.
+
+The migration layer now supports ordered checksum-validated revisions,
+explicit upgrade/downgrade commands, committed revision-schema manifests and
+real SQLite DDL atomicity using `BEGIN IMMEDIATE`. Downgrade of revision 02 is
+permitted only while all six owned-social tables are empty.
+
+Copy-only rehearsal against a consistent backup of `instance/forge.db`
+successfully baselined, upgraded from 23 to 29 application tables, verified
+integrity and FK consistency, downgraded exactly back to the 23-table frozen
+baseline, re-upgraded, refused downgrade after inserting controlled owned data,
+then repeated the empty downgrade/upgrade successfully. The real
+`instance/forge.db` remained byte/stat-identical, has no migration ledger and
+has none of the six owned tables.
+
+Global `PRAGMA foreign_keys=ON` is still intentionally not enabled. Application
+startup is also not migration-managed yet: the existing ORM/bootstrap still
+uses the historical `db.create_all()` path. Do not add owned-social ORM models
+until that bootstrap boundary is changed, otherwise startup could create
+migration-owned tables outside the ledger.

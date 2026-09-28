@@ -1,0 +1,2257 @@
+{
+  "revision": "20260928_02_owned_social_schema",
+  "schema": {
+    "tables": {
+      "alumni_verification": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "document_ref",
+            "nullable": false,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "note",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "status",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "submitted_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "application": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "opportunity_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "opportunity_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "opportunity"
+          },
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "opportunity_id",
+              "user_id"
+            ],
+            "name": null
+          }
+        ]
+      },
+      "approval_queue_item": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "title",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "co",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "tags",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "status",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "submitted_at",
+            "nullable": true,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "decided_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "business_listing": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "owner_user_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "queue_item_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "title",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "co",
+            "nullable": true,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "tags",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "status",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "impressions",
+            "nullable": true,
+            "type": "INTEGER"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "owner_user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "queue_item_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "approval_queue_item"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "coach_message": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "who",
+            "nullable": false,
+            "type": "VARCHAR(8)"
+          },
+          {
+            "default": null,
+            "name": "text",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "comment": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "post_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "author_name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "text",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "post_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "post"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "connection_npc": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "role",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "color",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "skill",
+            "nullable": true,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "endorsements",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "endorsed_by_me",
+            "nullable": true,
+            "type": "BOOLEAN"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "conversation": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "slug",
+            "nullable": false,
+            "type": "VARCHAR(64)"
+          },
+          {
+            "default": null,
+            "name": "name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "color",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "unread",
+            "nullable": true,
+            "type": "BOOLEAN"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "slug"
+            ],
+            "name": null
+          }
+        ]
+      },
+      "conversation_member": {
+        "columns": [
+          {
+            "default": null,
+            "name": "conversation_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "joined_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": "0",
+            "name": "last_read_seq",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "read_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "conversation_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "direct_conversation"
+          },
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "user_id",
+              "conversation_id"
+            ],
+            "name": "ix_conversation_member_user_conversation",
+            "unique": false
+          }
+        ],
+        "primary_key": [
+          "conversation_id",
+          "user_id"
+        ],
+        "unique_constraints": []
+      },
+      "direct_conversation": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "public_id",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "user_low_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_high_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "created_by_user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "updated_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": "0",
+            "name": "last_seq",
+            "nullable": false,
+            "type": "INTEGER"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "created_by_user_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "user_high_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "user_low_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "user_high_id",
+              "user_low_id"
+            ],
+            "name": "ix_direct_conversation_high_low",
+            "unique": false
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "public_id"
+            ],
+            "name": "uq_direct_conversation_public_id"
+          },
+          {
+            "columns": [
+              "user_low_id",
+              "user_high_id"
+            ],
+            "name": "uq_direct_conversation_pair"
+          }
+        ]
+      },
+      "direct_message": {
+        "columns": [
+          {
+            "default": null,
+            "name": "conversation_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "seq",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "sender_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "client_message_id",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "text",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": false,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "conversation_id",
+              "sender_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "conversation_id",
+              "user_id"
+            ],
+            "referred_schema": null,
+            "referred_table": "conversation_member"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "conversation_id",
+          "seq"
+        ],
+        "unique_constraints": []
+      },
+      "endorsement": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "network_edge_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "endorser_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "recipient_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "skill_key",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "skill_label",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "version",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "updated_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "revoked_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "endorser_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "network_edge_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "network_edge"
+          },
+          {
+            "columns": [
+              "recipient_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "recipient_id",
+              "skill_key"
+            ],
+            "name": "ix_endorsement_recipient_skill_active",
+            "unique": false
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "endorser_id",
+              "recipient_id",
+              "skill_key"
+            ],
+            "name": "uq_endorsement_actor_recipient_skill"
+          }
+        ]
+      },
+      "event": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "title",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "place",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "day",
+            "nullable": false,
+            "type": "VARCHAR(8)"
+          },
+          {
+            "default": null,
+            "name": "mon",
+            "nullable": false,
+            "type": "VARCHAR(8)"
+          },
+          {
+            "default": null,
+            "name": "programmes",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "interest": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "event_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "event_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "event"
+          },
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "event_id",
+              "user_id"
+            ],
+            "name": null
+          }
+        ]
+      },
+      "like": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "post_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "post_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "post"
+          },
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "post_id",
+              "user_id"
+            ],
+            "name": null
+          }
+        ]
+      },
+      "message": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "conversation_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "who",
+            "nullable": false,
+            "type": "VARCHAR(8)"
+          },
+          {
+            "default": null,
+            "name": "text",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "conversation_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "conversation"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "network_edge": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_low_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_high_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "requester_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "recipient_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "state",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "version",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "requested_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "updated_at",
+            "nullable": false,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "accepted_at",
+            "nullable": true,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "ended_at",
+            "nullable": true,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "changed_by_user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "changed_by_user_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "recipient_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "requester_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "user_high_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "user_low_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "recipient_id",
+              "state"
+            ],
+            "name": "ix_network_edge_recipient_state",
+            "unique": false
+          },
+          {
+            "columns": [
+              "requester_id",
+              "state"
+            ],
+            "name": "ix_network_edge_requester_state",
+            "unique": false
+          },
+          {
+            "columns": [
+              "user_high_id",
+              "state"
+            ],
+            "name": "ix_network_edge_high_state",
+            "unique": false
+          },
+          {
+            "columns": [
+              "user_low_id",
+              "state"
+            ],
+            "name": "ix_network_edge_low_state",
+            "unique": false
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "user_low_id",
+              "user_high_id"
+            ],
+            "name": "uq_network_edge_pair"
+          }
+        ]
+      },
+      "network_request": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "role",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "color",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "status",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "notification": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "type",
+            "nullable": false,
+            "type": "VARCHAR(32)"
+          },
+          {
+            "default": null,
+            "name": "text",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "link",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "read",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "opportunity": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "title",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "co",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "match",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "tags",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "owner_user_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "listing_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "listing_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "business_listing"
+          },
+          {
+            "columns": [
+              "owner_user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "ownership_event": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "network_edge_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "endorsement_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "conversation_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "actor_user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "entity_version",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "event_type",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "previous_state",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "next_state",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": false,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "actor_user_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "conversation_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "direct_conversation"
+          },
+          {
+            "columns": [
+              "endorsement_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "endorsement"
+          },
+          {
+            "columns": [
+              "network_edge_id"
+            ],
+            "name": null,
+            "options": {
+              "ondelete": "RESTRICT"
+            },
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "network_edge"
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "conversation_id",
+              "entity_version",
+              "event_type"
+            ],
+            "name": "ux_ownership_event_conversation_version_type",
+            "unique": true
+          },
+          {
+            "columns": [
+              "endorsement_id",
+              "entity_version",
+              "event_type"
+            ],
+            "name": "ux_ownership_event_endorsement_version_type",
+            "unique": true
+          },
+          {
+            "columns": [
+              "network_edge_id",
+              "entity_version",
+              "event_type"
+            ],
+            "name": "ux_ownership_event_network_version_type",
+            "unique": true
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "pathway": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "prog",
+            "nullable": false,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "rows",
+            "nullable": true,
+            "type": "TEXT"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "post": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "feed",
+            "nullable": false,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "author_name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "author_role",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "color",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "body",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "media",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "video_url",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "thumb_url",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "pick",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "flagged",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "base_likes",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "removed",
+            "nullable": true,
+            "type": "BOOLEAN"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "profile_image": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "filename",
+            "nullable": false,
+            "type": "VARCHAR(80)"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": "ix_profile_image_user_id",
+            "unique": true
+          }
+        ],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "filename"
+            ],
+            "name": null
+          }
+        ]
+      },
+      "profile_view": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "viewed_user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "viewer_user_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "source",
+            "nullable": true,
+            "type": "VARCHAR(32)"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "viewed_user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          },
+          {
+            "columns": [
+              "viewer_user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "skill_search": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "skill",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "searcher_id",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "searcher_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "suggested": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "role",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "color",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "status",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "testimonial": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "user_id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "author_name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "author_role",
+            "nullable": true,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "text",
+            "nullable": false,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "approved",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": null,
+            "options": {},
+            "referred_columns": [
+              "id"
+            ],
+            "referred_schema": null,
+            "referred_table": "user"
+          }
+        ],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": []
+      },
+      "user": {
+        "columns": [
+          {
+            "default": null,
+            "name": "id",
+            "nullable": false,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "username",
+            "nullable": false,
+            "type": "VARCHAR(64)"
+          },
+          {
+            "default": null,
+            "name": "password_hash",
+            "nullable": false,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "role",
+            "nullable": false,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "name",
+            "nullable": false,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "email",
+            "nullable": true,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "color",
+            "nullable": true,
+            "type": "VARCHAR(16)"
+          },
+          {
+            "default": null,
+            "name": "completion",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "cv_uploaded",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "skills",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "alumni_verified",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "created_at",
+            "nullable": true,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "headline",
+            "nullable": true,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "programme",
+            "nullable": true,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "year",
+            "nullable": true,
+            "type": "VARCHAR(32)"
+          },
+          {
+            "default": null,
+            "name": "campus",
+            "nullable": true,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "industry",
+            "nullable": true,
+            "type": "VARCHAR(120)"
+          },
+          {
+            "default": null,
+            "name": "company_desc",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "location",
+            "nullable": true,
+            "type": "VARCHAR(160)"
+          },
+          {
+            "default": null,
+            "name": "talent_sought",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "bio",
+            "nullable": true,
+            "type": "TEXT"
+          },
+          {
+            "default": null,
+            "name": "github_url",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "linkedin_url",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "credly_url",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "portfolio_url",
+            "nullable": true,
+            "type": "VARCHAR(255)"
+          },
+          {
+            "default": null,
+            "name": "profile_visible",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "show_email",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "show_skills",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "business_approved",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "suspended",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "last_seen",
+            "nullable": true,
+            "type": "DATETIME"
+          },
+          {
+            "default": null,
+            "name": "onboarding_complete",
+            "nullable": true,
+            "type": "BOOLEAN"
+          },
+          {
+            "default": null,
+            "name": "onboarding_step",
+            "nullable": true,
+            "type": "INTEGER"
+          },
+          {
+            "default": null,
+            "name": "reset_token",
+            "nullable": true,
+            "type": "VARCHAR(64)"
+          },
+          {
+            "default": null,
+            "name": "reset_token_expires",
+            "nullable": true,
+            "type": "DATETIME"
+          }
+        ],
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": [
+          "id"
+        ],
+        "unique_constraints": [
+          {
+            "columns": [
+              "username"
+            ],
+            "name": null
+          }
+        ]
+      }
+    }
+  }
+}

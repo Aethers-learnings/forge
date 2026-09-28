@@ -279,3 +279,35 @@ Limits: content inspection is container-signature-level validation, not malware 
 - Missing-database `db-status` is read-only and does not create a SQLite file.
 - `git diff --check` passes.
 - No persistent application database was baselined or migrated during validation.
+
+## 2026-09-28 — T-201 owned-social ordered revision
+
+- Focused migration suite: **13 passed**.
+- Full Forge suite: **298 passed, 1394 existing warnings**, no failures.
+- `git diff --check` passed.
+- Frozen `migrations/baseline_schema.json` remained unchanged.
+- Revision-02 manifest contains **29 application tables**: frozen 23 plus six
+  owned-social tables.
+- Injected baseline failure rolls back migration-ledger DDL completely.
+- Injected upgrade failure rolls back partial schema DDL and leaves the
+  baseline revision intact.
+- Injected downgrade failure restores the revision-02 schema and ledger.
+- Physical constraint tests verify endpoint-only membership, member-only
+  message authorship, 4,000-character message bound, ownership-event
+  single-target rule and message client-retry uniqueness.
+- Copy rehearsal created a consistent backup without changing source hash,
+  mtime or size.
+- Copy baseline and revision-02 upgrade passed checksum, schema,
+  `integrity_check` and `foreign_key_check`.
+- Upgraded copy contained 29 application tables, all six owned tables, both
+  membership triggers and all five quarantined legacy social tables.
+- Empty downgrade restored exactly the frozen 23-table baseline.
+- Re-upgrade succeeded.
+- A controlled `network_edge` row caused downgrade to refuse safely while
+  preserving the revision-02 ledger/schema.
+- After removing controlled owned data, downgrade and final re-upgrade both
+  succeeded.
+- Final verification showed the real `instance/forge.db` byte/stat-identical,
+  without a migration ledger and without any owned-social tables.
+- Global FK enforcement remains unchanged/off by default; no production/local
+  persistent rollout occurred.

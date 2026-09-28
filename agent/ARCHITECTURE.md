@@ -80,3 +80,32 @@ At `d4a0516`, Flask/SQLite and signed-session/CSRF security remain the baseline.
 ## Ownership approval and production gate (2026-09-28)
 
 This update supersedes the earlier statements that D-012–D-015 await approval: the user approved all four decisions as proposed. Their target remains unimplemented; current schema, API, authentication and client behavior are unchanged. T-104 design/review is complete and T-201's design dependency is satisfied, with migration/integrity/recovery verification still required. Social networking is **not production-complete** until blocking/reporting is designed, implemented and tested under D-016 / T-107 and [OWNERSHIP_DESIGN section 8](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate). This includes server enforcement, private report handling, explicitly authorized audited moderation, web/WebView and released-native coverage, and security/race/rollback tests. No blanket admin private-message access or irreversible retention policy is approved.
+
+## 2026-09-28 — T-201 ordered SQLite migration layer
+
+Forge now has an explicit ordered SQLite migration layer alongside the existing
+Flask/SQLAlchemy application. The pre-migration 23-table schema remains frozen
+as revision `20260928_01_pre_migrations`; revision
+`20260928_02_owned_social_schema` is layered on top rather than rewriting that
+baseline.
+
+Schema-changing operations use an explicit SQLite `BEGIN IMMEDIATE`
+transaction so DDL, verification and migration-ledger writes commit or roll
+back together. Each revision has checksum-protected code/schema state, upgrade
+and guarded downgrade behavior, integrity/FK verification, and explicit
+operator CLI commands. Nothing auto-upgrades during normal Flask startup.
+
+Revision 02 adds only the six approved owned-social persistence tables and
+supporting constraints/indexes/triggers. It does not cut over routes, clients,
+sockets, notifications or analytics; it does not migrate legacy social rows;
+and it does not globally enable SQLite FK enforcement.
+
+A copy-only rehearsal against the current real database proved reversible empty
+upgrade/downgrade behavior and refusal to discard owned data. The real database
+was deliberately not baselined or upgraded.
+
+Important next architectural boundary: `forge_backend.py` still has historical
+`db.create_all()` bootstrap behavior. Before owned-social SQLAlchemy models are
+declared, startup and test database initialization must become
+migration-aware/fail-closed so ORM metadata cannot bypass the ordered migration
+ledger.
