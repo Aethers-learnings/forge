@@ -35,3 +35,7 @@ The three analytics handlers are now extracted under D-011 with T-106 semantics 
 ## Issue #9 ownership design boundary (2026-09-26)
 
 [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) documents shared histories/unread/endorsements, unproven legacy authors, related shared analytics, suspension-after-connect and pre-commit notification limitations. No defect is repaired by this design-only PR. Proposed D-012–D-015 require human review before schema/runtime/client changes; legacy reassignment, destructive cleanup, admin private-message access and organizational tenancy are not silently authorized.
+
+## Ownership approval and production gate (2026-09-28)
+
+This update supersedes the earlier statements that D-012–D-015 await approval: the user approved all four decisions as proposed. Their target remains unimplemented; current schema, API, authentication and client behavior are unchanged. T-104 design/review is complete and T-201's design dependency is satisfied, with migration/integrity/recovery verification still required. Social networking is **not production-complete** until blocking/reporting is designed, implemented and tested under D-016 / T-107 and [OWNERSHIP_DESIGN section 8](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate). This includes server enforcement, private report handling, explicitly authorized audited moderation, web/WebView and released-native coverage, and security/race/rollback tests. No blanket admin private-message access or irreversible retention policy is approved.

@@ -35,3 +35,7 @@ Exit: every mutable resource has an ownership and authorization rule covered by 
 ## T-104 review gate (2026-09-26)
 
 Issue #9 submits [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) for human architecture review. Design preparation does not complete ownership implementation or unblock T-201/native messaging automatically. Review proposed D-012–D-015 first; then approve migration tooling/FK and legacy-data treatment, followed by regression-protected service/API/client increments and a gated cutover. T-203 extraction must continue preserving existing behavior rather than implementing this proposal incidentally.
+
+## Ownership approval and production gate (2026-09-28)
+
+This update supersedes the earlier statements that D-012–D-015 await approval: the user approved all four decisions as proposed. Their target remains unimplemented; current schema, API, authentication and client behavior are unchanged. T-104 design/review is complete and T-201's design dependency is satisfied, with migration/integrity/recovery verification still required. Social networking is **not production-complete** until blocking/reporting is designed, implemented and tested under D-016 / T-107 and [OWNERSHIP_DESIGN section 8](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate). This includes server enforcement, private report handling, explicitly authorized audited moderation, web/WebView and released-native coverage, and security/race/rollback tests. No blanket admin private-message access or irreversible retention policy is approved.

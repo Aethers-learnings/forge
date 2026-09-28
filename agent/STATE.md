@@ -2,7 +2,7 @@
 
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
-Last updated: 2026-09-26 (Issue #9 ownership design prepared; architecture review pending; release-device checks remain pending)
+Last updated: 2026-09-28 (D-012–D-015 approved; blocking/reporting required for social production completion; implementation and release checks remain pending)
 
 ## Verified current state
 
@@ -124,3 +124,7 @@ Full suite before/after: **285 passed**, no skips; all **66 URL rules**, **23 ta
 ## T-104 / Issue #9 design submitted for review (2026-09-26)
 
 Prepared [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md): current source trace, concrete target entities, authorization matrix, proposed API/client/socket changes, SQLite migration/rollback stages, threats and future integration tests. D-012–D-015 remain proposed; T-104 is unchecked pending human architecture review, and T-201/native messaging are not unblocked. No production model, route, client, database, migration or authentication behavior changed. Current shared-state defects remain present. Validation is recorded in `TEST_RESULTS.md`; requested PR target is `master`, with no merge.
+
+## 2026-09-28 — approved design, mandatory blocking/reporting
+
+The user approved D-012–D-015 as proposed. PR #10 is already merged; this documentation follow-up uses `codex/t-104-approval-safety-gate` from master `7327929`. T-104 design/review is complete; prior pending-approval statements above are historical. T-201 can proceed from the approved design through its remaining gates; no migration/runtime/client work occurred here. D-016 / T-107 makes implemented and tested blocking/reporting mandatory before social production completion. Detailed block effects, report persistence/API, moderation evidence access and retention remain follow-up design work. Current ownership defects remain unfixed; no new merge is authorized.

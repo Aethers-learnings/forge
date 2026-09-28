@@ -150,3 +150,10 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Traced all seven social handlers, five legacy models, seed data, Socket.IO rooms/events, notification commit ordering, shared analytics, current web/native/WebView consumers and existing test coverage. Reconciled relevant stale discovery descriptions without changing runtime.
 - Prepared `OWNERSHIP_DESIGN.md` and proposed D-012–D-015 covering ownership, authorization, compatibility, data preservation and migration gates. Documented concrete alternatives and human decisions; no unprovable legacy ownership, automatic deletion, admin private-data bypass or authentication change approved.
 - T-104 remains open pending architecture review; implementation, T-201 migrations and native messaging remain gated. Only `agent/*.md` changes are intended. Full-suite and diff verification are recorded in TEST_RESULTS.md. Preparing a PR to master for review only; no merge.
+
+## 2026-09-28 — ownership approval and safety requirement
+
+- Recorded the user's explicit approval of D-012–D-015 as proposed, plus the requirement for blocking/reporting before social networking is production-complete.
+- Verified PR #10 was already merged and started a documentation follow-up from clean master `7327929` on `codex/t-104-approval-safety-gate`.
+- Marked T-104 design/review complete without claiming runtime completion; retained migration/retention gates and added D-016 / open T-107 with enforcement, reporting privacy, moderation, client and test acceptance requirements. Reconciled historical pending-approval statements in canonical records.
+- No production code, schema, database, API or client changes. Validation recorded in TEST_RESULTS.md. Follow-up PR targets master; do not merge.
