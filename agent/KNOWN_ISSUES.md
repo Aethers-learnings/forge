@@ -2,7 +2,7 @@
 
 ## Verified defects / limitations
 
-- Remaining P0 security defects are tracked in `SECURITY.md`: unauthenticated Socket.IO rooms/wildcard CORS, permissive/insecure mobile WebView transport, and absent CSRF protection. The predictable secret fallback was resolved by T-001.
+- Historical P0 findings (secret configuration, Socket.IO room identity/CORS, mobile transport, and CSRF) have implementation resolutions recorded in `SECURITY.md`; release-device checks remain separate. They must not be confused with the still-open social row-ownership defects below.
 - Production operators must set `FORGE_ENV=production` and supply a unique `FORGE_SECRET_KEY` of at least 32 characters. Non-production processes receive an ephemeral random signing key, so their sessions do not survive a restart; this is intentional and unsuitable for multi-process production deployment.
 - Network, suggestion, connection, and conversation tables are seeded/shared demo state rather than per-user relationships. Any logged-in user can view or mutate the same rows.
 - `Conversation` and `Message` do not identify participants; message sender is stored only as `me`/`them`. This cannot support secure multi-user messaging.
@@ -11,8 +11,8 @@
 - CV upload accepts raw text and marks a CV as uploaded; it does not persist an original document or perform actual file upload/extraction.
 - Opportunity visibility is not filtered to approved/live BusinessListings; `/api/opportunities` returns all `Opportunity` rows.
 - The hard-delete admin user action attempts deletion without an explicit retention/cascade policy, then silently falls back to suspension on foreign-key failure.
-- There is no discovered automated test suite, lint configuration, database migration system, or CI workflow for the application.
-- The mobile README and unused Expo template components remain starter material; mobile parity is WebView-based rather than native.
+- An automated Flask/Node regression suite now exists; see `TEST_RESULTS.md`. Reversible schema migration tooling remains outstanding under T-201.
+- Mobile has native authentication/profile/feed/opportunity/notification workflows plus WebView fallback; native networking/messaging is not implemented and remains blocked on approved ownership/migration work.
 
 ## Recommendations (not verified behavior)
 
@@ -31,3 +31,7 @@ The five profile workflow routes are extracted with regression evidence; the ear
 ## Issue #5 follow-up boundary (2026-09-26)
 
 The three analytics handlers are now extracted under D-011 with T-106 semantics preserved. Earlier notes listing analytics extraction as unimplemented are historical. T-203 remains open for identity, remaining workflows, image/media, and public-profile routes. Shared networking counts and display-name post attribution remain existing data-model limitations; no T-104/T-201 ownership/schema or retention work is included.
+
+## Issue #9 ownership design boundary (2026-09-26)
+
+[OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) documents shared histories/unread/endorsements, unproven legacy authors, related shared analytics, suspension-after-connect and pre-commit notification limitations. No defect is repaired by this design-only PR. Proposed D-012–D-015 require human review before schema/runtime/client changes; legacy reassignment, destructive cleanup, admin private-message access and organizational tenancy are not silently authorized.

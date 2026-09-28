@@ -243,3 +243,11 @@ Limits: content inspection is container-signature-level validation, not malware 
 - AST comparison against `2193553`: all **118 original top-level class/function definitions** match, including the three moved handlers, normalizing only `blueprint`/`app` and injected model parameter names. The remaining monolith definitions are unchanged.
 - `git diff --check` passes. Production diff contains only the new analytics module and entrypoint import/registration. Internal Flask endpoint names gain `analytics.`; repository search found no old endpoint-name consumers. Direct-script startup registers all three paths exactly once without importing a second entrypoint.
 - Limits: automated Flask/Node/startup verification; no manual browser, mobile-device, or deployment testing. No unrelated ownership/schema/retention defects addressed; broader T-203 remains open.
+
+## 2026-09-26 — T-104 / Issue #9 design-only verification
+
+- `.venv/bin/python -m pytest -q`: **285 passed, 1394 warnings in 23.77s**, no skips. Existing SQLAlchemy legacy/datetime deprecation warnings; no executable tests or runtime files changed. The initially absent local virtual environment was created from the repository's unchanged `requirements.txt` before running the suite.
+- `git diff --check` passes. Scope verification against `d4a0516` confirms all changed/added tracked paths are `agent/*.md`; production source, clients, model definitions, route contracts, dependencies, tests and database files are unchanged.
+- Source review traces all seven social routes, their model/seed/socket/notification effects, shared network analytics and web/native/WebView consumers. The design explicitly covers all eight Issue #9 deliverables and separates verified behavior from proposed D-012–D-015.
+- Tests use the existing isolated SQLite/storage harness; no application database was opened for design analysis and no production migration was created or run. The proposed SQL is documentation only.
+- Limits: this validates the unchanged runtime baseline, not the proposed ownership model. Three-user isolation, migration/restore, independent-connection races, new API/client behavior, post-commit recipient delivery and release-device checks remain required in later approved implementation. T-104 remains pending architecture review; no merge.

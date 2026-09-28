@@ -143,3 +143,10 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Extracted only the three analytics handlers into an explicitly injected blueprint. Preserved all metrics, response shapes/order, role/owner scope, and activity-update transaction behavior. Shared helpers and all unrelated routes/models/clients remain unchanged.
 - Full post-extraction suite 285 passed; 66 URL rules/23 table definitions and indexes match the base; normalized AST comparison preserves all 118 original definitions; diff check passes.
 - Updated durable records and prepared a second reviewable extraction/documentation commit for a PR to `master`. No merge. Identity, remaining workflows, image/media, and public-profile extraction keep T-203 open.
+
+## 2026-09-26 — T-104 / GitHub Issue #9 ownership design
+
+- Read Issue #9, AGENTS.md and all required architecture/roadmap/task/decision/security/API/data/mobile/web/issue/test/state/session records. Checked out the existing clean `codex/t-104-ownership-design` branch at `d4a0516`, the current master baseline.
+- Traced all seven social handlers, five legacy models, seed data, Socket.IO rooms/events, notification commit ordering, shared analytics, current web/native/WebView consumers and existing test coverage. Reconciled relevant stale discovery descriptions without changing runtime.
+- Prepared `OWNERSHIP_DESIGN.md` and proposed D-012–D-015 covering ownership, authorization, compatibility, data preservation and migration gates. Documented concrete alternatives and human decisions; no unprovable legacy ownership, automatic deletion, admin private-data bypass or authentication change approved.
+- T-104 remains open pending architecture review; implementation, T-201 migrations and native messaging remain gated. Only `agent/*.md` changes are intended. Full-suite and diff verification are recorded in TEST_RESULTS.md. Preparing a PR to master for review only; no merge.

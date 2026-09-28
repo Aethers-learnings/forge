@@ -2,15 +2,15 @@
 
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
-Last updated: 2026-09-24 (T-005 verified; roadmap P0 implementation complete; release-device checks pending)
+Last updated: 2026-09-26 (Issue #9 ownership design prepared; architecture review pending; release-device checks remain pending)
 
 ## Verified current state
 
 - Forge is a single-process Flask application (`forge_backend.py`) serving a same-origin static HTML client and JSON API, backed by a project-local SQLite database at `instance/forge.db` through Flask-SQLAlchemy.
 - Flask-SocketIO runs in threading mode. The client is a single `static/forge_demo.html` file that uses `fetch`, direct DOM rendering, and Socket.IO.
-- An Expo Router application in `mobile/` is a thin WebView wrapper around a user-configurable Forge server URL; it is not a native implementation of Forge workflows.
+- The Expo Router application includes native authentication/profile/feed/opportunity/notification workflows plus an HTTPS-restricted WebView fallback. Native networking/messaging remains unimplemented.
 - Roles are `trade`, `grad`, `business`, and `admin`. Admin self-registration is excluded; business listing and alumni-verification approval workflows exist.
-- The working tree already contains an unrelated, pre-existing modification to `mobile/src/app/index.tsx`. It was not changed by this documentation task.
+- Issue #9 began on a clean `codex/t-104-ownership-design` branch at `d4a0516`; its changes are documentation-only. Earlier working-tree observations in session records are historical.
 
 ## Current objective
 
@@ -120,3 +120,7 @@ On `codex/web-profile-data-export` from `0706445`, replaced the existing student
 Starting from `2193553` on `master` (profile PR #4 and web export PR #7 merged), added 28 analytics regression cases and extended direct-script startup coverage before production extraction. The three analytics GET handlers now live in `forge_routes/analytics.py`, using explicit existing dependencies and unchanged T-106 metrics. No client, model, security-policy, or transaction changes.
 
 Full suite before/after: **285 passed**, no skips; all **66 URL rules**, **23 tables** including constraints/indexes, and **118 original top-level definitions** match after normalizing moved dependency names. Prepared on `codex/t-203-analytics-extraction` for human PR review against `master`, without merging. T-203 stays open for identity/remaining workflow/media work.
+
+## T-104 / Issue #9 design submitted for review (2026-09-26)
+
+Prepared [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md): current source trace, concrete target entities, authorization matrix, proposed API/client/socket changes, SQLite migration/rollback stages, threats and future integration tests. D-012–D-015 remain proposed; T-104 is unchecked pending human architecture review, and T-201/native messaging are not unblocked. No production model, route, client, database, migration or authentication behavior changed. Current shared-state defects remain present. Validation is recorded in `TEST_RESULTS.md`; requested PR target is `master`, with no merge.

@@ -49,3 +49,7 @@ Status: verified SQLAlchemy schema in `forge_backend.py`. SQLite database path: 
 `User` is referenced by likes, applications, interests, alumni verification, profile views, notifications, coach messages, testimonials (target only), search logs, opportunities/listings (optional owner), and reset/session fields. `Post` is referenced by likes/comments; `Opportunity` by applications; `Event` by interests; `ApprovalQueueItem` by listing; `BusinessListing` by opportunity; `Conversation` by message.
 
 The SQLAlchemy model declarations contain foreign keys but no explicit ORM relationships, cascade policy, indexes beyond primary/unique constraints, tenancy constraints, or audit/deletion policy. Normalization, PostgreSQL, and migrations are recommendations—not current implementation—and PostgreSQL requires human approval.
+
+## T-104 ownership proposal — not current schema (2026-09-26)
+
+[OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) records source-verified limitations of `NetworkRequest`, `Suggested`, `ConnectionNPC`, `Conversation`, and `Message`, then proposes six separate owned entities with pair uniqueness, author/membership FKs, endorsement provenance, per-member read cursors and audit events. No model, database, index or migration has been changed. Legacy rows remain unassigned: names, seed templates and `me/them` cannot prove ownership. D-012–D-015 require human approval; T-201 must review FK enforcement across the existing schema and admin-removal behavior before implementing additive migration tooling.

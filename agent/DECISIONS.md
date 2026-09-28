@@ -71,3 +71,35 @@ Status: implemented for T-203 / Issue #5 (2026-09-26), pending PR review
 Continue D-009's explicit dependency injection in one cohesive `forge_routes/analytics.py` blueprint. Retain route-local queries and the existing `daily_series`/`cumulative` helpers; no generic repository/service abstraction is needed. Add behavior regressions before moving production code and compare runtime URL/schema snapshots and normalized ASTs. Classification: SAFE_INCREMENTAL.
 
 Preserve T-106 metrics and all existing quirks, including shared network counts, display-name post attribution, application-row demographic counting, duplicate skill tokens, and the login guard's last-seen transaction. Do not repair ownership, schema, authentication, media, or retention behavior in this extraction. T-203 remains open for identity/remaining workflow/media work.
+
+## D-012: User-pair ownership and participant authorization
+
+Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+
+Recommend one canonical user-pair edge for request/accepted relationship state, derived discoverable-user suggestions, actor-owned revocable endorsements, unique direct conversations with explicit immutable membership, session-authored messages and per-member read cursors. Accepted connections may create/send; disconnected members retain read-only history. Admin status does not grant private-message access. Existing Flask/session/CSRF/SQLite architecture remains. See [OWNERSHIP_DESIGN sections 2–3](OWNERSHIP_DESIGN.md#2-target-model-and-invariants) for constraints, transitions and authorization.
+
+Human decision: approve user-to-user scope (or require a separate organizational model), discovery/cooldown, connected-only messaging, endorsement context and text limit. Separate request/connection tables and open messaging are alternatives with more reconciliation/moderation complexity. Classification: MAJOR_REVIEW; no schema/runtime approval or implementation occurs in this PR.
+
+## D-013: Preserve and quarantine unprovable legacy ownership
+
+Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+
+Keep all five ownerless legacy social tables intact and inaccessible through the future real-user APIs; start a separate empty owned graph. No guessed identity from display names, seed text or `me/them`, and no dual-read/dual-write. Independently proven imports require an approved mapping manifest. New identity references use RESTRICT; review current admin-remove fallback before enforcing FKs. Permanent erasure, anonymization, legacy cleanup and retention remain separate decisions. See [migration stages](OWNERSHIP_DESIGN.md#5-staged-sqlite-migration-and-rollback-plan-not-executable-here).
+
+Human decision: accept loss of legacy UI visibility while retaining its data, or commission evidence-based mapping. Automatic reassignment/discard is rejected without evidence and explicit approval. Classification: MAJOR_REVIEW; destructive policy remains HUMAN_APPROVAL_REQUIRED.
+
+## D-014: Explicit social API compatibility boundary
+
+Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+
+Recommend preserving existing paths behind an ownership-v2 capability header and coordinated web/WebView transition. Required preconditions, desired-state endorsements, pure GET plus explicit read, paged results, stable send retry keys and real participant-relative messages deliberately change the social contract. Old clients must receive an update response rather than reinterpret legacy NPC IDs. Participant-only sockets carry minimal invalidations after committed writes; persistent notification shape remains stable. The capability header does not authorize access. See [endpoint mapping](OWNERSHIP_DESIGN.md#4-api-and-client-transition--proposed-contract-boundary).
+
+Human decision: approve the header boundary and listed status/body/semantic changes, or choose explicit versioned paths before coding; no transparent unsafe fallback. Native messaging remains unimplemented and blocked on the approved contract. Classification: MAJOR_REVIEW. This record does not amend the currently implemented API_CONTRACT.
+
+## D-015: Migration gates and secure rollback
+
+Status: **PROPOSED / REQUIRES HUMAN APPROVAL** (2026-09-26, T-104 / Issue #9)
+
+T-201 must provide migration/version tooling, consistent SQLite backups and restore rehearsals before additive tables/indexes/constraints. Enabling foreign keys needs whole-schema orphan and admin-removal review. Future implementation proceeds behind a gate with three-user authorization, independent-connection race, client, notification/socket, migration and rollback tests. Include the shared network analytics consumer in cutover. After new writes, rollback preserves new data and uses a secure compatible release or maintenance response, never an ownerless legacy fallback or an older snapshot over new messages.
+
+Human decision: approve staged rollout/maintenance and recovery ownership after reviewing the [plan and required tests](OWNERSHIP_DESIGN.md#6-threat-model-and-required-future-tests). Any unrelated data repair, irreversible cleanup or fundamental authentication change stops for separate review. Classification: MAJOR_REVIEW; this design authorizes none of those operations.

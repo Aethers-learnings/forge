@@ -53,3 +53,7 @@ Native messaging remains blocked by the existing conversation/network ownership 
 6. Decide whether WebView retirement is appropriate only after measurable native parity, security, and support evidence. Classification: MAJOR_REVIEW.
 
 The current Expo/WebView application remains during native-mobile parity work. A fundamental authentication change or a major third-party mobile service requires human approval.
+
+## T-104 contract dependency (2026-09-26)
+
+[OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) proposes the future participant-safe contract and coordinated web/WebView transition; it does not implement native networking/messaging. Existing native authentication/profile/feed/opportunities/notifications remain unchanged, including separate native/WebView sessions. Native social work remains blocked on human approval of D-012–D-015 and T-201 migration readiness. Cached WebView compatibility, actor-scoped state and signed-device revocation checks are explicit future acceptance gates.

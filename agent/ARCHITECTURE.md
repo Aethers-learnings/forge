@@ -1,8 +1,8 @@
 # Architecture
 
-Status: verified discovery baseline; future-state items are explicitly labelled.
+Status: historical discovery baseline followed by dated implementation updates; future-state items are explicitly labelled. For current social ownership evidence and the unapproved target, see the T-104 note below.
 
-## Current implementation
+## Original discovery snapshot (historical)
 
 ```text
 Browser / installed PWA                 Expo mobile wrapper
@@ -70,3 +70,9 @@ Internal endpoint identifiers acquire the `profile.` namespace; repository inspe
 The three analytics GET handlers now live in `forge_routes/analytics.py`. Its blueprint factory receives the existing login guard, models, and `daily_series`/`cumulative` helpers explicitly; `forge_backend.py` registers it once at the former route-group location. No second app/database or service/repository layer is introduced. Queries, aggregation, ordering, serialization, and the login guard's activity-update commit are unchanged. Shared helpers remain in the entrypoint.
 
 Internal endpoint identifiers acquire the `analytics.` prefix; no repository code references the old identifiers through `url_for` or `request.endpoint`. All public URL rules and schema metadata match the branch base. Identity, remaining workflows, image/media, and public-profile extraction remain follow-up work.
+
+## T-104 current evidence and proposed boundary (2026-09-26)
+
+At `d4a0516`, Flask/SQLite and signed-session/CSRF security remain the baseline. Notifications/onboarding/profile/analytics have incremental blueprint extractions; an automated regression suite exists. Mobile now includes native workflows and an HTTPS-restricted WebView fallback, superseding the original discovery snapshot's wrapper/cleartext description. Networking/conversation handlers and five ownerless social tables remain in `forge_backend.py`.
+
+[OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md) traces these handlers and their consumers and proposes a minimal user-pair/membership model, explicit API transition and additive-first migration. D-012–D-015 are **PROPOSED / REQUIRES HUMAN APPROVAL**. This is not an app-factory rewrite, authentication replacement, schema change, or native messaging implementation. Keep T-203 behavior-preserving extraction separate from later approved ownership work.

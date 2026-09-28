@@ -82,3 +82,7 @@ Status: stable baseline for the current unversioned Flask API. This document fix
 ## Compatibility policy
 
 Existing documented fields and status codes are contractually stable for incremental route extraction. Additive response fields are permitted. Removing or renaming a documented field, changing its JSON type, or changing a documented success/error status requires an explicit compatibility decision and accompanying migration plan.
+
+## Pending social ownership contract review (2026-09-26)
+
+[OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md#4-api-and-client-transition--proposed-contract-boundary) is a proposed future mapping, not an amendment to this implemented contract. It explicitly lists changes that cannot be treated as harmless additive fields: real-user ID namespaces, required transition versions, desired-state endorsements, bounded message histories, pure reads, message retry keys and response/status changes. Existing paths, authentication, CSRF and client behavior are unchanged by Issue #9. D-014 and coordinated web/WebView migration require human approval; future native messaging remains blocked.
