@@ -53,3 +53,9 @@ application/test schema initialization migration-aware or otherwise fail closed
 on unmanaged/out-of-date persistent databases. Do not add owned-social ORM
 models or rely on `db.create_all()` to create revision-02 tables until this is
 resolved and regression-tested.
+
+## Issue #16 bootstrap boundary resolved; remaining limits (2026-09-28)
+
+The earlier `db.create_all()` bootstrap warning is resolved by migration-only fresh initialization, migrated test fixtures and read-only startup verification. An existing unmanaged/behind-head database now intentionally prevents startup until an operator explicitly verifies, backs up and adopts/upgrades it; no persistent rollout is performed here. Failed fresh initialization may leave an empty file/recovery journal and requires inspection/new disposable path, never forced adoption.
+
+Owned-social ORM/service integration, D-014 cutover, global FK review and T-107 implementation remain open. Verification occurs at startup, not continuously; schema-changing operator commands require stopped application writers. SQLite read-only WAL access may maintain shared-memory read locks but does not mutate source schema/data. The new readiness check does not fix legacy social authorization.

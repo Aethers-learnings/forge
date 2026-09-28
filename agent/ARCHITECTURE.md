@@ -109,3 +109,9 @@ Important next architectural boundary: `forge_backend.py` still has historical
 declared, startup and test database initialization must become
 migration-aware/fail-closed so ORM metadata cannot bypass the ordered migration
 ledger.
+
+## Issue #16: migration-owned initialization (2026-09-28)
+
+`forge_migrations.py` plus committed manifests/revisions are the schema authority. The fresh initializer materializes the frozen baseline without importing application metadata, applies the ordered revisions and ledger in one explicit transaction, and verifies before commit. `db-init` requires confirmation and refuses every existing file. Test resets replace only fixture-owned files using this initializer; there is no application/test `create_all()` path.
+
+Normal app import (including WSGI), direct execution and Flask run verify persistent HEAD before serving. A separate SQLite read-only connection avoids application WAL/NORMAL hooks during refusal; those hooks now attach only to the app engine. Checksum/order, reflected schema, physical revision SQL/trigger bodies, ledger columns and integrity must pass. CLI command discovery is exempt so operators can recover an unready database; seed-demo explicitly checks readiness. Fresh memory databases auto-initialize only in development/test. This is a bootstrap seam, not an app-factory or framework rewrite; routes, models, authentication and FK policy are unchanged. See README's environment/state policy and interruption limits.

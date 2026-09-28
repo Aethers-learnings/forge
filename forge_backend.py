@@ -50,7 +50,10 @@ from forge_routes.analytics import create_analytics_blueprint
 from forge_routes.notifications import create_notifications_blueprint
 from forge_routes.onboarding import create_onboarding_blueprint
 from forge_routes.profile import create_profile_blueprint
-from forge_migrations import register_migration_commands
+from forge_migrations import (
+    is_cli_command_discovery, prepare_application_database,
+    register_migration_commands, verify_application_database,
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
@@ -209,15 +212,18 @@ socketio = SocketIO(app, async_mode="threading")
 register_migration_commands(app, db)
 
 from sqlalchemy import event
-from sqlalchemy.engine import Engine
 
 
-@event.listens_for(Engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.close()
+
+
+# Keep write-oriented application pragmas away from read-only startup probes.
+with app.app_context():
+    event.listen(db.engine, "connect", _set_sqlite_pragma)
 
 
 ROLES = ("trade", "grad", "business", "admin")
@@ -2482,7 +2488,15 @@ def seed_demo_command():
             "seed-demo is disabled; set FORGE_ENV=development and "
             "FORGE_DEMO_MODE=1 explicitly."
         )
+    verify_application_database(db.engine)
     print("Seeded." if seed_demo_data() else "Database not empty — skipped.")
+
+
+# Imports used by WSGI and Flask's built-in run/shell fail before serving.
+# Command discovery remains available for explicit migration recovery commands.
+if not is_cli_command_discovery():
+    with app.app_context():
+        prepare_application_database(db.engine, app.config["FORGE_ENVIRONMENT"])
 
 
 if __name__ == "__main__":
@@ -2490,7 +2504,6 @@ if __name__ == "__main__":
     demo_mode = bool(app.config.get("FORGE_DEMO_MODE", False))
 
     with app.app_context():
-        db.create_all()
         # Demo identities are never created implicitly in a normal startup.
         # When explicitly enabled, avoid double seeding under the debug reloader.
         should_seed_demo = demo_mode and (
@@ -2500,8 +2513,7 @@ if __name__ == "__main__":
             print("=" * 66)
             print("Seeded local demo data. Demo logins (password 'demo123'):")
             print("  demo_trade · demo_grad · demo_business · demo_admin")
-            print("Upgraded from an older schema? Delete instance/forge.db")
-            print("and restart to re-seed with the new columns.")
+            print("Schema changes use explicit migration commands; preserve existing data.")
             print("=" * 66)
 
     socketio.run(app, host="0.0.0.0",

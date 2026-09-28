@@ -5,7 +5,6 @@ import sqlite3
 import pytest
 from sqlalchemy import create_engine, inspect, text
 
-import forge_backend
 import forge_migrations
 from forge_migrations import (
     BASELINE_REVISION,
@@ -31,11 +30,12 @@ def current_schema_engine(
 ):
     database = tmp_path / name
     engine = create_engine(f"sqlite:///{database}")
-    forge_backend.db.metadata.create_all(engine)
+    with forge_migrations._sqlite_write_transaction(engine) as connection:
+        forge_migrations._create_frozen_baseline(connection)
     return engine, database
 
 
-def test_committed_baseline_matches_current_sqlalchemy_schema(
+def test_committed_baseline_materializes_without_application_metadata(
     tmp_path,
 ):
     engine, _ = current_schema_engine(tmp_path)

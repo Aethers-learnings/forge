@@ -18,9 +18,12 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from functools import lru_cache
 
 import click
-from sqlalchemy import inspect, text
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.pool import NullPool
 
 from migrations import (
     r20260928_02_owned_social_schema as owned_social_schema,
@@ -940,8 +943,208 @@ def backup_sqlite(engine, destination):
     return destination
 
 
+def _create_frozen_baseline(connection):
+    """Materialize only the committed baseline, never application metadata."""
+    quote = connection.dialect.identifier_preparer.quote_identifier
+    columns_sql = lambda names: ", ".join(quote(name) for name in names)
+    for name, table in load_baseline()["schema"]["tables"].items():
+        definitions = []
+        for column in table["columns"]:
+            definition = f'{quote(column["name"])} {column["type"]}'
+            if not column["nullable"]:
+                definition += " NOT NULL"
+            if column["default"] is not None:
+                definition += f' DEFAULT {column["default"]}'
+            definitions.append(definition)
+        if table["primary_key"]:
+            definitions.append(f'PRIMARY KEY ({columns_sql(table["primary_key"])})')
+        for unique in table["unique_constraints"]:
+            prefix = f'CONSTRAINT {quote(unique["name"])} ' if unique["name"] else ""
+            definitions.append(prefix + f'UNIQUE ({columns_sql(unique["columns"])})')
+        for fk in table["foreign_keys"]:
+            if fk["options"] or fk["referred_schema"] or fk["name"]:
+                raise MigrationError("Unsupported frozen baseline foreign key.")
+            definitions.append(
+                f'FOREIGN KEY ({columns_sql(fk["columns"])}) '
+                f'REFERENCES {quote(fk["referred_table"])} '
+                f'({columns_sql(fk["referred_columns"])})'
+            )
+        connection.exec_driver_sql(
+            f'CREATE TABLE {quote(name)} ({", ".join(definitions)})'
+        )
+        for index in table["indexes"]:
+            unique = "UNIQUE " if index["unique"] else ""
+            connection.exec_driver_sql(
+                f'CREATE {unique}INDEX {quote(index["name"])} '
+                f'ON {quote(name)} ({columns_sql(index["columns"])})'
+            )
+
+
+def _initialize_empty_database(engine):
+    """One transaction owns baseline, revisions, verification and ledger."""
+    with _sqlite_write_transaction(engine) as connection:
+        if connection.exec_driver_sql(
+            "SELECT count(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"
+        ).scalar():
+            raise MigrationError("Fresh bootstrap requires an empty database.")
+        _create_frozen_baseline(connection)
+        _assert_schema_matches_revision_bind(connection, BASELINE_REVISION)
+        connection.exec_driver_sql(
+            f"CREATE TABLE {LEDGER_TABLE} (revision TEXT PRIMARY KEY NOT NULL, "
+            "checksum TEXT NOT NULL, applied_at TEXT NOT NULL)"
+        )
+        for revision in REVISION_ORDER:
+            if revision != BASELINE_REVISION:
+                REVISION_MODULES[revision].upgrade(connection)
+            _assert_schema_matches_revision_bind(connection, revision)
+            connection.execute(text(
+                f"INSERT INTO {LEDGER_TABLE} VALUES (:revision, :checksum, :time)"
+            ), {"revision": revision, "checksum": revision_checksum(revision),
+                "time": datetime.now(timezone.utc).isoformat()})
+        _integrity_result(connection)
+        _verify_revision_modules(connection, REVISION_ORDER)
+
+
+def initialize_fresh_database(engine):
+    """Explicit bootstrap for memory or a NEW file; refuse every existing file.
+
+    File reservation is exclusive. Interrupted initialization may leave an empty
+    file, but never a committed partial ledger/schema. No existing file is
+    removed or adopted, even when it is zero bytes.
+    """
+    path = _sqlite_database_path(engine)
+    if path is not None:
+        try:
+            with path.open("xb"):
+                pass
+        except FileExistsError as exc:
+            raise MigrationError(
+                "db-init refuses an existing database (including empty files); "
+                "use db-status/db-verify and explicit db-baseline/db-upgrade."
+            ) from exc
+    _initialize_empty_database(engine)
+
+
+def _physical_revision_schema(connection):
+    """Include CHECK/trigger bodies missing from SQLAlchemy reflection."""
+    baseline_tables = set(load_baseline()["schema"]["tables"])
+    objects = sorted(
+        (kind, name, " ".join(sql.split()))
+        for kind, name, table, sql in connection.exec_driver_sql(
+            "SELECT type, name, tbl_name, sql FROM sqlite_master "
+            "WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'"
+        )
+        if (table not in baseline_tables and table != LEDGER_TABLE)
+        or kind in ("trigger", "view")
+    )
+    ledger_columns = list(connection.exec_driver_sql(
+        f"PRAGMA table_info({LEDGER_TABLE})"
+    ))
+    # The frozen baseline has no CHECK constraints. Reflection's ordinary
+    # snapshot omits them, so reject added baseline restrictions as drift too.
+    inspector = inspect(connection)
+    baseline_checks = {
+        table: inspector.get_check_constraints(table)
+        for table in sorted(baseline_tables)
+    }
+    return objects, ledger_columns, baseline_checks
+
+
+@lru_cache(maxsize=1)
+def _expected_physical_revision_schema():
+    engine = create_engine("sqlite://")
+    try:
+        initialize_fresh_database(engine)
+        with engine.connect() as connection:
+            return _physical_revision_schema(connection)
+    finally:
+        engine.dispose()
+
+
+def _require_head(engine):
+    status = migration_status(engine)
+    if not status["managed"]:
+        raise MigrationError(
+            "Database is unmanaged. Run db-status and db-verify; after backup "
+            "and exact baseline verification, explicitly run db-baseline "
+            "--confirm-current-schema then db-upgrade --confirm-schema-change."
+        )
+    if status["headRevision"] != HEAD_REVISION:
+        raise MigrationError(
+            f'Database is behind HEAD ({HEAD_REVISION}). Run db-status, back up, '
+            'then explicitly run db-upgrade --confirm-schema-change.'
+        )
+    verify_database(engine)
+    with engine.connect() as connection:
+        if _physical_revision_schema(connection) != _expected_physical_revision_schema():
+            raise MigrationError("Migration-owned physical schema/ledger/trigger drift.")
+    return status
+
+
+def verify_application_database(engine):
+    """Read-only persistent startup verification, before any app connection."""
+    path = _sqlite_database_path(engine)
+    if path is None:
+        return _require_head(engine)
+    if not path.is_file():
+        raise MigrationError(
+            "Database is missing. Explicitly run flask --app forge_backend "
+            "db-init --confirm-schema-change for a new database."
+        )
+    readonly = create_engine(
+        "sqlite://", poolclass=NullPool,
+        creator=lambda: sqlite3.connect(path.as_uri() + "?mode=ro", uri=True),
+    )
+    try:
+        return _require_head(readonly)
+    except (MigrationError, SQLAlchemyError, sqlite3.Error) as exc:
+        raise MigrationError(
+            f"Startup refused: {exc} Inspect with flask --app forge_backend "
+            "db-status / db-verify; repair or restore from a verified backup. "
+            "No automatic schema change was attempted."
+        ) from exc
+    finally:
+        readonly.dispose()
+
+
+def prepare_application_database(engine, environment):
+    """Only fresh in-memory development/test DBs initialize automatically."""
+    if _sqlite_database_path(engine) is None:
+        if environment not in {"development", "test"}:
+            raise MigrationError("Staging/production require a managed persistent SQLite database.")
+        if not inspect(engine).get_table_names():
+            initialize_fresh_database(engine)
+    return verify_application_database(engine)
+
+
+def is_cli_command_discovery():
+    """Let Flask discover maintenance commands even when startup is refused.
+
+    Built-in run/shell load the app with invoked_subcommand already set, so
+    still verify. This is not an environment-variable startup bypass.
+    """
+    from flask.cli import FlaskGroup
+    context = click.get_current_context(silent=True)
+    if context is None:
+        return False
+    root = context.find_root()
+    return isinstance(root.command, FlaskGroup) and root.invoked_subcommand is None
+
+
 def register_migration_commands(app, db):
     """Register explicit operator commands; none run at startup."""
+
+    @app.cli.command("db-init")
+    @click.option("--confirm-schema-change", is_flag=True)
+    def db_init_command(confirm_schema_change):
+        """Initialize a NEW database through the frozen baseline and revisions."""
+        if not confirm_schema_change:
+            raise click.ClickException("Refusing to initialize without --confirm-schema-change.")
+        try:
+            initialize_fresh_database(db.engine)
+        except (MigrationError, SQLAlchemyError, OSError) as exc:
+            raise click.ClickException(str(exc)) from exc
+        click.echo(f"Initialized migration HEAD: {HEAD_REVISION}")
 
     @app.cli.command("db-status")
     def db_status_command():

@@ -318,3 +318,14 @@ Limits: content inspection is container-signature-level validation, not malware 
   without a migration ledger and without any owned-social tables.
 - Global FK enforcement remains unchanged/off by default; no production/local
   persistent rollout occurred.
+
+## 2026-09-28 — Issue #16 migration-managed bootstrap
+
+- Focused: `.venv/bin/python -m pytest -q tests/test_database_bootstrap.py tests/test_migration_tooling.py --basetemp=.git/pytest-issue16-reviewed-focused` — **46 passed in 43.37s**.
+- Full backend/web suite: `.venv/bin/python -m pytest -q --basetemp=.git/pytest-issue16-reviewed-full` — **331 passed, 1394 existing deprecation warnings in 73.47s**, no skips. Adds 33 bootstrap cases to the 298-test master baseline.
+- Fresh file/memory bootstrap reaches HEAD with both ledger rows, six owned tables, endpoint insert/update triggers, pair/retry uniqueness, message bound and author FK. ORM create_all methods are patched to fail in independence tests. Existing migration tests now create baseline fixtures from the frozen manifest, not application metadata.
+- Current HEAD succeeds without persistent DB mutation in development/test/staging/production, including databases initialized through explicit baseline+upgrade. Refused states cover unmanaged/behind-head, column drift, checksums, missing/replaced trigger body, revised message CHECK, added baseline CHECK, extra view and ledger-column tampering. File hash/mtime/size and sidecar comparisons prove refusal non-mutation; WAL test detects an uncheckpointed tampered ledger and preserves database/WAL bytes (shared-memory read locks excluded).
+- Actual subprocess import/WSGI readiness, direct-script and Flask-run refusal, CLI confirmation/new-file refusal, explicit baseline/upgrade recovery, demo gating/initialization order and deployment memory rejection are covered. RuntimeError, KeyboardInterrupt, SystemExit and SIGKILL injection leave no committed partial schema or ledger; SQLite recovery occurs only on the test-owned crash file.
+- AST comparison with `dac4ef8`: every existing model class and HTTP/socket handler is unchanged; only the pragma registration and seed CLI readiness differ among pre-existing definitions. `git diff --check` passes. All files under `migrations/`, including baseline JSON and revision-02 source/manifest/checksum inputs, are byte-identical to master.
+- No real `instance/forge.db` was opened, baselined, upgraded, seeded or used in tests. Tests use newly allocated workspace-local fixture files, pytest temporary databases or in-memory SQLite. No live-database hash probe or copy rehearsal was needed. Removed only test-owned temporary directories generated during validation.
+- Root/mobile README startup guidance changed; no static/mobile code changed, so separate mobile lint/device checks were not run. No global FK enablement, social ORM/API/client work or production rollout. T-201 and T-107 remain open.
