@@ -2,6 +2,10 @@
 
 Status: proposed incremental migration and quality plan.
 
+## Browser regression harness (Issue #19)
+
+Install `pip install -r requirements-browser.txt` and `python -m playwright install chromium`, then run `pytest tests/test_browser_web_quality.py`. Tests start a local Flask server with a freshly migrated, seeded database in a temporary test directory. Chromium exercises auth, roles, keyboard and label semantics, delayed/retry/offline behavior, mutation deduplication, escaping, desktop/mobile widths, reduced motion and real response CSP/security headers. Third-party font and socket CDN requests are blocked in the browser context to avoid external network dependence; production CSP is unchanged. Screenshots are written to ignored `test-results/` only on failure. The browser dependency is optional for the ordinary Python suite (browser tests skip if Playwright is absent); install it to run browser coverage.
+
 ## Verified baseline
 
 `static/forge_demo.html` is a single static document served by Flask. It contains the application UI, styles, client state, rendering functions, `fetch` API client, Socket.IO client, auth forms, role-specific navigation, dashboards, and direct DOM updates. It uses an `esc()` helper for rendered values, but relies on `innerHTML` composition. PWA assets are served through Flask. No separate frontend build/test tooling was found.

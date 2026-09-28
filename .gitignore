@@ -46,3 +46,7 @@ tests/tmp*.db-wal
 tests/forge-profile-images-*/
 
 .venv-host/
+
+# Browser regression failure artifacts
+test-results/
+tests/forge-browser-*/

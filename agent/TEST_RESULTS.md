@@ -336,3 +336,9 @@ Limits: content inspection is container-signature-level validation, not malware 
 - AST comparison with `dac4ef8`: every existing model class and HTTP/socket handler is unchanged; only the pragma registration and seed CLI readiness differ among pre-existing definitions. `git diff --check` passes. All files under `migrations/`, including baseline JSON and revision-02 source/manifest/checksum inputs, are byte-identical to master.
 - No real `instance/forge.db` was opened, baselined, upgraded, seeded or used in tests. Tests use newly allocated workspace-local fixture files, pytest temporary databases or in-memory SQLite. No live-database hash probe or copy rehearsal was needed. Removed only test-owned temporary directories generated during validation.
 - Root/mobile README startup guidance changed; no static/mobile code changed, so separate mobile lint/device checks were not run. No global FK enablement, social ORM/API/client work or production rollout. T-201 and T-107 remain open.
+## 2026-09-28 — Issue #19 real browser web quality
+
+- Playwright 1.55.0 / Chromium 140.0.7339.16: **8 browser cases passed**, exercising the 13 Issue #19 acceptance areas across role parameters, desktop/mobile viewports and reduced motion. Optional third-party CDN requests were blocked; Forge CSP and same-origin API requests remained unchanged.
+- Focused browser plus existing web/security checks: **23 passed**.
+- Full Python suite with browser dependency installed: **343 passed**, 1394 existing deprecation warnings, in 78.56s. `git diff --check` passed.
+- The browser server used only a fresh, migration-managed temporary test database and isolated upload directories. No real `instance/forge.db` access. No Issue #18 social ORM/service or migration history change; no static-client defect was reproduced in this scope, so no client change was made.
