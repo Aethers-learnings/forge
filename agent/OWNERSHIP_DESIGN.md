@@ -255,3 +255,5 @@ The requirement is approved. The following are implementation acceptance require
 | Release tests | Use A/B/C plus admin/reviewer and suspended accounts: cross-user denials, own block management, report access/identity, report availability after block, evidence confidentiality, moderator authorization/audit, race/idempotency constraints, socket/notification isolation and client behavior. Test migration/rollback without silently losing active blocks/reports or restoring blocked contact. Record the evidence before checking T-107 or declaring social networking production-complete. |
 
 Detailed choices above must be captured in a follow-up design and the authorization/API/migration matrices before coding. This does not reopen the approved user-pair model, require an authentication replacement, grant new admin privileges, or expand this documentation update into runtime work.
+
+Issue #12's [T-107 safety design proposal](SAFETY_DESIGN.md) provides those future matrices and test cases. Its marked choices require human approval; its existence does not satisfy the implementation and production gates above.

@@ -1,5 +1,11 @@
 # Test results
 
+## 2026-09-28 — T-107 / Issue #12 design-only verification
+
+- Isolated `.venv/bin/python -m pytest -q`: **290 passed, 1394 warnings in 28.76s**. Warnings are existing datetime and SQLAlchemy deprecations; no safety implementation tests exist yet.
+- `git diff --check` and documentation link/anchor check passed. Diff contains only `agent/*.md`; no migration, runtime, client or dependency files changed.
+
+
 Date: 2026-09-24
 
 ## IMPLEMENTATION_1 — T-003 CSRF/origin protection (2026-09-18)
