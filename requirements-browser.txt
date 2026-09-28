@@ -1,0 +1,2 @@
+# Optional browser regression tooling; production requirements stay unchanged.
+playwright==1.55.0
