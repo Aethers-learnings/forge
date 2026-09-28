@@ -256,4 +256,4 @@ The requirement is approved. The following are implementation acceptance require
 
 Detailed choices above must be captured in a follow-up design and the authorization/API/migration matrices before coding. This does not reopen the approved user-pair model, require an authentication replacement, grant new admin privileges, or expand this documentation update into runtime work.
 
-Issue #12's [T-107 safety design proposal](SAFETY_DESIGN.md) provides those future matrices and test cases. Its marked choices require human approval; its existence does not satisfy the implementation and production gates above.
+Issue #12's [T-107 safety design](SAFETY_DESIGN.md) provides those future matrices and test cases. The user approved its core behavior on 2026-09-28, including no cooldown exception on unblock; the deferred policies listed there remain separate decisions. Design approval does not satisfy the implementation and production gates above.

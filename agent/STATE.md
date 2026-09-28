@@ -132,3 +132,7 @@ The user approved D-012–D-015 as proposed. PR #10 is already merged; this docu
 ## 2026-09-28 — T-107 / Issue #12 design proposal
 
 [SAFETY_DESIGN](SAFETY_DESIGN.md) proposes directed blocking, pair-wide contact denial, private reporting and narrowly audited reviewer evidence, future API/client contracts, migration/rollback and executable test requirements. Marked product/policy choices await human review. This documentation-only increment does not implement or verify the safety system; T-107 and social production completion remain open. Current shared social routes remain insecure pending the D-012–D-015 implementation.
+
+## 2026-09-28 — T-107 core design approved
+
+The user approved directed pair-wide blocking, cancellation/disconnection and endorsement revocation with retained member-only read-only history; unblock restores nothing and follows the normal cooldown. Authenticated authorized-evidence reports, explicitly audited reviewer access without ordinary admin access, and no automatic sanction on submission are approved. Retention, erasure, appeals/notices, emergency access, reviewer provisioning, anonymous reporting, evidence-window size and rate-limit policy are separate later decisions. This status update changes documentation only; T-107 implementation, tests and the production gate remain open.
