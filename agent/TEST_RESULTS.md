@@ -1,5 +1,11 @@
 # Test results
 
+## 2026-09-28 — repository cleanup
+
+- Full backend/web suite: `.venv/bin/python -m pytest -q --disable-warnings` — **298 passed, 1394 warnings in 22.10s**.
+- After `npm ci --ignore-scripts`, mobile `npm test` — **53 passed**; `npm run lint` and `npx tsc --noEmit` passed. Type checking initially found missing CSS declarations; `mobile/src/types/styles.d.ts` resolves those imports.
+- Documentation links and `git diff --check` verified. This cleanup does not test or implement future social safety behavior.
+
 ## 2026-09-28 — T-107 / Issue #12 design-only verification
 
 - Isolated `.venv/bin/python -m pytest -q`: **290 passed, 1394 warnings in 28.76s**. Warnings are existing datetime and SQLAlchemy deprecations; no safety implementation tests exist yet.

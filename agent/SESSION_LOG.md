@@ -1,5 +1,9 @@
 # Session log
 
+## 2026-09-28 — repository cleanup
+
+Inspected current `master` after the T-107 design approval and additive owned-social migration. Added a navigation index for engineering records, corrected repository and mobile setup documentation, removed the unused Expo reset-project command, tightened generated-file ignores, and supplied CSS module declarations for TypeScript. Preserved runtime, schema, existing routes, mobile workflows and the current starter Explore route. Backend and mobile checks are recorded in TEST_RESULTS.md; social ownership/safety implementation remains outstanding.
+
 ## 2026-09-18 — IMPLEMENTATION_1 T-003: authenticated API CSRF/origin protection
 
 - Inspected current agent records, Flask signed-session authentication, unsafe API routes, central frontend helper/direct video upload, and isolated test harness in the existing host checkout. T-002 was already committed at `32b9790`; only the mobile and sandbox edits were pre-existing.
