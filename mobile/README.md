@@ -31,4 +31,4 @@ The app connects only to approved HTTPS origins embedded at build time. Set `FOR
 | `app.config.js`, `plugins/` | Build-time origin and native transport configuration |
 | `tests/` | Native client, screen, and security checks |
 
-The `explore` screen and some assets/components still come from the Expo starter. They are not the source of truth for Forge product behavior. Review their imports and routes before removing them; the active app layout references that screen.
+The About tab retains the `/explore` route so existing navigation links keep working. Some unused starter assets/components remain; review imports and platform variants before removing them.
