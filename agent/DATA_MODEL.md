@@ -57,3 +57,9 @@ The SQLAlchemy model declarations contain foreign keys but no explicit ORM relat
 ## Ownership approval and production gate (2026-09-28)
 
 This update supersedes the earlier statements that D-012–D-015 await approval: the user approved all four decisions as proposed. Their target remains unimplemented; current schema, API, authentication and client behavior are unchanged. T-104 design/review is complete and T-201's design dependency is satisfied, with migration/integrity/recovery verification still required. Social networking is **not production-complete** until blocking/reporting is designed, implemented and tested under D-016 / T-107 and [OWNERSHIP_DESIGN section 8](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate). This includes server enforcement, private report handling, explicitly authorized audited moderation, web/WebView and released-native coverage, and security/race/rollback tests. No blanket admin private-message access or irreversible retention policy is approved.
+
+## T-201 migration tooling foundation — 2026-09-28
+
+The first approved T-201 implementation increment adds explicit SQLite migration tracking without changing the application schema. `forge_migrations.py` provides a frozen 23-table baseline manifest, migration-ledger baselining, schema-drift verification, SQLite integrity/FK diagnostics, and consistent backup support using SQLite's backup API.
+
+No ownership tables, indexes, constraints, foreign-key enforcement changes, automatic startup migrations, or production database mutations are included in this increment. Existing `db.create_all()` startup behavior remains temporarily unchanged. Applying the baseline to an existing persistent database is an explicit operator action and must refuse schema drift.

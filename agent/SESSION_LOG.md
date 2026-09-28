@@ -157,3 +157,7 @@ Reviewed the real current master checkout and preserved all existing V2/profile-
 - Verified PR #10 was already merged and started a documentation follow-up from clean master `7327929` on `codex/t-104-approval-safety-gate`.
 - Marked T-104 design/review complete without claiming runtime completion; retained migration/retention gates and added D-016 / open T-107 with enforcement, reporting privacy, moderation, client and test acceptance requirements. Reconciled historical pending-approval statements in canonical records.
 - No production code, schema, database, API or client changes. Validation recorded in TEST_RESULTS.md. Follow-up PR targets master; do not merge.
+
+## 2026-09-28 — T-201 migration foundation
+
+Started T-201 after approval of D-012–D-015. Added a conservative SQLite migration foundation: frozen current-schema manifest, explicit migration ledger/baseline command, status/verification commands, and consistent backup support. No ownership schema, FK enforcement, automatic migrations, or persistent database mutation was performed. Validation: 5 focused migration tests and 290 full-suite tests passed; diff check clean.

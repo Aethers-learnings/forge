@@ -50,6 +50,7 @@ from forge_routes.analytics import create_analytics_blueprint
 from forge_routes.notifications import create_notifications_blueprint
 from forge_routes.onboarding import create_onboarding_blueprint
 from forge_routes.profile import create_profile_blueprint
+from forge_migrations import register_migration_commands
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
@@ -205,6 +206,7 @@ db = SQLAlchemy(app)
 # browser sockets carry the authenticated Flask session and receive private
 # user/role notifications.
 socketio = SocketIO(app, async_mode="threading")
+register_migration_commands(app, db)
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
