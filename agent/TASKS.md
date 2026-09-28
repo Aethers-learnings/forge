@@ -19,7 +19,7 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 - [x] T-105 — Ensure only approved/live listings produce student-visible opportunities; cover lifecycle with tests. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 - [x] T-106 — Correct business/admin analytics scope and document metric semantics. Depends on: T-101. Classification: SAFE_INCREMENTAL.
 
-- [ ] T-107 — Design, implement and test user blocking/reporting before social networking is considered production-complete. Depends on: T-104; persistence rollout depends on T-201. Classification: MAJOR_REVIEW. User-required gate (2026-09-28), D-016 and OWNERSHIP_DESIGN section 8: server enforcement across contact/discovery/delivery, private reporting with authorized audited moderation, web/WebView/released-native controls, three-user isolation/race/migration tests. Detailed policy/schema/API design remains outstanding; no blanket admin message access or destructive retention approval.
+- [ ] T-107 — Design, implement and test user blocking/reporting before social networking is considered production-complete. Depends on: T-104; persistence rollout depends on T-201. Classification: MAJOR_REVIEW. [SAFETY_DESIGN](SAFETY_DESIGN.md) is the proposed design/review package for Issue #12; policy choices marked **PROPOSED / REQUIRES HUMAN APPROVAL** remain open. Implementation, migration, client coverage and security tests remain outstanding. No blanket admin message access or destructive retention approval.
 
 ## P2
 

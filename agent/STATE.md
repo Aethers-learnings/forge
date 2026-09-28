@@ -128,3 +128,7 @@ Prepared [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md): current source trace, concrete
 ## 2026-09-28 — approved design, mandatory blocking/reporting
 
 The user approved D-012–D-015 as proposed. PR #10 is already merged; this documentation follow-up uses `codex/t-104-approval-safety-gate` from master `7327929`. T-104 design/review is complete; prior pending-approval statements above are historical. T-201 can proceed from the approved design through its remaining gates; no migration/runtime/client work occurred here. D-016 / T-107 makes implemented and tested blocking/reporting mandatory before social production completion. Detailed block effects, report persistence/API, moderation evidence access and retention remain follow-up design work. Current ownership defects remain unfixed; no new merge is authorized.
+
+## 2026-09-28 — T-107 / Issue #12 design proposal
+
+[SAFETY_DESIGN](SAFETY_DESIGN.md) proposes directed blocking, pair-wide contact denial, private reporting and narrowly audited reviewer evidence, future API/client contracts, migration/rollback and executable test requirements. Marked product/policy choices await human review. This documentation-only increment does not implement or verify the safety system; T-107 and social production completion remain open. Current shared social routes remain insecure pending the D-012–D-015 implementation.
