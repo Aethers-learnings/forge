@@ -1,5 +1,9 @@
 # Forge project state
 
+## 2026-09-28 — repository navigation cleanup
+
+The root and mobile READMEs now describe the current architecture and checks; [the engineering records index](README.md) provides a starting point for decisions and status. Expo's unused starter reset command was removed, the starter Explore content became a Forge About screen at the same route, generated profile-image test directories are ignored, and TypeScript recognizes the existing CSS imports. No backend, schema, or social behavior changed. T-107 and T-201 gates remain as described below.
+
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
 Last updated: 2026-09-28 (D-012–D-015 approved; blocking/reporting required for social production completion; implementation and release checks remain pending)
