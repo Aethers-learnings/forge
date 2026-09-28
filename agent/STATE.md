@@ -160,3 +160,11 @@ T-201 remains open. Before owned-social ORM/service integration, replace or
 guard the historical `db.create_all()` bootstrap so migration-owned tables
 cannot be created outside the ledger. Runtime ownership enforcement and D-014
 client cutover remain unimplemented.
+
+## 2026-09-28 — Issue #16 migration-managed bootstrap
+
+On `codex/issue-16-migration-bootstrap` from current master `dac4ef8`, application import/direct-script/Flask-run startup now verifies managed HEAD before serving. Persistent databases are never created, baselined, upgraded or repaired automatically. Missing, unmanaged, behind-head, checksum-invalid and drifted databases fail with operator guidance. Recovery command discovery remains available; demo seeding verifies readiness and retains local gating.
+
+Explicit `db-init --confirm-schema-change` exclusively reserves a new file and atomically constructs the frozen baseline, ordered revisions and ledger. Fresh in-memory development/test initialization and isolated pytest fixtures use that same migration authority, with no ORM create/drop bootstrap. Application WAL/NORMAL hooks are engine-local; persistent startup uses a separate read-only connection. Frozen baseline/revision files are unchanged; no real `instance/forge.db` was opened or mutated in this task.
+
+This resolves the earlier bootstrap prerequisite only. T-201 remains open for social ORM/services, ownership-v2 API/client cutover, whole-schema FK review, recovery/rollout and other remaining gates. Social behavior and T-107 safety readiness are unchanged. See TEST_RESULTS for verification.

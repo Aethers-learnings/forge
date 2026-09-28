@@ -33,6 +33,10 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
+# Use a NEW file; db-init refuses all existing files, including empty ones.
+export FORGE_DATABASE_URI="sqlite:///$(pwd)/instance/forge-local.db"
+flask --app forge_backend db-init --confirm-schema-change
+
 FORGE_ENV=development \
 FORGE_DEMO_MODE=1 \
 python forge_backend.py
@@ -47,7 +51,7 @@ When demo mode is enabled and the database is empty, Forge seeds these local acc
 - `demo_business`
 - `demo_admin`
 
-To run without demo users in a fresh local database:
+To run without demo users, use the initialized local database above with demo mode off:
 
 ```bash
 python forge_backend.py
@@ -84,7 +88,27 @@ npx tsc --noEmit
 
 ### Database commands
 
-`flask --app forge_backend db-status` and `flask --app forge_backend db-verify` inspect the local configured SQLite database. `db-backup`, `db-baseline`, `db-upgrade`, and `db-downgrade` are explicit operator actions; schema changes require confirmation flags and recovery planning. Read [T-201 status](agent/TASKS.md) and the command help before using them on persistent data. Starting the server does not apply these revisions automatically.
+`flask --app forge_backend db-status` and `flask --app forge_backend db-verify` inspect the local configured SQLite database. `db-init`, `db-backup`, `db-baseline`, `db-upgrade`, and `db-downgrade` are explicit operator actions; schema changes require confirmation flags and recovery planning. Read [T-201 status](agent/TASKS.md) and the command help before using them on persistent data. Starting the server does not apply these revisions automatically.
+
+### Startup policy (all persistent environments)
+
+| Database state | Application startup | Explicit operator action |
+| --- | --- | --- |
+| Missing persistent file | Refuses; does not create a file | Select a new path, then `db-init --confirm-schema-change` |
+| Existing unmanaged file, including an exact frozen baseline | Refuses; never auto-baselines | Inspect `db-status` / `db-verify`, take/verify backup, then `db-baseline --confirm-current-schema` and `db-upgrade --confirm-schema-change` if appropriate |
+| Managed at migration HEAD | Verifies checksums, schema, physical revision objects and integrity; starts | None |
+| Managed behind HEAD | Refuses; never auto-upgrades | Back up/rehearse, then `db-upgrade --confirm-schema-change` |
+| Drift, invalid checksums/ledger, corrupt schema or integrity failure | Refuses without repair | Inspect status/verification and restore or review repair; never delete data to make startup pass |
+| Fresh in-memory development/test database | Initializes through the migration helper and verifies | No persistent file; staging/production reject in-memory databases |
+| Test fixture file | Explicit helper creates a new isolated file at HEAD | The harness disposes/removes only its own temporary files between tests |
+
+For example, prefix every operator command with `flask --app forge_backend` and keep the **same explicit `FORGE_DATABASE_URI`** throughout. Do not point rehearsal commands at a real database by accident. Existing revision files and `migrations/baseline_schema.json` are immutable history. No startup path uses ORM `create_all()`; fresh initialization builds the frozen 23-table baseline and ordered revisions plus ledger in one SQLite transaction. Revision 02 adds six storage tables without changing social routes or interpreting legacy rows.
+
+Direct execution, ordinary WSGI import (`forge_backend:app`) and `flask --app forge_backend run` verify before serving. Flask command discovery is permitted so migration recovery/help commands remain accessible on an unready database; `seed-demo` separately verifies readiness and still requires explicit local demo mode. Staging/production retain their secret/cookie and no-debug/no-demo rules. Application WAL/NORMAL settings remain on its engine, not on read-only startup probes; FK enforcement is not enabled globally.
+
+Startup probes open persistent SQLite with `mode=ro`, including committed WAL contents (not `immutable=1`). SQLite may maintain read-lock bookkeeping in shared-memory sidecars; probes do not execute schema/DML or journal-mode changes against the source. Run schema-changing operator commands with application writers stopped. Startup verification is a readiness gate, not continuous monitoring for later out-of-band schema changes.
+
+If fresh initialization fails or is interrupted, SQLite rolls back the transaction; an empty reserved file or recovery journal can remain. Startup refuses that uninitialized file. Inspect it and use a new disposable path for retry rather than forcing adoption or overwriting a persistent database. Tests cover both exceptions and process termination. Demo seeding happens **after** initialization and remains a separate data transaction: a seed failure does not roll back the already complete migration history.
 
 ## Development approach
 

@@ -21,6 +21,8 @@ npx tsc --noEmit
 
 The app connects only to approved HTTPS origins embedded at build time. Set `FORGE_MOBILE_ALLOWED_ORIGINS` to a comma-separated list of exact HTTPS origins before starting or building, for example `https://forge.example.test`. Without it, the app opens settings and connects to no server. This value is public configuration, not a credential. The optional development override and signed-device release checks are documented in [MOBILE_PLAN.md](../agent/MOBILE_PLAN.md). Do not assume native `fetch` and the WebView share a login session.
 
+The backend must first pass the [migration-managed startup policy](../README.md#startup-policy-all-persistent-environments). For a new local test server, explicitly initialize a new database with `flask --app forge_backend db-init --confirm-schema-change` before starting it. Existing unmanaged/behind-head databases now refuse server startup; mobile does not initialize or migrate them. This does not change the HTTPS origin restrictions or enable native social workflows.
+
 ## Where things live
 
 | Path | Responsibility |

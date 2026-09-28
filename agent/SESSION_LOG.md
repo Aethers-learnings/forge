@@ -185,3 +185,10 @@ data and exact source-database non-mutation. No real database baseline/upgrade
 was performed. Next prerequisite before ORM ownership models is removing or
 guarding historical `db.create_all()` bootstrap behavior so migrations remain
 the sole owner of revision-02 schema creation.
+
+## 2026-09-28 — Issue #16 migration-managed bootstrap
+
+- Read Issue #16, required agent records, AGENTS, migration engine/manifests/revision, startup/configuration/fixture tests and root/mobile startup guidance. Started the dedicated branch from master `dac4ef86e0736dd56013822ce68f118791c6c757`.
+- Replaced ORM bootstrap with frozen-baseline/ordered-revision initialization and read-only persistent startup verification. Added explicit new-file CLI initialization; preserved confirmation, recovery-command access, demo gates and engine-local application pragmas without global FK changes.
+- Added fresh-schema/constraint, refusal/non-mutation, checksum/physical-tamper, server-entrypoint, CLI/demo and interruption regressions. Updated fixtures to migration HEAD; removed their metadata-only baseline dependency.
+- Validation is in TEST_RESULTS. All tests use isolated databases; no real instance/forge.db access, migration, baseline or seed occurred. No social ORM/API/client work or historical migration changes. T-201 remains open; PR is for review only, no merge.

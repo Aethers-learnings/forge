@@ -98,3 +98,7 @@ startup is also not migration-managed yet: the existing ORM/bootstrap still
 uses the historical `db.create_all()` path. Do not add owned-social ORM models
 until that bootstrap boundary is changed, otherwise startup could create
 migration-owned tables outside the ledger.
+
+## Issue #16 bootstrap authority (2026-09-28)
+
+Supersedes the historical create-all startup notes: fresh schema now comes solely from the unchanged frozen baseline and ordered revisions, including all six owned tables, physical constraints/indexes/triggers and checksum ledger. No new ORM models or revision changes are included. Persistent startup only verifies; explicit new-file initialization and existing-file adoption/upgrade are separate operator actions. Global FK enforcement remains unchanged.
