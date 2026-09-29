@@ -26,6 +26,7 @@ tracked_targets=(
   forge_routes/owned_social_http.py
   tests/test_owned_social_models.py
   tests/test_migration_tooling.py
+  tests/test_database_bootstrap.py
   tests/_v2_contract.py
 )
 
@@ -81,6 +82,23 @@ PY
 echo "Using $PY"
 echo "Applying T-107 blocking core..."
 "$PY" "$TMP_HELPER"
+
+# The bootstrap regression used the historical two-revision count as a literal.
+# T-107 legitimately adds a third revision, so assert the migration registry
+# length instead of hard-coding a number that must change with every revision.
+"$PY" - <<'PY'
+from pathlib import Path
+
+path = Path("tests/test_database_bootstrap.py")
+source = path.read_text()
+old = '        assert conn.execute(f"SELECT count(*) FROM {migrations.LEDGER_TABLE}").fetchone()[0] == 2\n'
+new = '        assert conn.execute(f"SELECT count(*) FROM {migrations.LEDGER_TABLE}").fetchone()[0] == len(migrations.REVISION_ORDER)\n'
+if source.count(old) != 1:
+    raise SystemExit(
+        f"bootstrap ledger assertion mismatch: expected 1 source line, found {source.count(old)}"
+    )
+path.write_text(source.replace(old, new, 1))
+PY
 
 echo
 echo "Running focused T-107 / owned-social / migration tests..."
