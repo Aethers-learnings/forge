@@ -90,3 +90,21 @@ Existing documented fields and status codes are contractually stable for increme
 ## Ownership approval and production gate (2026-09-28)
 
 This update supersedes the earlier statements that D-012–D-015 await approval: the user approved all four decisions as proposed. Their target remains unimplemented; current schema, API, authentication and client behavior are unchanged. T-104 design/review is complete and T-201's design dependency is satisfied, with migration/integrity/recovery verification still required. Social networking is **not production-complete** until blocking/reporting is designed, implemented and tested under D-016 / T-107 and [OWNERSHIP_DESIGN section 8](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate). This includes server enforcement, private report handling, explicitly authorized audited moderation, web/WebView and released-native coverage, and security/race/rollback tests. No blanket admin private-message access or irreversible retention policy is approved.
+
+## Issue #22 — configured ownership-v2 HTTP contract (2026-09-29)
+
+`FORGE_SOCIAL_MODE` is parsed exactly at startup: `legacy` (default, existing seven handlers), `maintenance` (authenticated 503 after CSRF), or `v2` (owned graph only). Unknown values fail startup. In v2, active-session auth and the existing unsafe-method origin/CSRF guard precede `X-Forge-Ownership-Version: 2`; absent/unsupported capability returns `426 {"error":"ownership client update required"}` before object lookup. Private v2 responses use `Cache-Control: no-store`. This is an internal rehearsal contract; the current web/WebView client cannot use it yet.
+
+| V2 path | Body / success | Relevant failures |
+| --- | --- | --- |
+| `GET /api/network` | `{requests,outgoingRequests,suggested,connections,nextCursors}`; optional `limit`, section `*Limit` (1–50), section `*Cursor` | Invalid cursor/limit 400; only own pending/accepted graph and eligible discoverable users. |
+| `POST /api/network/suggested/:targetUserId/connect` | `{expectedVersion}`; 200 `{ok,requestId,version}` | Missing version 428; stale/opposite 409; missing/hidden/ineligible target 404 or generic unavailable per pair state. |
+| `POST /api/network/requests/:edgeId/:action` | `{expectedVersion}`; accept/ignore/cancel/disconnect; 200 `{ok,version}` | Wrong endpoint 403; outside pair 404; stale 409. |
+| `POST /api/network/connections/:edgeId/endorse` | `{endorsed,expectedVersion}`; 200 `{id,endorsements,endorsedByMe,version}` | Desired-state retries are no-ops; caller→peer general context only. |
+| `GET /api/conversations` | Caller-member array; optional `limit` (1–50), `cursor`; next via `X-Next-Cursor`; latest one-message preview | Foreign cursor 400; no read mutation. |
+| `GET /api/conversations/:slug` | Latest 50 ascending messages; optional scoped `before`; `hasMore`, `nextCursor`, `lastSequence`, `lastReadSequence`, `readOnly`, `unreadCount` | Nonmember and nonexistent both 404; no read mutation. |
+| `POST /api/conversations` | `{targetUserId}`; detail projection, 201 created / 200 reused | Accepted active pair required. |
+| `POST /api/conversations/:slug/messages` | `{text,clientMessageId}`; `{conversationId,message,lastSequence}`, 201 first / 200 identical retry | Changed same-key text 409; no synthetic reply. |
+| `POST /api/conversations/:slug/read` | `{upToSequence}`; 200 `{lastReadSequence,unreadCount}` | Own monotonic bounded cursor only. |
+
+Unknown body fields, including identity and role claims, fail 400. Cursors are signed, caller scoped, and conversation scoped for history; they never authorize access. No socket, notification, analytics, web/WebView, or T-107 cutover accompanies this contract.

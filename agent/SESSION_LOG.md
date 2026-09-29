@@ -202,3 +202,9 @@ the sole owner of revision-02 schema creation.
 - Started a dedicated branch from current master. Added optional Playwright/Chromium regression tests for the existing static web client, a disposable migrated local server, ignored failure screenshots, and usage guidance.
 - Browser checks cover login, roles, focus/keyboard cards, form labels, loading/retry, offline recovery, pending mutation dedup, user text escaping, responsive widths, reduced motion and served CSP/security headers. Existing production code and migration history are untouched.
 - Focused/full validation and database isolation evidence are recorded in TEST_RESULTS. Review PR only; no merge.
+
+## 2026-09-29 — Issue #22 route/contract increment
+
+Started a dedicated branch from master `88b80641b3d35d21af295ff15818c384996691b2` after reading the referenced design, API, security, state, model and test records. Implemented fail-closed process-wide legacy/maintenance/v2 selection, a focused owned-social HTTP dispatcher, signed user/conversation-scoped cursors, bounded projections, retry status metadata and the wrong-endpoint 403 service distinction. No legacy row import, dual write or delivery. Focused owned-social/migration/bootstrap validation: 77 passed, 92 warnings. Browser-enabled full suite, final diff check and PR status are recorded with the final verification. Web/WebView, socket/notification delivery, shared student analytics, persistent rollout/FK/admin-removal review and T-107 remain outstanding.
+
+Final validation: full browser-enabled pytest **370 passed, 1486 warnings**, no skips; `git diff --check` passed. Prepared as a review PR, not merged.

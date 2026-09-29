@@ -35,3 +35,7 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 - [ ] T-302 — Evaluate PostgreSQL, backup/restore, migration/rollback, and operations. Depends on: T-201 and documented data ownership. Classification: HUMAN_APPROVAL_REQUIRED.
 - [ ] T-303 — Consider backend replacement only with a human-approved architecture decision and migration plan. Depends on: Phase 2/3 evidence. Classification: HUMAN_APPROVAL_REQUIRED.
 - [ ] T-304 — Consider a fundamental authentication change only with human approval, threat model, migration, and rollback. Depends on: P0 completion. Classification: HUMAN_APPROVAL_REQUIRED.
+
+## Issue #22 T-201 increment (2026-09-29)
+
+Ownership-v2 HTTP translation and the process-exclusive legacy/maintenance/v2 gate are implemented for review. T-201 remains open for coordinated web/WebView capability and pagination, post-commit participant-safe socket/notification delivery, student analytics isolation, whole-schema FK/admin-removal review, and persistent rollout/recovery. T-107 remains mandatory before social production completion; no blocking/reporting implementation is included.

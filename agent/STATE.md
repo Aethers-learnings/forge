@@ -172,3 +172,7 @@ This resolves the earlier bootstrap prerequisite only. T-201 remains open for so
 ## 2026-09-29 — Issue #18 internal owned-social service, PR #21
 
 Six ORM mappings match migration revision 02. The unwired internal service handles actor-scoped graph discovery, directed requests, transitions, general endorsements, two-member conversations, retry-key messages and explicit read cursors under serialized SQLite write transactions. PR review fixes preserve the original create precondition for same-direction pending retries, make already-current desired endorsement retries no-ops, and scope normal endorsement reads to the caller's direction. No migration, persistent database, legacy route/client/socket/notification/analytics cutover or T-107 implementation occurred. T-201 and T-107 remain open; current legacy social endpoints are not production-ready.
+
+## 2026-09-29 — Issue #22 ownership-v2 HTTP rehearsal
+
+A fail-closed process-wide `FORGE_SOCIAL_MODE` selects legacy (default), authenticated/CSRF-protected maintenance 503, or owned-only v2 for the nine affected route operations. V2 requires capability 2 after auth/CSRF, uses caller-scoped signed pagination, member-only retained history and explicit read cursors, and emits no social delivery. The legacy graph is quarantined in v2; no per-user cohort or dual write exists. This is not production-ready: web/WebView, sockets/notifications, student analytics, persistent rollout/FK/admin-removal review, and mandatory T-107 remain separate gates. See TEST_RESULTS for isolated process and full-suite evidence.

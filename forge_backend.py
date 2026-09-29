@@ -50,6 +50,7 @@ from forge_routes.analytics import create_analytics_blueprint
 from forge_routes.notifications import create_notifications_blueprint
 from forge_routes.onboarding import create_onboarding_blueprint
 from forge_routes.profile import create_profile_blueprint
+from forge_routes.owned_social_http import create_social_dispatch
 from forge_migrations import (
     is_cli_command_discovery, prepare_application_database,
     register_migration_commands, verify_application_database,
@@ -102,6 +103,9 @@ def build_app_config(environ=None):
         raise RuntimeError(
             "FORGE_ENV must be one of: development, test, staging, production, prod."
         )
+    social_mode = environ.get("FORGE_SOCIAL_MODE", "legacy")
+    if social_mode not in ("legacy", "maintenance", "v2"):
+        raise RuntimeError("FORGE_SOCIAL_MODE must be exactly legacy, maintenance, or v2.")
     deployment = environment in DEPLOYMENT_ENVIRONMENTS
     debug = _env_bool(environ, "FORGE_DEBUG", default=False)
     demo_mode = _env_bool(environ, "FORGE_DEMO_MODE", default=False)
@@ -139,6 +143,7 @@ def build_app_config(environ=None):
         "DEBUG": debug,
         "FORGE_ENVIRONMENT": environment,
         "FORGE_DEMO_MODE": demo_mode,
+        "FORGE_SOCIAL_MODE": social_mode,
         "UPLOAD_DIR": environ.get(
             "FORGE_UPLOAD_DIR",
             os.path.join(BASE_DIR, "instance", "uploads"),
@@ -2627,6 +2632,9 @@ def seed_demo_command():
     verify_application_database(db.engine)
     print("Seeded." if seed_demo_data() else "Database not empty — skipped.")
 
+
+create_social_dispatch(app, db, __import__(__name__), require_login,
+                       app.config["FORGE_SOCIAL_MODE"])
 
 # Imports used by WSGI and Flask's built-in run/shell fail before serving.
 # Command discovery remains available for explicit migration recovery commands.

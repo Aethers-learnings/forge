@@ -81,7 +81,7 @@ def test_direction_versions_roles_and_terminal_re_request(social):
         service.request(b, a.id, 1)
     with pytest.raises(NotFound):
         service.transition(c, edge["id"], "accept", 1)
-    with pytest.raises(OperationUnavailable):
+    with pytest.raises(Forbidden):
         service.transition(a, edge["id"], "accept", 1)
     with pytest.raises(PreconditionRequired):
         service.transition(b, edge["id"], "accept", None)
@@ -101,7 +101,7 @@ def test_direction_versions_roles_and_terminal_re_request(social):
     assert counts(service) == before_retry
     with pytest.raises(Conflict):
         service.request(b, a.id, 0)
-    with pytest.raises(OperationUnavailable):
+    with pytest.raises(Forbidden):
         service.transition(a, edge["id"], "cancel", 3)
     service.transition(b, edge["id"], "cancel", 3)
     with service.engine.connect() as connection:
