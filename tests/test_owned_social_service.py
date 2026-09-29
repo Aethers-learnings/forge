@@ -69,7 +69,14 @@ def test_direction_versions_roles_and_terminal_re_request(social):
     with pytest.raises(Conflict):
         service.request(a, b.id, 2)
     edge = service.request(a, b.id, 0)
+    before_retry = counts(service)
+    assert service.request(a, b.id, 0) == edge
     assert service.request(a, b.id, 1) == edge
+    assert counts(service) == before_retry
+    with pytest.raises(Conflict):
+        service.request(a, b.id, -1)
+    with pytest.raises(PreconditionRequired):
+        service.request(a, b.id, None)
     with pytest.raises(Conflict):
         service.request(b, a.id, 1)
     with pytest.raises(NotFound):
@@ -89,6 +96,11 @@ def test_direction_versions_roles_and_terminal_re_request(social):
         edge["id"], b.id, a.id, 3)
     assert new["created_at"] == edge["created_at"]
     assert new["accepted_at"] is None and new["ended_at"] is None
+    before_retry = counts(service)
+    assert service.request(b, a.id, 2, now=new["requested_at"]) == new
+    assert counts(service) == before_retry
+    with pytest.raises(Conflict):
+        service.request(b, a.id, 0)
     with pytest.raises(OperationUnavailable):
         service.transition(a, edge["id"], "cancel", 3)
     service.transition(b, edge["id"], "cancel", 3)
@@ -107,8 +119,14 @@ def test_endorsement_desired_state_disconnect_revokes_both(social):
         service.endorse(c, edge["id"], True, 0)
     one = service.endorse(a, edge["id"], True, 0)
     two = service.endorse(b, edge["id"], True, 0)
+    before_retry = counts(service)
+    assert service.endorse(a, edge["id"], True, 0) == one
     assert service.endorse(a, edge["id"], True, 1) == one
-    assert len(service.active_endorsements(a, edge["id"])) == 2
+    assert counts(service) == before_retry
+    with pytest.raises(PreconditionRequired):
+        service.endorse(a, edge["id"], True, None)
+    assert [row["id"] for row in service.active_endorsements(a, edge["id"])] == [one["id"]]
+    assert [row["id"] for row in service.active_endorsements(b, edge["id"])] == [two["id"]]
     with pytest.raises(Conflict):
         service.endorse(a, edge["id"], False, 0)
     ended = service.transition(a, edge["id"], "disconnect", 2)
@@ -241,16 +259,30 @@ def test_concurrent_duplicate_same_direction_request_is_idempotent(social):
     gate = Barrier(3)
     def worker():
         gate.wait()
-        try:
-            return service.request(a, b.id, 0)
-        except Conflict:
-            return "stale"
+        return service.request(a, b.id, 0)
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(worker) for _ in range(2)]
         gate.wait()
         results = [f.result() for f in futures]
-    assert sum(isinstance(r, dict) for r in results) == 1
+    assert results[0] == results[1]
     assert counts(service)[0] == 1 and counts(service)[5] == 1
+
+
+def test_endorsement_revoked_retry_is_noop_and_stale_change_conflicts(social):
+    service, (a, b, _, _) = social
+    edge = accepted(service, a, b)
+    assert service.endorse(a, edge["id"], False, 0) is None
+    assert counts(service)[1] == 0
+    active = service.endorse(a, edge["id"], True, 0)
+    revoked = service.endorse(a, edge["id"], False, active["version"])
+    before_retry = counts(service)
+    assert service.endorse(a, edge["id"], False, active["version"]) == revoked
+    assert service.endorse(a, edge["id"], False, revoked["version"]) == revoked
+    assert counts(service) == before_retry
+    with pytest.raises(Conflict):
+        service.endorse(a, edge["id"], False, 0)
+    with pytest.raises(Conflict):
+        service.endorse(a, edge["id"], True, active["version"])
 
 
 def test_concurrent_conversation_create_converges(social):

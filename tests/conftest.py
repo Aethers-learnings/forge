@@ -5,6 +5,7 @@ sets its configuration before importing it. Each test receives a new temporary
 SQLite database initialized by the committed migrations, never ORM metadata.
 """
 import atexit
+import itertools
 import os
 import shutil
 import sys
@@ -15,6 +16,7 @@ import pytest
 
 _test_database_dir = tempfile.mkdtemp(prefix="forge-db-", dir=os.path.dirname(__file__))
 _test_database_path = os.path.join(_test_database_dir, "test.db")
+_test_database_counter = itertools.count(1)
 atexit.register(shutil.rmtree, _test_database_dir, ignore_errors=True)
 _test_profile_images = tempfile.mkdtemp(
     prefix="forge-profile-images-", dir=os.path.dirname(__file__)
@@ -33,21 +35,17 @@ from sqlalchemy import create_engine
 from forge_migrations import initialize_fresh_database
 
 
-def reset_test_database():
-    # Only this harness-owned path is removed; no drop_all/ORM schema creation.
-    for suffix in ("", "-wal", "-shm"):
-        try:
-            os.unlink(_test_database_path + suffix)
-        except FileNotFoundError:
-            pass
-    engine = create_engine(f"sqlite:///{_test_database_path}")
+def reset_test_database(path):
+    # Every invocation owns a new path, so a late old connection cannot
+    # attach a prior test's WAL to the next test's database.
+    engine = create_engine(f"sqlite:///{path}")
     try:
         initialize_fresh_database(engine)
     finally:
         engine.dispose()
 
 
-reset_test_database()
+reset_test_database(_test_database_path)
 import forge_backend  # noqa: E402  (environment must be configured first)
 
 
@@ -60,7 +58,14 @@ def isolated_database():
     with forge_backend.app.app_context():
         forge_backend.db.session.remove()
         forge_backend.db.engine.dispose()
-        reset_test_database()
+        path = os.path.join(_test_database_dir, f"test-{next(_test_database_counter)}.db")
+        reset_test_database(path)
+        engine = create_engine(f"sqlite:///{path}")
+        from sqlalchemy import event
+        event.listen(engine, "connect", forge_backend._set_sqlite_pragma)
+        forge_backend.db._app_engines[forge_backend.app][None] = engine
+        forge_backend.app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{path}"
+        os.environ["FORGE_DATABASE_URI"] = f"sqlite:///{path}"
         forge_backend._failed_logins.clear()
         yield
         forge_backend.db.session.remove()

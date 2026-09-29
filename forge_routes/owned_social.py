@@ -63,6 +63,16 @@ def _version(expected, current):
         raise Conflict("stale version")
 
 
+def _retry_version(expected, current):
+    """A no-op may replay the pre-commit version of its last transition."""
+    if expected is None:
+        raise PreconditionRequired("expected version required")
+    if type(expected) is not int or not (
+        expected == current or (current > 0 and expected == current - 1)
+    ):
+        raise Conflict("stale version")
+
+
 def _row(connection, statement):
     result = connection.execute(statement).mappings().first()
     return dict(result) if result else None
@@ -163,11 +173,13 @@ class OwnedSocialService:
             low, high = _pair(user["id"], target_id)
             self._peer(connection, target_id, discoverable=True)
             edge = self._edge_pair(connection, low, high)
-            _version(expected_version, edge["version"] if edge else 0)
             if edge and edge["state"] == "pending":
                 if edge["requester_id"] == user["id"]:
+                    _retry_version(expected_version, edge["version"])
                     return edge
+                _version(expected_version, edge["version"])
                 raise Conflict("opposite pending request")
+            _version(expected_version, edge["version"] if edge else 0)
             if edge and edge["state"] == "accepted":
                 raise Conflict("pair already accepted")
             if edge and (edge["ended_at"] is None or now - edge["ended_at"] < COOLDOWN):
@@ -243,10 +255,11 @@ class OwnedSocialService:
                 self.endorsement.c.endorser_id == user["id"],
                 self.endorsement.c.recipient_id == recipient,
                 self.endorsement.c.skill_key == ""))
-            _version(expected_version, endorsement["version"] if endorsement else 0)
             active = endorsement is not None and endorsement["revoked_at"] is None
             if active == desired:
+                _retry_version(expected_version, endorsement["version"] if endorsement else 0)
                 return endorsement
+            _version(expected_version, endorsement["version"] if endorsement else 0)
             if desired:
                 if edge["state"] != "accepted":
                     raise OperationUnavailable("operation unavailable")
@@ -282,6 +295,8 @@ class OwnedSocialService:
                 return []
             return [dict(row) for row in connection.execute(select(self.endorsement).where(
                 self.endorsement.c.network_edge_id == edge_id,
+                self.endorsement.c.endorser_id == user["id"],
+                self.endorsement.c.recipient_id == peer_id,
                 self.endorsement.c.skill_key == "",
                 self.endorsement.c.revoked_at.is_(None))).mappings()]
 

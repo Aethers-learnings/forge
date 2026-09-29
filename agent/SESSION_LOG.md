@@ -1,5 +1,10 @@
 # Session log
 
+## 2026-09-29 — PR #21 review findings
+
+- Read the review and reproduced the same-direction `expectedVersion:0` retry and desired endorsement retry conflicts with new regressions. Corrected no-op retry ordering while retaining missing/stale precondition checks; limited the normal endorsement read projection to the actor's direction.
+- Updated stale T-201/Issue #18 status in TASKS, STATE and DATA_MODEL. Added focused, concurrent request, active/revoked endorsement and bilateral projection checks. Full-suite validation exposed a reused test-file/WAL isolation failure; the fixture now uses one migration-created path and engine per test. Migration history, the real instance database and existing routes/clients/sockets/analytics remain untouched. Validation evidence is in TEST_RESULTS; PR remains review-only.
+
 ## 2026-09-28 — repository cleanup
 
 Inspected current `master` after the T-107 design approval and additive owned-social migration. Added a navigation index for engineering records, corrected repository and mobile setup documentation, removed the unused Expo reset-project command, replaced the starter Explore content with a Forge About screen at the same route, tightened generated-file ignores, and supplied CSS module declarations for TypeScript. Preserved backend runtime, schema, and mobile workflows. Backend and mobile checks are recorded in TEST_RESULTS.md; social ownership/safety implementation remains outstanding.
