@@ -13,6 +13,24 @@ if [[ ! -x "$PY" ]]; then
   PY=python3
 fi
 
+# The apply helper is executed as scripts/t107_apply_backend.py, so Python would
+# otherwise put scripts/ (not the repository root) at sys.path[0]. Exporting the
+# root lets it import forge_migrations and the migrations package reliably.
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+
+# A previous interrupted run may have stopped immediately after creating these
+# generated, untracked migration artifacts. Remove only those exact helper-owned
+# files if Git still reports them as untracked; never delete tracked project data.
+for generated in \
+  migrations/r20260929_03_blocking_core.py \
+  migrations/20260929_03_blocking_core.json
+do
+  if git status --porcelain -- "$generated" | grep -q '^?? '; then
+    echo "Removing interrupted generated artifact: $generated"
+    rm -f -- "$generated"
+  fi
+done
+
 echo "Using $PY"
 echo "Applying T-107 blocking core..."
 "$PY" scripts/t107_apply_backend.py
