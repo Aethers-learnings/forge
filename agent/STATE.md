@@ -176,3 +176,11 @@ Six ORM mappings match migration revision 02. The unwired internal service handl
 ## 2026-09-29 — Issue #22 ownership-v2 HTTP rehearsal
 
 A fail-closed process-wide `FORGE_SOCIAL_MODE` selects legacy (default), authenticated/CSRF-protected maintenance 503, or owned-only v2 for the nine affected route operations. V2 requires capability 2 after auth/CSRF, uses caller-scoped signed pagination, member-only retained history and explicit read cursors, and emits no social delivery. The legacy graph is quarantined in v2; no per-user cohort or dual write exists. This is not production-ready: web/WebView, sockets/notifications, student analytics, persistent rollout/FK/admin-removal review, and mandatory T-107 remain separate gates. See TEST_RESULTS for isolated process and full-suite evidence.
+
+## 2026-09-29 — T-201 web/WebView ownership-v2 rehearsal
+
+The shared static web/WebView product now consumes ownership-v2 networking and messaging when the process explicitly selects v2. Public no-store `/api/social-config` exposes only the already-fixed process mode; the client pins that contract for its current account/session and never falls back after errors. Legacy remains the default and its social transport is preserved. Production v2 is **not enabled** by this increment.
+
+Implemented: incoming/outgoing requests, exact optimistic versions and desired endorsements, per-section and conversation cursors, real-peer conversation create/reuse, bounded ordered history, stable user-driven message retries, visible-message read advancement, generic read-only/error UI, and account-generation isolation. Session changes clear all social state and retire the old socket; late responses cannot restore it. No native networking/messaging or WebView authentication/transport change.
+
+T-201 remains open: social socket/notification delivery, student analytics cutover, persistent rollout/recovery and whole-schema FK/admin-removal review are outstanding. T-107 blocking/reporting remains mandatory before social production completion. Native social networking/messaging and signed-device verification remain outstanding. See TEST_RESULTS for executable evidence.

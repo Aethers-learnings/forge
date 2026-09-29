@@ -355,3 +355,30 @@ Limits: content inspection is container-signature-level validation, not malware 
 - Focused owned-social models/service/HTTP plus migration/bootstrap: `.venv/bin/pytest -q --disable-warnings tests/test_owned_social_models.py tests/test_owned_social_service.py tests/test_owned_social_http_subprocess.py tests/test_migration_tooling.py tests/test_database_bootstrap.py` — **77 passed, 92 warnings in 33.56s**.
 - The full backend/web suite includes real Chromium coverage using the existing Playwright test dependency. Final counts are recorded below. All databases were isolated and migration-initialized; no real `instance/forge.db` was opened. Migration history, static web/WebView, sockets, notifications and analytics were not changed. T-107 remains unimplemented and production readiness is not claimed.
 - Final full suite: `.venv/bin/pytest -q --disable-warnings` — **370 passed, 1486 warnings in 70.80s**, no skips. `git diff --check` passed. This is route-only API rehearsal, not client/delivery/analytics/T-107 completion.
+
+## 2026-09-29 — T-201 ownership-v2 static web/WebView client
+
+Starting master: `dcea0d9a4dc1570f40c2a0f903411c547e62274c` (merged PR #23). Branch: `codex/ownership-v2-web-client`. Commands below run from the repository root unless marked mobile. The old checkout's venv interpreter was unavailable; an isolated `.git/client-venv` was installed from the unchanged `requirements.txt` and `requirements-browser.txt`. Chromium 140 / Playwright 1.55 was installed under `.git/playwright`.
+
+| Exact command | Result |
+| --- | --- |
+| `node --test tests/owned_social_frontend.cjs` | **42 passed, 0 failed, 0 skipped**. Actual source functions: explicit config/capability/CSRF, incoming/outgoing actions and version bodies, desired endorsement state, 409 refresh/no replay, independent cursor/dedup behavior, bounded list/history, create 200/201, observed reads, read-only UI, retry-key preservation/new-key/double-submit/conflict, account/session/CSRF invalidation and late reads/writes. |
+| `.git/client-venv/bin/python -m pytest -q tests/test_owned_social_frontend.py tests/test_csrf_frontend.py tests/test_profile_export_frontend.py tests/test_web_quality.py --basetemp=.git/pytest-client-focused-final` | **14 passed in 1.18s**; includes the 42-case Node runner and existing frontend regressions. |
+| `PLAYWRIGHT_BROWSERS_PATH=.git/playwright .git/client-venv/bin/python -m pytest -q tests/test_browser_owned_social.py tests/test_browser_web_quality.py --basetemp=.git/pytest-client-browser` | **12 passed in 13.87s**. Four new owned-flow cases plus eight existing browser cases. Final full-suite run below also includes the additional real creation-201 assertion. |
+| `.git/client-venv/bin/python -m pytest -q --disable-warnings tests/test_owned_social_models.py tests/test_owned_social_service.py tests/test_owned_social_http_subprocess.py tests/test_migration_tooling.py tests/test_database_bootstrap.py --basetemp=.git/pytest-client-backend` | **77 passed, 92 warnings in 34.01s**. Subprocess checks also verify public no-store configuration in legacy/maintenance/v2 and captured-mode immutability. |
+| `.git/client-venv/bin/python -m pytest -q --disable-warnings tests/test_authz_regressions.py tests/test_csrf_security.py tests/test_security_headers.py tests/test_socket_security.py --basetemp=.git/pytest-client-security` | **78 passed, 373 warnings in 13.29s**. |
+| `PLAYWRIGHT_BROWSERS_PATH=.git/playwright .git/client-venv/bin/python -m pytest -q --disable-warnings --basetemp=.git/pytest-client-full` | Intermediate full suite: **375 passed, 1486 existing deprecation warnings in 80.02s**, no skips. |
+| `npm test` (cwd `mobile`) | **53 passed, 0 failed, 0 skipped**. |
+| `npm run lint` (cwd `mobile`) | Passed, exit 0. |
+| `npx tsc --noEmit` (cwd `mobile`) | Passed, exit 0. |
+| `.git/client-venv/bin/python -m py_compile forge_routes/owned_social_http.py tests/test_owned_social_frontend.py tests/test_browser_owned_social.py tests/_mode_contract.py tests/_v2_contract.py` | Passed. |
+| `node tests/csrf_frontend.cjs` and `node tests/profile_export_frontend.cjs` | Passed; the former also syntax-compiles all inline scripts. |
+| `git diff --check` | Passed. |
+
+Initial browser invocation preceded completion of browser installation and had 12 executable-not-found setup errors. With Chromium installed, new test assertions initially had two failures, then one, because they waited for a busy button's old name to disappear rather than the completed data update; one state poll also conflicted with CSP. Corrected tests observe completed rows/messages and the actual read response, without relaxing CSP or existing tests. The browser suite then passed all 12 cases.
+
+Real browser evidence includes versioned request actions, suggested paging, desired endorsements, server-created/reused threads, 55-message bounded history and older paging, a single real send with no synthetic reply, visible read POST, disconnection/read-only retained history, keyboard operation, 390px layout and generic 426 handling. Node mocks additionally exercise all required error codes and deliberately late asynchronous results. These tests do not replace signed-device WebView/native session checks.
+
+Only disposable migration-managed databases in test-owned directories or in-memory fixtures were used. The real `instance/forge.db` was never opened, hashed, copied, upgraded or modified. No migration history, native source, default mode or production database was changed. Production v2 is not enabled; sockets/notifications, analytics, persistent rollout/FK/admin-removal review, T-107 and native social remain deferred.
+
+Final frozen-source verification: `PLAYWRIGHT_BROWSERS_PATH=.git/playwright .git/client-venv/bin/python -m pytest -q --disable-warnings --basetemp=.git/pytest-client-final` — **375 passed, 1486 existing deprecation warnings in 80.81s**, **0 failed / 0 skipped**. This includes all 12 Chromium cases with real new-conversation 201 and reused-thread behavior, and the final 42-case Node runner. Final `git diff --check` passed.

@@ -1010,11 +1010,22 @@ function clearCsrfState() {
   csrfToken = null;
   csrfRequest = null;
   csrfGeneration += 1;
+  resetSocialState();
 }
 
 function setCurrentUser(user, newSession = false) {
-  if (newSession || state.user?.id !== user?.id) clearCsrfState();
+  if (newSession || state.user?.id !== user?.id) {
+    clearCsrfState();
+    if (typeof socket !== 'undefined' && socket) { socket.disconnect(); socket = null; }
+    state.unreadCount = 0;
+  }
   state.user = user;
+}
+
+function expireClientSession() {
+  setCurrentUser(null, true);
+  state.authError = 'Your session has expired. Sign in again.';
+  if (typeof renderApp === 'function') renderApp();
 }
 
 async function getCsrfToken() {
@@ -1045,6 +1056,7 @@ async function csrfHeaders(method) {
 }
 
 async function api(path, opts = {}, rawResponse = false) {
+  const requestGeneration = csrfGeneration;
   const method = (opts.method || 'GET').toUpperCase();
   const headers = new Headers({ 'Content-Type': 'application/json' });
   new Headers(opts.headers).forEach((value, key) => headers.set(key, value));
@@ -1053,6 +1065,7 @@ async function api(path, opts = {}, rawResponse = false) {
   try {
     securityHeaders = await csrfHeaders(method);
   } catch (e) {
+    if (e?.status === 401 && requestGeneration === csrfGeneration && state.user) expireClientSession();
     if (e && (e.body || e.status)) throw e;
     throw {
       network: true,
@@ -1064,6 +1077,7 @@ async function api(path, opts = {}, rawResponse = false) {
     };
   }
 
+  if (requestGeneration !== csrfGeneration) throw {stale: true};
   Object.entries(securityHeaders).forEach(([key, value]) => headers.set(key, value));
 
   let res;
@@ -1080,17 +1094,359 @@ async function api(path, opts = {}, rawResponse = false) {
     };
   }
 
+  if (requestGeneration !== csrfGeneration) throw {stale: true};
   if (res.ok && rawResponse) return res;
 
   let body = null;
   try { body = await res.json(); } catch (e) { /* no body */ }
 
   if (!res.ok) {
-    if (res.status === 401 || body?.code === 'csrf_failed') clearCsrfState();
-    throw { status: res.status, body };
+    const invalidated = requestGeneration === csrfGeneration && (res.status === 401 || body?.code === 'csrf_failed');
+    if (invalidated) {
+      if (res.status === 401 && state.user) expireClientSession();
+      else clearCsrfState();
+    }
+    throw { status: res.status, body, invalidated };
   }
 
+  if (requestGeneration !== csrfGeneration) throw {stale: true};
   return body;
+}
+
+/* Ownership-v2 state is memory-only and shares the CSRF account generation. */
+let social = freshSocialState();
+function freshSocialState() {
+  return {mode: null, config: null, network: null, conversations: null,
+    listCursor: null, threads: new Map(), retries: new Map(), busy: new Set(),
+    observer: null, notice: '', networkLoad: 0, listLoad: 0, historyLoads: new Map()};
+}
+function resetSocialState() {
+  social.observer?.disconnect();
+  social = freshSocialState();
+  state.msgSlug = null;
+}
+function socialCurrent(owner, generation) {
+  return social === owner && csrfGeneration === generation && !!state.user;
+}
+function socialError(e) {
+  const messages = {
+    400: 'This request is no longer valid. Refresh the view and try again.',
+    401: 'Your session has expired. Sign in again.',
+    403: 'This action is unavailable. Refresh the view before trying again.',
+    404: 'This item is unavailable.',
+    409: 'The state has changed. Review the refreshed view before acting again.',
+    426: 'Forge needs an updated client. Refresh this page or update the app.',
+    428: 'Refresh this view to get the current version before acting again.',
+    503: 'Networking and messages are temporarily unavailable. Try again later.'
+  };
+  return {status: e?.status, network: e?.network, stale: e?.stale,
+    body: {error: messages[e?.status] || 'Could not reach Forge. Try again when connected.'}};
+}
+async function socialRequest(path, opts = {}, raw = false) {
+  const owner = social, generation = csrfGeneration;
+  try {
+    const result = await api(path, {...opts, cache: 'no-store', headers: {
+      ...opts.headers, ...(owner.mode === 'v2' ? {'X-Forge-Ownership-Version': '2'} : {})
+    }}, raw);
+    if (!socialCurrent(owner, generation)) throw {stale: true};
+    return result;
+  } catch (e) {
+    if (e.invalidated && e.status === 403 && csrfGeneration === generation + 1 && state.user &&
+        ['network', 'messages'].includes(state.view)) {
+      const content = document.getElementById('content');
+      if (content) {
+        content.innerHTML = renderError(socialError(e)) + socialButton('Refresh', 'loadView()');
+        content.setAttribute('aria-busy', 'false');
+      }
+    }
+    if (!socialCurrent(owner, generation)) throw {stale: true};
+    throw socialError(e);
+  }
+}
+async function socialMode() {
+  const owner = social, generation = csrfGeneration;
+  if (!owner.mode) {
+    if (!owner.config) owner.config = socialRequest('/api/social-config').then(config => {
+      if (!socialCurrent(owner, generation)) throw {stale: true};
+      if (!['legacy', 'maintenance', 'v2'].includes(config.mode)) throw socialError({status: 426});
+      owner.mode = config.mode;
+    }).finally(() => { owner.config = null; });
+    await owner.config;
+  }
+  if (owner.mode === 'maintenance') throw socialError({status: 503});
+  return owner.mode;
+}
+function socialNotice() {
+  return `<div id="social-notice" role="status" aria-live="polite">${esc(social.notice)}</div>`;
+}
+function showSocialNotice(e) {
+  if (e?.stale) return;
+  social.notice = socialError(e).body.error;
+  const el = document.getElementById('social-notice');
+  if (el) el.textContent = social.notice;
+  else toast(social.notice);
+}
+function mergeSocialRows(old, rows, key = 'id') {
+  const merged = new Map(old.map(row => [row[key], row]));
+  rows.forEach(row => merged.set(row[key], row));
+  return [...merged.values()];
+}
+async function loadOwnedNetwork(section = null) {
+  const owner = social, generation = csrfGeneration;
+  const serial = ++owner.networkLoad;
+  const cursor = section && owner.network?.nextCursors[section];
+  if (section && !cursor) return;
+  const query = new URLSearchParams({limit: '20'});
+  if (section) query.set(section + 'Cursor', cursor);
+  const net = await socialRequest('/api/network?' + query);
+  if (!socialCurrent(owner, generation) || serial !== owner.networkLoad) return;
+  if (!section) owner.network = net;
+  else {
+    owner.network[section] = mergeSocialRows(owner.network[section], net[section]);
+    owner.network.nextCursors[section] = net.nextCursors[section] || null;
+  }
+}
+function socialButton(label, handler, disabled = false) {
+  return `<button class="btn btn-ghost btn-sm" ${disabled ? 'disabled' : ''} onclick="${esc(handler)}">${esc(label)}</button>`;
+}
+function ownedNetworkHtml() {
+  const net = social.network;
+  const labels = {requests: 'Incoming requests', outgoingRequests: 'Outgoing requests',
+    suggested: 'Suggested for you', connections: 'Your connections'};
+  return `<div class="view-head"><h1>Network</h1>${socialButton('Refresh', 'loadView()')}</div>${socialNotice()}` +
+    Object.entries(labels).map(([section, label]) => `<h2 class="section-title">${label}</h2>` +
+      (net[section].map(row => {
+        const busy = social.busy.has('network');
+        const action = (label, verb) => socialButton(label, `ownedNetworkAction('${section}',${row.id},'${verb}',this)`, busy);
+        let controls = '';
+        if (section === 'suggested') controls = action('Connect', 'connect');
+        else if (section === 'connections') controls = action(row.endorsedByMe ? 'Remove endorsement' : 'Endorse', row.endorsedByMe ? 'unendorse' : 'endorse') +
+          action('Message', 'message') + action('Disconnect', 'disconnect');
+        else if (row.direction === 'incoming') controls = action('Accept', 'accept') + action('Ignore', 'ignore');
+        else if (row.direction === 'outgoing') controls = action('Cancel request', 'cancel');
+        return `<div class="card" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:120px;overflow-wrap:anywhere"><strong>${esc(row.name)}</strong>
+          <div class="muted">${esc(prettyRole(row.role))}${section === 'connections' ? ' · ' + esc(row.endorsements) + ' endorsements' : ''}</div></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${controls}</div></div>`;
+      }).join('') || '<div class="empty">No entries.</div>') +
+      (net.nextCursors[section] ? socialButton('Load more ' + label.toLowerCase(), `ownedNetworkMore('${section}',this)`, social.busy.has('network')) : '')
+    ).join('');
+}
+async function ownedNetworkView() { await loadOwnedNetwork(); return ownedNetworkHtml(); }
+function paintSocial(html, view = state.view) {
+  const content = document.getElementById('content');
+  if (!content || state.view !== view) return;
+  content.innerHTML = html;
+  enhanceAccessibility(content);
+  observeSocialMessages();
+}
+async function ownedNetworkMore(section, button) {
+  const owner = social, generation = csrfGeneration;
+  if (owner.busy.has('network')) return;
+  owner.busy.add('network');
+  try { await runBusyButton(button, 'Loading…', () => loadOwnedNetwork(section)); }
+  catch (e) { if (socialCurrent(owner, generation)) showSocialNotice(e); }
+  finally {
+    owner.busy.delete('network');
+    if (socialCurrent(owner, generation) && owner.network) paintSocial(ownedNetworkHtml(), 'network');
+  }
+}
+async function ownedNetworkAction(section, id, action, button) {
+  const owner = social, generation = csrfGeneration;
+  if (owner.mode !== 'v2' || owner.busy.has('network')) return;
+  const row = owner.network?.[section]?.find(row => row.id === id);
+  if (!row) return;
+  owner.busy.add('network'); owner.notice = '';
+  try {
+    await runBusyButton(button, 'Working…', async () => {
+      if (action === 'message') {
+        const c = await socialRequest('/api/conversations', {method: 'POST', body: JSON.stringify({targetUserId: row.counterpartUserId})});
+        if (!socialCurrent(owner, generation)) return;
+        owner.threads.set(c.id, c);
+        state.msgSlug = c.id; goto('messages');
+        return;
+      }
+      const path = action === 'connect' ? `/api/network/suggested/${row.id}/connect` :
+        ['endorse', 'unendorse'].includes(action) ? `/api/network/connections/${row.id}/endorse` : `/api/network/requests/${row.id}/${action}`;
+      const body = action === 'connect' ? {expectedVersion: row.edgeVersion} :
+        ['endorse', 'unendorse'].includes(action) ? {endorsed: action === 'endorse', expectedVersion: row.endorsementVersion} : {expectedVersion: row.version};
+      await socialRequest(path, {method: 'POST', body: JSON.stringify(body)});
+      if (socialCurrent(owner, generation)) await loadOwnedNetwork();
+    });
+  } catch (e) {
+    if (socialCurrent(owner, generation)) {
+      owner.notice = socialError(e).body.error;
+      // Never replay intent; discard old versions even if the refresh fails.
+      owner.network = null;
+      try { await loadOwnedNetwork(); } catch (refreshError) { showSocialNotice(refreshError); }
+    }
+  } finally {
+    owner.busy.delete('network');
+    if (socialCurrent(owner, generation) && state.view === 'network') {
+      if (owner.network) paintSocial(ownedNetworkHtml(), 'network');
+      else paintSocial(renderError(socialError({status: 503})), 'network');
+    }
+  }
+}
+async function loadOwnedConversations(more = false) {
+  const owner = social, generation = csrfGeneration, serial = ++owner.listLoad;
+  if (more && !owner.listCursor) return;
+  const query = new URLSearchParams({limit: '20'});
+  if (more) query.set('cursor', owner.listCursor);
+  const response = await socialRequest('/api/conversations?' + query, {}, true);
+  const rows = await response.json();
+  if (!socialCurrent(owner, generation) || serial !== owner.listLoad) return;
+  owner.conversations = more ? mergeSocialRows(owner.conversations, rows) : rows;
+  owner.listCursor = response.headers.get('X-Next-Cursor');
+}
+function ownedConversationsHtml() {
+  return `<div class="view-head"><h1>Messages</h1>${socialButton('Refresh', 'loadView()')}</div>${socialNotice()}` +
+    (social.conversations.map(c => `<button class="card conversation-card" style="width:100%;text-align:left" onclick="openThread(${esc(JSON.stringify(c.id))})">
+      <div style="min-width:0;overflow-wrap:anywhere"><strong>${esc(c.name)}</strong>
+      <div>${esc(c.messages.at(-1)?.text || 'No messages yet')}</div>
+      <div class="muted">${esc(c.unreadCount)} unread${c.readOnly ? ' · Read-only' : ''}</div></div></button>`).join('') || '<div class="empty">No conversations yet. Start one from a connection in Network.</div>') +
+    (social.listCursor ? socialButton('Load more conversations', 'ownedConversationsMore(this)', social.busy.has('list')) : '');
+}
+async function ownedConversationsMore(button) {
+  const owner = social, generation = csrfGeneration;
+  if (owner.busy.has('list')) return;
+  owner.busy.add('list');
+  try { await runBusyButton(button, 'Loading…', () => loadOwnedConversations(true)); }
+  catch (e) { if (socialCurrent(owner, generation)) showSocialNotice(e); }
+  finally {
+    owner.busy.delete('list');
+    if (socialCurrent(owner, generation) && !state.msgSlug) paintSocial(ownedConversationsHtml(), 'messages');
+  }
+}
+async function loadOwnedHistory(slug, older = false) {
+  const owner = social, generation = csrfGeneration;
+  const serial = (owner.historyLoads.get(slug) || 0) + 1;
+  owner.historyLoads.set(slug, serial);
+  const prior = owner.threads.get(slug);
+  if (older && !prior?.nextCursor) return;
+  const path = '/api/conversations/' + encodeURIComponent(slug);
+  const c = await socialRequest(path + (older ? '?before=' + encodeURIComponent(prior.nextCursor) : ''));
+  if (!socialCurrent(owner, generation) || owner.historyLoads.get(slug) !== serial) return;
+  const current = owner.threads.get(slug);
+  const firstReturned = c.messages[0]?.sequence;
+  c.messages = mergeSocialRows(current?.messages || [], c.messages, 'sequence').sort((a, b) => a.sequence - b.sequence);
+  if ((current?.lastReadSequence || 0) > c.lastReadSequence) c.unreadCount = current.unreadCount;
+  c.lastReadSequence = Math.max(current?.lastReadSequence || 0, c.lastReadSequence);
+  c.lastSequence = Math.max(current?.lastSequence || 0, c.lastSequence);
+  c.observedSequence = current?.observedSequence || 0;
+  if (!older && current?.messages.length && current.messages[0].sequence < (firstReturned || 0)) {
+    c.nextCursor = current.nextCursor; c.hasMore = current.hasMore;
+  }
+  owner.threads.set(slug, c);
+}
+function ownedThreadHtml(slug) {
+  const c = social.threads.get(slug), retry = social.retries.get(slug);
+  const arg = esc(JSON.stringify(slug));
+  return `<div class="message-shell"><div class="view-head"><div>${socialButton('← All conversations', 'closeThread()')}
+    <h1>${esc(c.name)}</h1></div>${socialButton('Refresh', 'loadView()')}</div>${socialNotice()}
+    ${c.readOnly ? '<p role="status">This conversation is read-only. You can view its history.</p>' : ''}
+    ${c.hasMore ? socialButton('Load older messages', `ownedHistoryMore(${JSON.stringify(slug)},this)`, social.busy.has('history:' + slug)) : ''}
+    <div class="message-thread">${c.messages.map(m => `<div data-social-sequence="${m.sequence}" class="bubble ${m.who === 'me' ? 'me' : 'them'}">${esc(m.text)}</div>`).join('')}</div>
+    ${retry ? `<p role="status">Message not confirmed. Retry the same message or discard it before writing another.</p>
+      ${socialButton('Retry message', `retryOwnedMessage(${JSON.stringify(slug)},this)`, social.busy.has('send:' + slug) || c.readOnly)}
+      ${socialButton('Discard pending message', `discardOwnedMessage(${JSON.stringify(slug)})`, social.busy.has('send:' + slug))}` : ''}
+    <form onsubmit="sendOwnedMessage(event,${arg});return false" class="chat-composer">
+      <input name="text" aria-label="Message" placeholder="Write a message" maxlength="4000" required ${c.readOnly || retry ? 'disabled' : ''}/>
+      <button class="btn btn-primary btn-sm" ${c.readOnly || retry ? 'disabled' : ''}>Send</button></form></div>`;
+}
+async function ownedMessagesView() {
+  const slug = state.msgSlug;
+  if (slug) { await loadOwnedHistory(slug); return ownedThreadHtml(slug); }
+  await loadOwnedConversations(); return ownedConversationsHtml();
+}
+async function ownedHistoryMore(slug, button) {
+  const owner = social, generation = csrfGeneration, key = 'history:' + slug;
+  if (owner.busy.has(key)) return;
+  owner.busy.add(key);
+  try { await runBusyButton(button, 'Loading…', () => loadOwnedHistory(slug, true)); }
+  catch (e) { if (socialCurrent(owner, generation)) showSocialNotice(e); }
+  finally {
+    owner.busy.delete(key);
+    if (socialCurrent(owner, generation) && state.msgSlug === slug) paintSocial(ownedThreadHtml(slug), 'messages');
+  }
+}
+async function sendOwnedMessage(ev, slug) {
+  ev.preventDefault();
+  if (social.retries.has(slug) || social.threads.get(slug)?.readOnly) return false;
+  const text = String(new FormData(ev.target).get('text') || '').trim();
+  if (!text || text.length > 4000) return false;
+  // Created once per submission, held unchanged until committed or discarded.
+  social.retries.set(slug, {text, clientMessageId: crypto.randomUUID()});
+  await retryOwnedMessage(slug, ev.submitter);
+  return false;
+}
+function discardOwnedMessage(slug) {
+  if (social.busy.has('send:' + slug)) return;
+  social.retries.delete(slug);
+  if (state.msgSlug === slug) paintSocial(ownedThreadHtml(slug), 'messages');
+}
+async function retryOwnedMessage(slug, button) {
+  const owner = social, generation = csrfGeneration, key = 'send:' + slug;
+  const submission = owner.retries.get(slug);
+  if (!submission || owner.busy.has(key) || owner.threads.get(slug)?.readOnly) return;
+  owner.busy.add(key); owner.notice = '';
+  try {
+    await runBusyButton(button, 'Sending…', async () => {
+      const result = await socialRequest('/api/conversations/' + encodeURIComponent(slug) + '/messages', {
+        method: 'POST', body: JSON.stringify(submission)
+      });
+      if (!socialCurrent(owner, generation)) return;
+      const c = owner.threads.get(slug);
+      c.messages = mergeSocialRows(c.messages, [result.message], 'sequence').sort((a,b) => a.sequence - b.sequence);
+      c.lastSequence = Math.max(c.lastSequence, result.lastSequence);
+      owner.retries.delete(slug);
+    });
+  } catch (e) {
+    if (socialCurrent(owner, generation)) {
+      showSocialNotice(e);
+      if (e.status && e.status < 500) {
+        owner.retries.delete(slug);
+        try { await loadOwnedHistory(slug); } catch (refreshError) {
+          if (socialCurrent(owner, generation)) { owner.threads.get(slug).readOnly = true; showSocialNotice(refreshError); }
+        }
+      }
+    }
+  } finally {
+    owner.busy.delete(key);
+    if (socialCurrent(owner, generation) && state.msgSlug === slug) paintSocial(ownedThreadHtml(slug), 'messages');
+  }
+}
+function observeSocialMessages() {
+  social.observer?.disconnect();
+  if (social.mode !== 'v2' || state.view !== 'messages' || !state.msgSlug || typeof IntersectionObserver === 'undefined') return;
+  const owner = social, generation = csrfGeneration, slug = state.msgSlug;
+  // Only visible rendered bubbles advance read state, never response.lastSequence.
+  owner.observer = new IntersectionObserver(entries => {
+    if (!socialCurrent(owner, generation) || state.view !== 'messages' || state.msgSlug !== slug || document.visibilityState !== 'visible') return;
+    const visible = entries.filter(e => e.isIntersecting && e.intersectionRatio > 0).map(e => Number(e.target.dataset.socialSequence));
+    if (visible.length) markOwnedRead(slug, Math.max(...visible));
+  });
+  document.querySelectorAll('[data-social-sequence]').forEach(el => owner.observer.observe(el));
+}
+async function markOwnedRead(slug, sequence) {
+  const owner = social, generation = csrfGeneration, c = owner.threads.get(slug), key = 'read:' + slug;
+  if (!c || sequence <= c.lastReadSequence || !c.messages.some(m => m.sequence === sequence)) return;
+  c.observedSequence = Math.max(c.observedSequence || 0, sequence);
+  if (owner.busy.has(key)) return;
+  owner.busy.add(key);
+  const observed = c.observedSequence;
+  try {
+    const result = await socialRequest('/api/conversations/' + encodeURIComponent(slug) + '/read', {method: 'POST', body: JSON.stringify({upToSequence: observed})});
+    if (!socialCurrent(owner, generation)) return;
+    const current = owner.threads.get(slug);
+    current.lastReadSequence = Math.max(current.lastReadSequence, result.lastReadSequence);
+    current.unreadCount = result.unreadCount;
+    const listed = owner.conversations?.find(row => row.id === slug);
+    if (listed) { listed.lastReadSequence = current.lastReadSequence; listed.unreadCount = result.unreadCount; }
+  } catch (e) { if (socialCurrent(owner, generation)) showSocialNotice(e); }
+  finally { owner.busy.delete(key); }
+  // A later observed bubble is a new read intent, not a retry of a failed write.
+  if (socialCurrent(owner, generation) && c.observedSequence > observed && state.msgSlug === slug) markOwnedRead(slug, c.observedSequence);
 }
 
 let toastTimer = null;
@@ -1184,28 +1540,35 @@ let socket = null;
 function initSocket() {
   if (socket || !state.user) return;
   socket = io();
+  const activeSocket = socket;
   socket.on('connect', () => {
+    if (socket !== activeSocket || !state.user) return;
     socket.emit('join');
   });
   socket.on('new_comment', () => {
+    if (socket !== activeSocket || !state.user) return;
     toast('New comment on a post');
     if (state.view === 'feed') loadView();
   });
   socket.on('new_message', (data) => {
+    if (socket !== activeSocket || !state.user) return;
     toast('New message from ' + (data.conversation ? data.conversation.name : 'a contact'));
     if (state.view === 'messages') loadView();
   });
   socket.on('job_match', (data) => {
+    if (socket !== activeSocket || !state.user) return;
     toast('New opportunity: ' + data.title);
     if (state.view === 'discover' && state.discoverTab === 'opportunities') loadView();
   });
   socket.on('notification', (note) => {
+    if (socket !== activeSocket || !state.user) return;
     state.unreadCount += 1;
     toast(note.text);
     refreshNavBadge();
     if (state.view === 'notifications') loadView();
   });
   socket.on('new_applicant', () => {
+    if (socket !== activeSocket || !state.user) return;
     if (state.view === 'listings' && state.businessTab === 'analytics') loadView();
   });
 }
@@ -1677,12 +2040,13 @@ async function loadView() {
 
   const generation = ++viewLoadGeneration;
   const requestedView = state.view;
+  const accountGeneration = csrfGeneration;
   content.setAttribute('aria-busy', 'true');
 
   // Preserve the existing no-flicker behavior. Only replace current content
   // with a loading state when the request is genuinely taking a moment.
   const showSpinner = setTimeout(() => {
-    if (generation !== viewLoadGeneration || state.view !== requestedView) return;
+    if (generation !== viewLoadGeneration || state.view !== requestedView || accountGeneration !== csrfGeneration) return;
     content.innerHTML = `
       <div class="loading" role="status" aria-live="polite">
         Loading ${esc(viewTitle(requestedView))}…
@@ -1709,14 +2073,15 @@ async function loadView() {
 
     // Protect against both navigation races and two in-flight loads for the
     // same top-level view, such as rapidly switching Discover/Admin tabs.
-    if (generation !== viewLoadGeneration || state.view !== requestedView) return;
+    if (generation !== viewLoadGeneration || state.view !== requestedView || accountGeneration !== csrfGeneration) return;
 
     content.innerHTML = html;
     enhanceAccessibility(content);
     content.setAttribute('aria-busy', 'false');
+    observeSocialMessages();
   } catch (e) {
     clearTimeout(showSpinner);
-    if (generation !== viewLoadGeneration || state.view !== requestedView) return;
+    if (generation !== viewLoadGeneration || state.view !== requestedView || accountGeneration !== csrfGeneration) return;
 
     content.innerHTML = renderError(e);
     enhanceAccessibility(content);
@@ -2079,7 +2444,8 @@ async function pathwaysHtml() {
 /*  NETWORK                                                             */
 /* ==================================================================== */
 async function renderNetworkView() {
-  const net = await api('/api/network');
+  if (await socialMode() === 'v2') return await ownedNetworkView();
+  const net = await socialRequest('/api/network');
   const parts = [];
   parts.push(`<div class="view-head"><div><h1>Network</h1><p>Build useful professional relationships around skills, projects and opportunities.</p></div></div>`);
 
@@ -2254,8 +2620,9 @@ async function submitTestimonial(ev, userId) {
 /*  MESSAGES                                                            */
 /* ==================================================================== */
 async function renderMessagesView() {
+  if (await socialMode() === 'v2') return await ownedMessagesView();
   if (state.msgSlug) return await threadHtml(state.msgSlug);
-  const convos = await api('/api/conversations');
+  const convos = await socialRequest('/api/conversations');
   return `
     <div class="view-head">
       <div>
@@ -2284,7 +2651,7 @@ function openThread(slug) { state.msgSlug = slug; loadView(); }
 function closeThread() { state.msgSlug = null; loadView(); }
 
 async function threadHtml(slug) {
-  const c = await api(`/api/conversations/${slug}`);
+  const c = await socialRequest(`/api/conversations/${slug}`);
   return `
     <div class="message-shell">
       <div class="view-head">
