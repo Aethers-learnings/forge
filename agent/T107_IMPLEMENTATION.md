@@ -34,6 +34,19 @@ Focused backend/web verification:
 
 Coverage includes pending cancellation, accepted disconnection, two-direction endorsement revocation, independent opposite blocks, pair-wide denial, unblock restoration rules, pre-pagination suggestion exclusion, retained history/read cursor, stranger history denial, create/send/request/accept/endorse denial, desired-state idempotency, stale versions, re-block recovery after reload, suspended actor/peer behavior, block-vs-request/accept/create/send/endorse/read serialized races, rollback atomicity, HTTP identity/privacy/gate ordering, ordinary-admin isolation, Web/WebView stale refresh and account-switch cleanup.
 
+## Final local gate run before review
+
+After helper cleanup and documentation commits, the user ran the release-gate commands on `manual/t107-blocking-core`:
+
+- full Forge pytest suite: **378 passed, 2 skipped, 1538 warnings in 136.49s**;
+- dedicated Chromium owned-social command: **1 skipped** because `playwright.sync_api` is not installed in the active venv; the test module deliberately uses `pytest.importorskip("playwright.sync_api")`;
+- mobile Node suite: **53 passed, 0 failed**;
+- `npm --prefix mobile run lint`: PASS;
+- mobile TypeScript `tsc --noEmit`: PASS;
+- final `git diff --check`: PASS.
+
+The Chromium result is an environment limitation, not a failing browser assertion. Install `requirements-browser.txt` and Chromium, then rerun `tests/test_browser_owned_social.py` before marking the PR ready for review. The PR remains draft until that browser gate is exercised or the gate is explicitly waived by a human reviewer.
+
 ## Review findings incorporated before PR
 
 - Removed unnecessary `color` from the block-list projection to keep it at the minimum caller-management surface.
