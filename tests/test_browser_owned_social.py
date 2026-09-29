@@ -127,12 +127,18 @@ def test_owned_real_thread_history_send_read_and_readonly(page, browser_server):
     login(page, browser_server)
     page.locator('.sidebar [data-view=network]').click()
     card = page.locator('.card', has_text='Owned peer 00')
-    with page.expect_response(lambda response: response.url.endswith('/read')) as read_response:
-        card.get_by_role('button', name='Message', exact=True).click()
+    reads = []
+    page.on('request', lambda request: reads.append(request.post_data_json['upToSequence']) if request.url.endswith('/read') else None)
+    card.get_by_role('button', name='Message', exact=True).click()
     page.get_by_role('button', name='Load older messages').wait_for()
     assert page.locator('[data-social-sequence]').count() == 50
+    page.locator('[data-social-sequence="55"]').scroll_into_view_if_needed()
+    page.wait_for_timeout(200)  # allow real IntersectionObserver delivery
+    assert reads == []  # unloaded sequences 1..5 block the latest page
+    with page.expect_response(lambda response: response.url.endswith('/read')) as read_response:
+        page.get_by_role('button', name='Load older messages').click()
+        page.locator('[data-social-sequence="1"]').scroll_into_view_if_needed()
     assert 0 < read_response.value.json()['lastReadSequence'] <= 55
-    page.get_by_role('button', name='Load older messages').click()
     page.locator('[data-social-sequence="1"]').wait_for()
     sequences = page.locator('[data-social-sequence]').evaluate_all('(nodes)=>nodes.map(n=>+n.dataset.socialSequence)')
     assert sequences == list(range(1, 56))
@@ -178,3 +184,49 @@ def test_owned_keyboard_list_and_mobile_thread(page, browser_server):
     page.emulate_media(reduced_motion='reduce')
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     assert page.get_by_role('textbox', name='Message', exact=True).count() == 1
+
+
+def test_owned_read_observer_does_not_skip_visible_later_message(page, browser_server):
+    # Real IntersectionObserver and scrolling; deterministic three-message HTTP fixture.
+    page.add_init_script("""new MutationObserver(() => {
+      const thread = document.querySelector('.message-thread');
+      if (!thread || thread.dataset.positioned) return;
+      thread.dataset.positioned = 'true';
+      thread.style.cssText = 'padding:0;flex:none;height:300px;max-height:300px;overflow:auto;display:block;scroll-behavior:auto!important';
+      thread.querySelectorAll('.bubble').forEach(node => node.style.cssText = 'height:600px;margin:0');
+      thread.scrollTop = 1200;
+    }).observe(document, {childList:true,subtree:true});""")
+    reads = []
+    def history(route):
+        import json
+        response = route.fetch()
+        data = response.json()
+        data.update(messages=[{'sequence': i, 'who': 'them', 'text': f'Incoming {i}',
+                               'createdAt': '2026-09-29T00:00:00Z'} for i in (1, 2, 3)],
+                    lastReadSequence=0, lastSequence=3, unreadCount=3, hasMore=False, nextCursor=None)
+        route.fulfill(response=response, body=json.dumps(data))
+    def read(route):
+        import json
+        cursor = route.request.post_data_json['upToSequence']
+        reads.append(cursor)
+        route.fulfill(status=200, content_type='application/json',
+                      body=json.dumps({'lastReadSequence': cursor, 'unreadCount': 3-cursor}))
+    page.route('**/api/conversations/*', history)
+    page.route('**/api/conversations/*/read', read)
+    login(page, browser_server)
+    page.locator('.sidebar [data-view=messages]').click()
+    page.locator('.conversation-card').first.click()
+    page.locator('[data-social-sequence="3"]').wait_for()
+    page.wait_for_timeout(200)
+    assert page.locator('.message-thread').evaluate('(node) => node.scrollTop') == 1200
+    assert reads == []
+    assert page.evaluate('Array.from(social.threads.get(state.msgSlug).observedSequences)') == [3]
+    with page.expect_response(lambda response: response.url.endswith('/read')):
+        page.locator('.message-thread').evaluate('(node) => {node.scrollTop = 0;}')
+    assert reads == [1]
+    with page.expect_response(lambda response: response.url.endswith('/read')):
+        page.locator('.message-thread').evaluate('(node) => {node.scrollTop = 600;}')
+    assert reads == [1, 3]  # sequence 3 was already observed, but could not skip 1/2
+    page.locator('.message-thread').evaluate('(node) => {node.scrollTop = 1200;}')
+    page.wait_for_timeout(200)
+    assert reads == [1, 3]

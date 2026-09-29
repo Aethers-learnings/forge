@@ -98,11 +98,71 @@ test('bounded history merges older overlap in sequence order and keeps oldest cu
   assert.equal(s.run("social.threads.get('server-slug').nextCursor"),null);
   assert.equal(s.calls.filter(c=>c.opts.method==='POST').length,0);
 });
-test('explicit read bounded by observed sequence and monotonic',async()=>{
-  const s=setup();await s.init();await s.run("loadOwnedHistory('server-slug')");
-  s.context.respond=async()=>new Response(JSON.stringify({lastReadSequence:3,unreadCount:1}));
-  await s.run("markOwnedRead('server-slug',3)");await s.run("markOwnedRead('server-slug',2)");await s.run("markOwnedRead('server-slug',99)");
-  const posts=s.calls.filter(c=>c.opts.method==='POST');assert.equal(posts.length,1);assert.deepEqual(posts[0].body,{upToSequence:3});
+async function readSetup(messages, lastReadSequence = 0) {
+  const s = setup(); await s.init();
+  s.context.respond = async () => new Response(JSON.stringify({...detail(), messages, lastReadSequence}));
+  await s.run("loadOwnedHistory('server-slug')");
+  s.state.view = 'messages'; s.state.msgSlug = 'server-slug';
+  s.context.respond = async (url, opts) => new Response(JSON.stringify({lastReadSequence: JSON.parse(opts.body).upToSequence, unreadCount: 0}));
+  s.posts = () => s.calls.filter(c => c.opts.method === 'POST').map(c => c.body.upToSequence);
+  return s;
+}
+test('observations cannot skip incoming gaps; retained observations become contiguous', async () => {
+  const s = await readSetup([message(1), message(2), message(3)]);
+  await s.run("markOwnedRead('server-slug',3)"); assert.deepEqual(s.posts(), []);
+  await s.run("markOwnedRead('server-slug',1)"); assert.deepEqual(s.posts(), [1]);
+  await s.run("markOwnedRead('server-slug',2)"); assert.deepEqual(s.posts(), [1,3]);
+  await s.run("markOwnedRead('server-slug',3)");
+  await s.run("markOwnedRead('server-slug',1)");
+  await s.run("markOwnedRead('server-slug',99)");
+  assert.deepEqual(s.posts(), [1,3]);
+  assert.equal(s.run("social.threads.get('server-slug').lastReadSequence"), 3);
+});
+test('own-message gap is non-blocking', async () => {
+  const s = await readSetup([message(1), {...message(2), who:'me'}, message(3)]);
+  await s.run("markOwnedRead('server-slug',3)"); assert.deepEqual(s.posts(), []);
+  await s.run("markOwnedRead('server-slug',1)"); assert.deepEqual(s.posts(), [3]);
+});
+test('unloaded history blocks read until missing incoming messages are loaded and observed', async () => {
+  const s = await readSetup([message(20)], 18);
+  await s.run("markOwnedRead('server-slug',20)"); assert.deepEqual(s.posts(), []);
+  s.context.respond = async () => new Response(JSON.stringify({...detail(), messages:[message(19)], lastReadSequence:18, hasMore:false}));
+  await s.run("loadOwnedHistory('server-slug',true)");
+  assert.deepEqual(s.posts(), []);
+  s.context.respond = async () => new Response(JSON.stringify({lastReadSequence:20,unreadCount:0}));
+  await s.run("markOwnedRead('server-slug',19)"); assert.deepEqual(s.posts(), [20]);
+});
+test('in-flight reads drain later contiguous observations once without regressing', async () => {
+  const s = await readSetup([message(1), message(2), message(3)]); let finish;
+  s.context.respond = () => new Promise(resolve => { finish = resolve; });
+  const pending = s.run("markOwnedRead('server-slug',1)"); await new Promise(setImmediate);
+  await s.run("markOwnedRead('server-slug',3)");
+  await s.run("markOwnedRead('server-slug',2)"); assert.deepEqual(s.posts(), [1]);
+  s.context.respond = async () => new Response(JSON.stringify({lastReadSequence:3,unreadCount:0}));
+  finish(new Response(JSON.stringify({lastReadSequence:1,unreadCount:2}))); await pending;
+  await new Promise(setImmediate); assert.deepEqual(s.posts(), [1,3]);
+  await s.run("markOwnedRead('server-slug',2)"); assert.deepEqual(s.posts(), [1,3]);
+});
+test('hidden tabs block observations and in-flight continuation', async () => {
+  const s = await readSetup([message(1), message(2)]); let finish;
+  s.context.document.visibilityState = 'hidden';
+  await s.run("markOwnedRead('server-slug',1)"); assert.deepEqual(s.posts(), []);
+  s.context.document.visibilityState = 'visible';
+  s.context.respond = () => new Promise(resolve => { finish = resolve; });
+  const pending = s.run("markOwnedRead('server-slug',1)"); await new Promise(setImmediate);
+  await s.run("markOwnedRead('server-slug',2)"); s.context.document.visibilityState = 'hidden';
+  finish(new Response(JSON.stringify({lastReadSequence:1,unreadCount:1}))); await pending;
+  await new Promise(setImmediate); assert.deepEqual(s.posts(), [1]);
+});
+test('failed read is not repeatedly posted for the same observed cursor', async () => {
+  const s = await readSetup([message(1)]);
+  s.context.respond = async () => {throw new Error('network failure');};
+  await s.run("markOwnedRead('server-slug',1)"); await s.run("markOwnedRead('server-slug',1)");
+  assert.deepEqual(s.posts(), [1]);
+});
+test('read-only retained history still advances contiguous own cursor', async () => {
+  const s = await readSetup([message(1)]); s.run("social.threads.get('server-slug').readOnly=true");
+  await s.run("markOwnedRead('server-slug',1)"); assert.deepEqual(s.posts(), [1]);
 });
 test('read-only UI disables send and retains escaped history',async()=>{
   const s=setup();await s.init();await s.run("loadOwnedHistory('server-slug')");s.run("social.threads.get('server-slug').readOnly=true");
@@ -153,7 +213,7 @@ test('401 invalidates session, late old 401 cannot sign out new account',async()
   const n=setup();await n.init();let finish;n.context.respond=()=>new Promise(r=>{finish=r;});const pending=n.run('loadOwnedNetwork()');await new Promise(setImmediate);n.run('setCurrentUser({id:2},true)');finish(new Response('{}',{status:401}));await assert.rejects(pending);assert.equal(n.state.user.id,2);
 });
 test('visible bubbles alone advance read; hidden tab and stale observer do not',async()=>{
-  const s=setup();await s.init();await s.run("loadOwnedHistory('server-slug')");
+  const s=await readSetup([message(3),message(4)],2);
   let observe;
   s.context.IntersectionObserver=class {constructor(fn){observe=fn;} observe(){} disconnect(){}};
   s.state.view='messages';s.state.msgSlug='server-slug';s.run('observeSocialMessages()');
@@ -197,4 +257,14 @@ test('CSRF rejection clears stale state and offers refresh without replay',async
   await s.run("ownedNetworkAction('requests',1,'accept')");
   assert.equal(s.run('social.network'),null);assert.equal(s.state.user.id,1);assert.match(s.elements.content.innerHTML,/Refresh/);
   assert.equal(s.calls.filter(c=>c.opts.method==='POST').length,1);
+});
+
+test('late read response and old observer cannot refill switched account', async () => {
+  const s = await readSetup([message(1), message(2)]); let finish;
+  s.context.respond = () => new Promise(resolve => {finish = resolve;});
+  const pending = s.run("markOwnedRead('server-slug',1)"); await new Promise(setImmediate);
+  await s.run("markOwnedRead('server-slug',2)");
+  s.run('setCurrentUser({id:2},true)');
+  finish(new Response(JSON.stringify({lastReadSequence:1,unreadCount:1}))); await pending;
+  assert.deepEqual(s.posts(), [1]); assert.equal(s.run('social.threads.size'), 0);
 });

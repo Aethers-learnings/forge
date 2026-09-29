@@ -1333,7 +1333,8 @@ async function loadOwnedHistory(slug, older = false) {
   if ((current?.lastReadSequence || 0) > c.lastReadSequence) c.unreadCount = current.unreadCount;
   c.lastReadSequence = Math.max(current?.lastReadSequence || 0, c.lastReadSequence);
   c.lastSequence = Math.max(current?.lastSequence || 0, c.lastSequence);
-  c.observedSequence = current?.observedSequence || 0;
+  c.observedSequences = current?.observedSequences || new Set();
+  c.readSubmittedSequence = current?.readSubmittedSequence || c.lastReadSequence;
   if (!older && current?.messages.length && current.messages[0].sequence < (firstReturned || 0)) {
     c.nextCursor = current.nextCursor; c.hasMore = current.hasMore;
   }
@@ -1424,29 +1425,49 @@ function observeSocialMessages() {
   owner.observer = new IntersectionObserver(entries => {
     if (!socialCurrent(owner, generation) || state.view !== 'messages' || state.msgSlug !== slug || document.visibilityState !== 'visible') return;
     const visible = entries.filter(e => e.isIntersecting && e.intersectionRatio > 0).map(e => Number(e.target.dataset.socialSequence));
-    if (visible.length) markOwnedRead(slug, Math.max(...visible));
+    if (visible.length) markOwnedRead(slug, visible);
   });
   document.querySelectorAll('[data-social-sequence]').forEach(el => owner.observer.observe(el));
 }
-async function markOwnedRead(slug, sequence) {
+function contiguousOwnedRead(c) {
+  const messages = new Map(c.messages.map(m => [m.sequence, m]));
+  let cursor = c.lastReadSequence;
+  // Missing sequence means unloaded history, not proof that it was read.
+  while (messages.has(cursor + 1)) {
+    const next = messages.get(cursor + 1);
+    if (next.who !== 'me' && !c.observedSequences.has(next.sequence)) break;
+    cursor = next.sequence;
+  }
+  return cursor;
+}
+async function markOwnedRead(slug, sequences = []) {
   const owner = social, generation = csrfGeneration, c = owner.threads.get(slug), key = 'read:' + slug;
-  if (!c || sequence <= c.lastReadSequence || !c.messages.some(m => m.sequence === sequence)) return;
-  c.observedSequence = Math.max(c.observedSequence || 0, sequence);
+  if (!c || document.visibilityState !== 'visible') return;
+  c.observedSequences ||= new Set();
+  for (const sequence of Array.isArray(sequences) ? sequences : [sequences]) {
+    if (sequence > c.lastReadSequence && c.messages.some(m => m.sequence === sequence)) c.observedSequences.add(sequence);
+  }
   if (owner.busy.has(key)) return;
+  const contiguous = contiguousOwnedRead(c);
+  if (contiguous <= Math.max(c.lastReadSequence, c.readSubmittedSequence || 0)) return;
+  // Also retain failed attempts: repeated observer callbacks must not replay a write.
+  c.readSubmittedSequence = contiguous;
   owner.busy.add(key);
-  const observed = c.observedSequence;
   try {
-    const result = await socialRequest('/api/conversations/' + encodeURIComponent(slug) + '/read', {method: 'POST', body: JSON.stringify({upToSequence: observed})});
+    const result = await socialRequest('/api/conversations/' + encodeURIComponent(slug) + '/read', {method: 'POST', body: JSON.stringify({upToSequence: contiguous})});
     if (!socialCurrent(owner, generation)) return;
     const current = owner.threads.get(slug);
+    if (result.lastReadSequence >= current.lastReadSequence) current.unreadCount = result.unreadCount;
     current.lastReadSequence = Math.max(current.lastReadSequence, result.lastReadSequence);
-    current.unreadCount = result.unreadCount;
+    for (const sequence of current.observedSequences) {
+      if (sequence <= current.lastReadSequence) current.observedSequences.delete(sequence);
+    }
     const listed = owner.conversations?.find(row => row.id === slug);
-    if (listed) { listed.lastReadSequence = current.lastReadSequence; listed.unreadCount = result.unreadCount; }
+    if (listed) { listed.lastReadSequence = current.lastReadSequence; listed.unreadCount = current.unreadCount; }
   } catch (e) { if (socialCurrent(owner, generation)) showSocialNotice(e); }
   finally { owner.busy.delete(key); }
-  // A later observed bubble is a new read intent, not a retry of a failed write.
-  if (socialCurrent(owner, generation) && c.observedSequence > observed && state.msgSlug === slug) markOwnedRead(slug, c.observedSequence);
+  // Recompute from current history/state, including observations made during the POST.
+  if (socialCurrent(owner, generation) && state.view === 'messages' && state.msgSlug === slug) await markOwnedRead(slug);
 }
 
 let toastTimer = null;
