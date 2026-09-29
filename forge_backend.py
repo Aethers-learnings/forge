@@ -572,6 +572,142 @@ class Message(db.Model):
         return {"who": self.who, "text": self.text}
 
 
+# These models map revision 20260928_02's already-created tables. They do not
+# authorize reads/writes through the legacy social routes, create schema, or
+# interpret ownerless NetworkRequest/Conversation/Message rows.
+class NetworkEdge(db.Model):
+    __tablename__ = "network_edge"
+    id = db.Column(db.Integer, primary_key=True)
+    user_low_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    user_high_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    requester_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    state = db.Column(db.Text, nullable=False)
+    version = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    requested_at = db.Column(db.DateTime, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False)
+    accepted_at = db.Column(db.DateTime)
+    ended_at = db.Column(db.DateTime)
+    changed_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("user_low_id", "user_high_id", name="uq_network_edge_pair"),
+        db.CheckConstraint("user_low_id < user_high_id", name="ck_network_edge_order"),
+        db.CheckConstraint("(requester_id = user_low_id AND recipient_id = user_high_id) OR "
+                           "(requester_id = user_high_id AND recipient_id = user_low_id)",
+                           name="ck_network_edge_parties"),
+        db.CheckConstraint("state IN ('pending', 'accepted', 'ignored', 'cancelled', 'disconnected')",
+                           name="ck_network_edge_state"),
+        db.CheckConstraint("version >= 1", name="ck_network_edge_version"),
+        db.Index("ix_network_edge_low_state", "user_low_id", "state"),
+        db.Index("ix_network_edge_high_state", "user_high_id", "state"),
+        db.Index("ix_network_edge_recipient_state", "recipient_id", "state"),
+        db.Index("ix_network_edge_requester_state", "requester_id", "state"),
+    )
+
+
+class Endorsement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    network_edge_id = db.Column(db.Integer, db.ForeignKey("network_edge.id", ondelete="RESTRICT"), nullable=False)
+    endorser_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    skill_key = db.Column(db.Text, nullable=False)
+    skill_label = db.Column(db.Text)
+    version = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False)
+    revoked_at = db.Column(db.DateTime)
+    __table_args__ = (
+        db.UniqueConstraint("endorser_id", "recipient_id", "skill_key",
+                            name="uq_endorsement_actor_recipient_skill"),
+        db.CheckConstraint("endorser_id <> recipient_id", name="ck_endorsement_distinct_users"),
+        db.CheckConstraint("version >= 1", name="ck_endorsement_version"),
+        db.Index("ix_endorsement_recipient_skill_active", "recipient_id", "skill_key",
+                 sqlite_where=db.text("revoked_at IS NULL")),
+    )
+
+
+class DirectConversation(db.Model):
+    __tablename__ = "direct_conversation"
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.Text, nullable=False)
+    user_low_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    user_high_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False)
+    last_seq = db.Column(db.Integer, nullable=False, server_default="0")
+    __table_args__ = (
+        db.UniqueConstraint("public_id", name="uq_direct_conversation_public_id"),
+        db.UniqueConstraint("user_low_id", "user_high_id", name="uq_direct_conversation_pair"),
+        db.CheckConstraint("user_low_id < user_high_id", name="ck_direct_conversation_order"),
+        db.CheckConstraint("created_by_user_id = user_low_id OR created_by_user_id = user_high_id",
+                           name="ck_direct_conversation_creator"),
+        db.CheckConstraint("last_seq >= 0", name="ck_direct_conversation_last_seq"),
+        db.Index("ix_direct_conversation_high_low", "user_high_id", "user_low_id"),
+    )
+
+
+class ConversationMember(db.Model):
+    __tablename__ = "conversation_member"
+    conversation_id = db.Column(db.Integer, db.ForeignKey("direct_conversation.id", ondelete="RESTRICT"),
+                                primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), primary_key=True)
+    joined_at = db.Column(db.DateTime, nullable=False)
+    last_read_seq = db.Column(db.Integer, nullable=False, server_default="0")
+    read_at = db.Column(db.DateTime)
+    __table_args__ = (
+        db.CheckConstraint("last_read_seq >= 0", name="ck_conversation_member_last_read"),
+        db.Index("ix_conversation_member_user_conversation", "user_id", "conversation_id"),
+    )
+
+
+class DirectMessage(db.Model):
+    __tablename__ = "direct_message"
+    conversation_id = db.Column(db.Integer, primary_key=True)
+    seq = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, nullable=False)
+    client_message_id = db.Column(db.Text, nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    __table_args__ = (
+        db.ForeignKeyConstraint(["conversation_id", "sender_id"],
+                                ["conversation_member.conversation_id", "conversation_member.user_id"],
+                                ondelete="RESTRICT"),
+        db.UniqueConstraint("conversation_id", "sender_id", "client_message_id",
+                            name="uq_direct_message_retry"),
+        db.CheckConstraint("seq >= 1", name="ck_direct_message_seq"),
+        db.CheckConstraint("length(trim(text)) >= 1 AND length(text) <= 4000",
+                           name="ck_direct_message_text"),
+    )
+
+
+class OwnershipEvent(db.Model):
+    __tablename__ = "ownership_event"
+    id = db.Column(db.Integer, primary_key=True)
+    network_edge_id = db.Column(db.Integer, db.ForeignKey("network_edge.id", ondelete="RESTRICT"))
+    endorsement_id = db.Column(db.Integer, db.ForeignKey("endorsement.id", ondelete="RESTRICT"))
+    conversation_id = db.Column(db.Integer, db.ForeignKey("direct_conversation.id", ondelete="RESTRICT"))
+    actor_user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    entity_version = db.Column(db.Integer, nullable=False)
+    event_type = db.Column(db.Text, nullable=False)
+    previous_state = db.Column(db.Text)
+    next_state = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False)
+    __table_args__ = (
+        db.CheckConstraint("(network_edge_id IS NOT NULL) + (endorsement_id IS NOT NULL) + "
+                           "(conversation_id IS NOT NULL) = 1", name="ck_ownership_event_entity"),
+        db.CheckConstraint("entity_version >= 1", name="ck_ownership_event_version"),
+        db.CheckConstraint("length(trim(event_type)) >= 1", name="ck_ownership_event_type"),
+        db.Index("ux_ownership_event_network_version_type", "network_edge_id", "entity_version",
+                 "event_type", unique=True, sqlite_where=db.text("network_edge_id IS NOT NULL")),
+        db.Index("ux_ownership_event_endorsement_version_type", "endorsement_id", "entity_version",
+                 "event_type", unique=True, sqlite_where=db.text("endorsement_id IS NOT NULL")),
+        db.Index("ux_ownership_event_conversation_version_type", "conversation_id", "entity_version",
+                 "event_type", unique=True, sqlite_where=db.text("conversation_id IS NOT NULL")),
+    )
+
+
 class AlumniVerification(db.Model):
     """Queue for grads who no longer have an active @richfield/@aaa login."""
     id = db.Column(db.Integer, primary_key=True)

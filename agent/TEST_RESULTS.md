@@ -1,5 +1,11 @@
 # Test results
 
+## 2026-09-29 — PR #21 review fixes
+
+- Focused owned-social model/service and migration/bootstrap suite: **74 passed, 92 existing warnings in 32.38s**. Regressions prove the original `expectedVersion:0` same-direction create retry (including concurrent calls) returns the pending edge without a second event; terminal re-request retries likewise stay no-op while older versions conflict. Already-current active and revoked endorsement retries accept the immediately preceding pre-commit version without a version/audit write; missing and older stale versions remain errors. Normal general-endorsement reads return only caller→peer, while disconnect still revokes both directions.
+- Initial full runs exposed an intermittent pre-existing test-fixture reset defect: a previous test's SQLite connection could observe/recreate a reused path or WAL, causing unrelated duplicate-user or missing-table errors. The test harness now assigns a distinct migration-initialized SQLite path and application engine to every test, preventing cross-test reuse. Auth and owned-social checks after that fix: **51 passed**.
+- Final full backend/web suite: **367 passed, 1486 existing deprecation warnings in 76.92s**. `git diff --check` passed. Migration history and the real `instance/forge.db` remained untouched; no existing social route, client, socket, notification or analytics cutover.
+
 ## 2026-09-28 — PR #17 review fixes
 
 - Focused bootstrap/migration suite: `.venv/bin/python -m pytest -q --disable-warnings tests/test_database_bootstrap.py tests/test_migration_tooling.py` — **50 passed**. New subprocess cases compare bytes, size, mtime and sidecars for `db-status`/`db-verify` on existing DELETE-journal databases.

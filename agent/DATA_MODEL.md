@@ -102,3 +102,7 @@ migration-owned tables outside the ledger.
 ## Issue #16 bootstrap authority (2026-09-28)
 
 Supersedes the historical create-all startup notes: fresh schema now comes solely from the unchanged frozen baseline and ordered revisions, including all six owned tables, physical constraints/indexes/triggers and checksum ledger. No new ORM models or revision changes are included. Persistent startup only verifies; explicit new-file initialization and existing-file adoption/upgrade are separate operator actions. Global FK enforcement remains unchanged.
+
+## Issue #18 ORM and service mapping (2026-09-29)
+
+Six `forge_backend.py` ORM mappings represent the already-migrated `network_edge`, `endorsement`, `direct_conversation`, `conversation_member`, `direct_message` and `ownership_event` tables. The focused internal service uses these mappings without creating schema, importing legacy social rows, adding cascade deletion or storing endorsement aggregates. Its normal general-endorsement read projection is caller-to-peer only; disconnect still revokes active endorsements in both directions. Migration history and global FK policy are unchanged. The earlier migration-only status above is historical.
