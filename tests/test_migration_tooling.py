@@ -21,6 +21,7 @@ from forge_migrations import (
 )
 from migrations import (
     r20260928_02_owned_social_schema as owned_social,
+    r20260929_03_blocking_core as blocking,
 )
 
 
@@ -77,7 +78,8 @@ def test_baseline_is_explicit_checksum_valid_and_idempotent(
     assert status["baselineChecksumOk"] is True
     assert status["headRevision"] == BASELINE_REVISION
     assert status["pendingRevisions"] == [
-        owned_social.REVISION
+        owned_social.REVISION,
+        blocking.REVISION,
     ]
 
     assert [
@@ -193,7 +195,7 @@ def test_owned_social_upgrade_and_downgrade_round_trip(
 
     applied = upgrade_database(engine)
 
-    assert applied == [owned_social.REVISION]
+    assert applied == [owned_social.REVISION, blocking.REVISION]
 
     status = migration_status(engine)
 
@@ -204,6 +206,9 @@ def test_owned_social_upgrade_and_downgrade_round_trip(
     inspector = inspect(engine)
 
     for table_name in owned_social.OWNED_SOCIAL_TABLES:
+        assert inspector.has_table(table_name)
+
+    for table_name in blocking.BLOCK_TABLES:
         assert inspector.has_table(table_name)
 
     # Legacy/shared social tables remain physically untouched
@@ -219,7 +224,7 @@ def test_owned_social_upgrade_and_downgrade_round_trip(
 
     verified = verify_database(engine)
 
-    assert verified["revision"] == owned_social.REVISION
+    assert verified["revision"] == blocking.REVISION
     assert verified["integrity"] == "ok"
     assert verified["foreignKeyViolations"] == []
 
@@ -238,7 +243,7 @@ def test_owned_social_upgrade_and_downgrade_round_trip(
         BASELINE_REVISION,
     )
 
-    assert removed == [owned_social.REVISION]
+    assert removed == [blocking.REVISION, owned_social.REVISION]
 
     status = migration_status(engine)
     assert status["headRevision"] == BASELINE_REVISION
@@ -249,6 +254,9 @@ def test_owned_social_upgrade_and_downgrade_round_trip(
     inspector = inspect(engine)
 
     for table_name in owned_social.OWNED_SOCIAL_TABLES:
+        assert not inspector.has_table(table_name)
+
+    for table_name in blocking.BLOCK_TABLES:
         assert not inspector.has_table(table_name)
 
     with engine.connect() as connection:

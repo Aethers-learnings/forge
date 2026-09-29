@@ -273,7 +273,7 @@ cli.main(args=['--app', 'forge_backend', 'seed-demo'])
     assert seeded.returncode == 0 and "Seeded." in seeded.stdout, seeded.stderr
     with sqlite3.connect(path) as conn:
         assert conn.execute("SELECT count(*) FROM user").fetchone()[0] > 0
-        assert conn.execute(f"SELECT count(*) FROM {migrations.LEDGER_TABLE}").fetchone()[0] == 2
+        assert conn.execute(f"SELECT count(*) FROM {migrations.LEDGER_TABLE}").fetchone()[0] == len(migrations.REVISION_ORDER)
         assert conn.execute("SELECT count(*) FROM network_edge").fetchone()[0] == 0
     missing = tmp_path / 'uninitialized.db'
     failed = application_process(missing, code=code)

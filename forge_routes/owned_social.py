@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import secrets
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 
 
 COOLDOWN = timedelta(hours=24)
@@ -97,6 +97,8 @@ class OwnedSocialService:
         self.member = models.ConversationMember.__table__
         self.message = models.DirectMessage.__table__
         self.event = models.OwnershipEvent.__table__
+        self.block = models.UserBlock.__table__
+        self.block_event = models.BlockEvent.__table__
 
     @contextmanager
     def _write(self):
@@ -132,6 +134,38 @@ class OwnedSocialService:
         return _row(connection, select(self.edge).where(
             self.edge.c.user_low_id == low, self.edge.c.user_high_id == high))
 
+
+    def _own_block(self, connection, blocker_id, blocked_id):
+        return _row(connection, select(self.block).where(
+            self.block.c.blocker_id == blocker_id,
+            self.block.c.blocked_id == blocked_id))
+
+    def _pair_blocked(self, connection, first_id, second_id):
+        return _row(connection, select(self.block.c.id).where(
+            self.block.c.active.is_(True),
+            or_(
+                and_(self.block.c.blocker_id == first_id,
+                     self.block.c.blocked_id == second_id),
+                and_(self.block.c.blocker_id == second_id,
+                     self.block.c.blocked_id == first_id),
+            )).limit(1)) is not None
+
+    def _ensure_pair_available(self, connection, first_id, second_id):
+        if self._pair_blocked(connection, first_id, second_id):
+            raise OperationUnavailable("operation unavailable")
+
+    def _block_event(self, connection, actor_id, block_id, version,
+                     previous_state, next_state, now):
+        connection.execute(self.block_event.insert().values(
+            user_block_id=block_id,
+            actor_user_id=actor_id,
+            block_version=version,
+            event_type=next_state,
+            previous_state=previous_state,
+            next_state=next_state,
+            created_at=now,
+        ))
+
     def _event(self, connection, actor_id, target, entity_id, version, kind,
                previous, next_state, now):
         connection.execute(self.event.insert().values(
@@ -146,6 +180,21 @@ class OwnedSocialService:
                 self.edge.c.user_low_id == user["id"],
                 self.edge.c.user_high_id == user["id"]))).mappings()]
 
+    def own_blocks(self, actor, *, after=None, limit=50):
+        if type(limit) is not int or not 1 <= limit <= 50 or (
+                after is not None and (type(after) is not int or after < 0)):
+            raise Invalid("invalid cursor or limit")
+        with self.engine.connect() as connection:
+            user = self._actor(connection, actor)
+            statement = select(self.block).where(
+                self.block.c.blocker_id == user["id"],
+                self.block.c.active.is_(True))
+            if after is not None:
+                statement = statement.where(self.block.c.id > after)
+            rows = connection.execute(statement.order_by(
+                self.block.c.id).limit(limit + 1)).mappings().all()
+            return [dict(row) for row in rows[:limit]], len(rows) > limit
+
     def suggestions(self, actor, *, now=None):
         now = now or _utcnow()
         with self.engine.connect() as connection:
@@ -156,16 +205,20 @@ class OwnedSocialService:
             result = []
             for peer in peers:
                 low, high = _pair(user["id"], peer["id"])
+                if self._pair_blocked(connection, low, high):
+                    continue
                 edge = self._edge_pair(connection, low, high)
                 if edge and (edge["state"] in ("pending", "accepted") or
                              edge["ended_at"] is None or now - edge["ended_at"] < COOLDOWN):
                     continue
-                # This projection follows ordinary public profile visibility,
-                # without privileged admin inspection or hidden fields.
+                # This projection follows ordinary public profile visibility.
+                # Caller-owned block version is included only so stale re-blocks can refresh.
+                own_block = self._own_block(connection, user["id"], peer["id"])
                 result.append({"id": peer["id"], "name": peer["name"],
                                "role": peer["role"], "color": peer["color"],
                                "headline": peer["headline"],
-                               "edge_version": edge["version"] if edge else 0})
+                               "edge_version": edge["version"] if edge else 0,
+                               "block_version": own_block["version"] if own_block else 0})
             return result
 
     def network_sections(self, actor, *, after=None, limit=None):
@@ -184,9 +237,80 @@ class OwnedSocialService:
                        edge["requester_id"] == user["id"] else
                        "requests" if edge["state"] == "pending" else None)
                 if key is not None and edge["id"] > after.get(key, 0):
-                    sections[key].append(dict(edge))
+                    item = dict(edge)
+                    peer_id = edge["user_high_id"] if edge["user_low_id"] == user["id"] else edge["user_low_id"]
+                    own_block = self._own_block(connection, user["id"], peer_id)
+                    item["block_version"] = own_block["version"] if own_block else 0
+                    sections[key].append(item)
             return {key: (values[:limit.get(key, 50)], len(values) > limit.get(key, 50))
                     for key, values in sections.items()}
+
+    def set_block(self, actor, target_id, desired, expected_version,
+                  *, now=None, with_status=False):
+        if type(desired) is not bool:
+            raise Invalid("desired state must be boolean")
+        now = now or _utcnow()
+        with self._write() as connection:
+            user = self._actor(connection, actor)
+            if type(target_id) is not int or target_id < 1 or target_id == user["id"]:
+                raise NotFound("user unavailable")
+            existing = self._own_block(connection, user["id"], target_id)
+            if existing is None:
+                self._peer(connection, target_id, discoverable=True)
+            current = bool(existing and existing["active"])
+            current_version = existing["version"] if existing else 0
+            if current == desired:
+                _retry_version(expected_version, current_version)
+                return (existing, False) if with_status else existing
+            _version(expected_version, current_version)
+            previous_state = "blocked" if current else "unblocked"
+            next_state = "blocked" if desired else "unblocked"
+            created = existing is None
+            if existing is None:
+                version = 1
+                block_id = connection.execute(self.block.insert().values(
+                    blocker_id=user["id"], blocked_id=target_id, active=True,
+                    version=version, created_at=now, updated_at=now,
+                    unblocked_at=None)).inserted_primary_key[0]
+            else:
+                version = existing["version"] + 1
+                block_id = existing["id"]
+                connection.execute(self.block.update().where(
+                    self.block.c.id == block_id).values(
+                        active=desired, version=version, updated_at=now,
+                        unblocked_at=None if desired else now))
+            if desired:
+                low, high = _pair(user["id"], target_id)
+                edge = self._edge_pair(connection, low, high)
+                if edge and edge["state"] in ("pending", "accepted"):
+                    edge_state = "cancelled" if edge["state"] == "pending" else "disconnected"
+                    edge_version = edge["version"] + 1
+                    connection.execute(self.edge.update().where(
+                        self.edge.c.id == edge["id"]).values(
+                            state=edge_state, version=edge_version,
+                            updated_at=now, accepted_at=None, ended_at=now,
+                            changed_by_user_id=user["id"]))
+                    self._event(connection, user["id"], "network_edge_id",
+                                edge["id"], edge_version, edge_state,
+                                edge["state"], edge_state, now)
+                if edge:
+                    endorsements = connection.execute(select(self.endorsement).where(
+                        self.endorsement.c.network_edge_id == edge["id"],
+                        self.endorsement.c.revoked_at.is_(None))).mappings().all()
+                    for endorsement in endorsements:
+                        endorsement_version = endorsement["version"] + 1
+                        connection.execute(self.endorsement.update().where(
+                            self.endorsement.c.id == endorsement["id"]).values(
+                                revoked_at=now, updated_at=now,
+                                version=endorsement_version))
+                        self._event(connection, user["id"], "endorsement_id",
+                                    endorsement["id"], endorsement_version,
+                                    "revoked", "active", "revoked", now)
+            self._block_event(connection, user["id"], block_id, version,
+                              previous_state, next_state, now)
+            result = _row(connection, select(self.block).where(
+                self.block.c.id == block_id))
+            return (result, created) if with_status else result
 
     def request(self, actor, target_id, expected_version, *, now=None):
         now = now or _utcnow()
@@ -194,6 +318,7 @@ class OwnedSocialService:
             user = self._actor(connection, actor)
             low, high = _pair(user["id"], target_id)
             self._peer(connection, target_id, discoverable=True)
+            self._ensure_pair_available(connection, low, high)
             edge = self._edge_pair(connection, low, high)
             if edge and edge["state"] == "pending":
                 if edge["requester_id"] == user["id"]:
@@ -239,6 +364,8 @@ class OwnedSocialService:
             source, required_actor, state = roles[action]
             if required_actor is not None and required_actor != user["id"]:
                 raise Forbidden("wrong endpoint")
+            if action == "accept":
+                self._ensure_pair_available(connection, edge["user_low_id"], edge["user_high_id"])
             _version(expected_version, edge["version"])
             if edge["state"] != source:
                 raise OperationUnavailable("operation unavailable")
@@ -274,6 +401,8 @@ class OwnedSocialService:
             if not edge or user["id"] not in (edge["user_low_id"], edge["user_high_id"]):
                 raise NotFound("edge unavailable")
             recipient = edge["user_high_id"] if user["id"] == edge["user_low_id"] else edge["user_low_id"]
+            if desired:
+                self._ensure_pair_available(connection, edge["user_low_id"], edge["user_high_id"])
             endorsement = _row(connection, select(self.endorsement).where(
                 self.endorsement.c.endorser_id == user["id"],
                 self.endorsement.c.recipient_id == recipient,
@@ -314,7 +443,8 @@ class OwnedSocialService:
                 raise NotFound("edge unavailable")
             peer_id = edge["user_high_id"] if user["id"] == edge["user_low_id"] else edge["user_low_id"]
             peer = _row(connection, select(self.user).where(self.user.c.id == peer_id))
-            if edge["state"] != "accepted" or not peer or peer["suspended"]:
+            if (edge["state"] != "accepted" or not peer or peer["suspended"]
+                    or self._pair_blocked(connection, edge["user_low_id"], edge["user_high_id"])):
                 return []
             return [dict(row) for row in connection.execute(select(self.endorsement).where(
                 self.endorsement.c.network_edge_id == edge_id,
@@ -334,7 +464,9 @@ class OwnedSocialService:
                 self.endorsement.c.endorser_id == user["id"],
                 self.endorsement.c.recipient_id == peer_id,
                 self.endorsement.c.skill_key == ""))
-            active = bool(row and row["revoked_at"] is None and edge["state"] == "accepted")
+            blocked = self._pair_blocked(connection, edge["user_low_id"], edge["user_high_id"])
+            active = bool(row and row["revoked_at"] is None
+                          and edge["state"] == "accepted" and not blocked)
             return {"endorsements": int(active), "endorsedByMe": active,
                     "version": row["version"] if row else 0}
 
@@ -362,6 +494,7 @@ class OwnedSocialService:
             user = self._actor(connection, actor)
             low, high = _pair(user["id"], peer_id)
             self._peer(connection, peer_id, discoverable=True)
+            self._ensure_pair_available(connection, low, high)
             edge = self._edge_pair(connection, low, high)
             if not edge or edge["state"] != "accepted":
                 raise OperationUnavailable("operation unavailable")
@@ -425,6 +558,7 @@ class OwnedSocialService:
                 if prior["text"] != normalized:
                     raise Conflict("retry key already used")
                 return (prior, False) if with_status else prior
+            self._ensure_pair_available(connection, conversation["user_low_id"], conversation["user_high_id"])
             peer_id = (conversation["user_high_id"] if user["id"] == conversation["user_low_id"]
                        else conversation["user_low_id"])
             edge = self._edge_pair(connection, conversation["user_low_id"], conversation["user_high_id"])
@@ -448,9 +582,11 @@ class OwnedSocialService:
                        else conversation["user_low_id"])
             peer = _row(connection, select(self.user).where(self.user.c.id == peer_id))
             edge = self._edge_pair(connection, conversation["user_low_id"], conversation["user_high_id"])
+            blocked = self._pair_blocked(connection, conversation["user_low_id"], conversation["user_high_id"])
             return {"peer_id": peer_id, "name": peer["name"] if peer else "Member",
                     "color": peer["color"] if peer else "", "read_only": not (
-                        peer and not peer["suspended"] and edge and edge["state"] == "accepted"),
+                        peer and not peer["suspended"] and edge and
+                        edge["state"] == "accepted" and not blocked),
                     "last_seq": conversation["last_seq"]}
 
     def list_conversations(self, actor, *, after=None, limit=50):

@@ -713,6 +713,57 @@ class OwnershipEvent(db.Model):
     )
 
 
+class UserBlock(db.Model):
+    __tablename__ = "user_block"
+    id = db.Column(db.Integer, primary_key=True)
+    blocker_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    blocked_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    active = db.Column(db.Boolean, nullable=False)
+    version = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False)
+    unblocked_at = db.Column(db.DateTime)
+    __table_args__ = (
+        db.UniqueConstraint("blocker_id", "blocked_id", name="uq_user_block_direction"),
+        db.CheckConstraint("blocker_id <> blocked_id", name="ck_user_block_distinct"),
+        db.CheckConstraint("active IN (0, 1)", name="ck_user_block_active"),
+        db.CheckConstraint("version >= 1", name="ck_user_block_version"),
+        db.CheckConstraint(
+            "((active = 1 AND unblocked_at IS NULL) OR "
+            "(active = 0 AND unblocked_at IS NOT NULL))",
+            name="ck_user_block_unblocked_timestamp",
+        ),
+        db.Index("ix_user_block_blocker_active", "blocker_id", "active"),
+        db.Index("ix_user_block_blocked_active", "blocked_id", "active"),
+    )
+
+
+class BlockEvent(db.Model):
+    __tablename__ = "block_event"
+    id = db.Column(db.Integer, primary_key=True)
+    user_block_id = db.Column(db.Integer, db.ForeignKey("user_block.id", ondelete="RESTRICT"), nullable=False)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=False)
+    block_version = db.Column(db.Integer, nullable=False)
+    event_type = db.Column(db.Text, nullable=False)
+    previous_state = db.Column(db.Text, nullable=False)
+    next_state = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("user_block_id", "block_version", name="uq_block_event_version"),
+        db.CheckConstraint("block_version >= 1", name="ck_block_event_version"),
+        db.CheckConstraint("event_type IN ('blocked', 'unblocked')", name="ck_block_event_type"),
+        db.CheckConstraint("previous_state IN ('blocked', 'unblocked')", name="ck_block_event_previous_state"),
+        db.CheckConstraint("next_state IN ('blocked', 'unblocked')", name="ck_block_event_next_state"),
+        db.CheckConstraint("previous_state <> next_state", name="ck_block_event_effective_change"),
+        db.CheckConstraint(
+            "((event_type = 'blocked' AND next_state = 'blocked') OR "
+            "(event_type = 'unblocked' AND next_state = 'unblocked'))",
+            name="ck_block_event_type_matches_state",
+        ),
+        db.Index("ix_block_event_block_created", "user_block_id", "created_at"),
+    )
+
+
 class AlumniVerification(db.Model):
     """Queue for grads who no longer have an active @richfield/@aaa login."""
     id = db.Column(db.Integer, primary_key=True)

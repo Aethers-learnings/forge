@@ -7,6 +7,7 @@ from sqlalchemy import inspect
 import forge_backend as forge
 from forge_migrations import verify_application_database
 from migrations.r20260928_02_owned_social_schema import OWNED_SOCIAL_TABLES
+from migrations.r20260929_03_blocking_core import BLOCK_TABLES
 
 
 MODELS = (
@@ -16,13 +17,17 @@ MODELS = (
     forge.ConversationMember,
     forge.DirectMessage,
     forge.OwnershipEvent,
+    forge.UserBlock,
+    forge.BlockEvent,
 )
 
 
 def test_owned_model_columns_and_indexes_match_migrated_schema(app):
     with app.app_context():
         inspector = inspect(forge.db.engine)
-        assert {model.__tablename__ for model in MODELS} == set(OWNED_SOCIAL_TABLES)
+        assert {model.__tablename__ for model in MODELS} == (
+            set(OWNED_SOCIAL_TABLES) | set(BLOCK_TABLES)
+        )
         for model in MODELS:
             table = model.__table__
             actual_columns = {column["name"]: column for column in

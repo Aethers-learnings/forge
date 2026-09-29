@@ -234,3 +234,91 @@ def test_v2_public_config(client):
     response = client.get('/api/social-config')
     assert response.json == {'mode': 'v2'}
     assert response.headers['Cache-Control'] == 'no-store'
+
+
+
+def test_block_api_pair_wide_privacy_and_history(client, world):
+    (a, b, c, admin), svc = world
+    actor = forge.db.session.get(forge.User, a)
+    peer = forge.db.session.get(forge.User, b)
+    edge = svc.request(actor, b, 0)
+    svc.transition(peer, edge['id'], 'accept', 1)
+    slug = svc.open_conversation(actor, b)['public_id']
+    svc.send(actor, slug, 'historical', 'history-1')
+
+    path = f'/api/network/blocks/{b}'
+    assert client.put(path, json={'blocked': True}, headers=auth(client, a)).status_code == 428
+    assert client.put(path, json={'blocked': True, 'expectedVersion': 0, 'blockerId': a},
+                      headers=auth(client, a)).status_code == 400
+    created = client.put(path, json={'blocked': True, 'expectedVersion': 0},
+                         headers=auth(client, a))
+    assert created.status_code == 201 and created.json == {'ok': True, 'blocked': True, 'version': 1}
+    retry = client.put(path, json={'blocked': True, 'expectedVersion': 0},
+                       headers=auth(client, a))
+    assert retry.status_code == 200 and retry.json['version'] == 1
+    assert client.put(path, json={'blocked': False, 'expectedVersion': 0},
+                      headers=auth(client, a)).status_code == 409
+
+    own = client.get('/api/network/blocks', headers=auth(client, a))
+    assert own.status_code == 200
+    assert own.headers['Cache-Control'] == 'no-store'
+    assert own.json['blocks'][0]['targetUserId'] == b
+    assert set(own.json['blocks'][0]) == {'targetUserId', 'name', 'version'}
+    assert client.get('/api/network/blocks', headers=auth(client, b)).json['blocks'] == []
+    assert client.get('/api/network/blocks', headers=auth(client, c)).json['blocks'] == []
+    assert client.get('/api/network/blocks', headers=auth(client, admin)).json['blocks'] == []
+
+    network_b = client.get('/api/network', headers=auth(client, b)).json
+    assert network_b['requests'] == [] and network_b['connections'] == []
+    assert a not in {row['id'] for row in network_b['suggested']}
+    assert post(client, f'/api/network/suggested/{a}/connect', {'expectedVersion': 3},
+                auth(client, b)).status_code == 409
+    assert post(client, '/api/conversations', {'targetUserId': a},
+                auth(client, b)).status_code == 409
+    assert post(client, f'/api/conversations/{slug}/messages',
+                {'text': 'new', 'clientMessageId': 'blocked-send'},
+                auth(client, b)).status_code == 409
+
+    detail = client.get(f'/api/conversations/{slug}', headers=auth(client, b))
+    assert detail.status_code == 200 and detail.json['readOnly'] is True
+    assert detail.json['messages'][0]['text'] == 'historical'
+    assert post(client, f'/api/conversations/{slug}/read', {'upToSequence': 1},
+                auth(client, b)).status_code == 200
+
+    unblocked = client.put(path, json={'blocked': False, 'expectedVersion': 1},
+                           headers=auth(client, a))
+    assert unblocked.status_code == 200 and unblocked.json['version'] == 2
+    assert client.get('/api/network/blocks', headers=auth(client, a)).json['blocks'] == []
+    assert post(client, f'/api/conversations/{slug}/messages',
+                {'text': 'still disconnected', 'clientMessageId': 'after-unblock'},
+                auth(client, a)).status_code == 409
+
+
+def test_block_endpoint_gate_order_and_concealment(client, world):
+    (a, b, c, admin), svc = world
+    path = f'/api/network/blocks/{b}'
+    with client.session_transaction() as session:
+        session.clear()
+    assert client.put(path, json={}, headers={}).status_code == 401
+    assert client.put(path, json={}, headers=auth(client, a, cap=None, csrf=False)).status_code == 403
+    assert client.put(path, json={}, headers=auth(client, a, cap=None)).status_code == 426
+    assert client.put('/api/network/blocks/999999',
+                      json={'blocked': True, 'expectedVersion': 0},
+                      headers=auth(client, a)).status_code == 404
+    assert client.put(f'/api/network/blocks/{a}',
+                      json={'blocked': True, 'expectedVersion': 0},
+                      headers=auth(client, a)).status_code == 404
+
+
+
+def test_reblock_version_is_recoverable_after_reload(client, world):
+    (a, b, c, admin), svc = world
+    actor = forge.db.session.get(forge.User, a)
+    svc.set_block(actor, c, True, 0)
+    svc.set_block(actor, c, False, 1)
+    network = client.get('/api/network', headers=auth(client, a))
+    assert network.status_code == 200
+    row = next(item for item in network.json['suggested'] if item['id'] == c)
+    assert row['blockVersion'] == 2
+    blocked = client.put(f'/api/network/blocks/{c}', json={'blocked': True, 'expectedVersion': 2}, headers=auth(client, a))
+    assert blocked.status_code == 200 and blocked.json['version'] == 3
