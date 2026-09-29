@@ -50,3 +50,6 @@ tests/forge-profile-images-*/
 # Browser regression failure artifacts
 test-results/
 tests/forge-browser-*/
+
+# Test-generated temporary upload directories
+tests/forge-uploads-*/
