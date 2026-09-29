@@ -1116,9 +1116,9 @@ async function api(path, opts = {}, rawResponse = false) {
 /* Ownership-v2 state is memory-only and shares the CSRF account generation. */
 let social = freshSocialState();
 function freshSocialState() {
-  return {mode: null, config: null, network: null, conversations: null,
-    listCursor: null, threads: new Map(), retries: new Map(), busy: new Set(),
-    observer: null, notice: '', networkLoad: 0, listLoad: 0, historyLoads: new Map()};
+  return {mode: null, config: null, network: null, blocks: [], conversations: null,
+    blocksCursor: null, listCursor: null, threads: new Map(), retries: new Map(), busy: new Set(),
+    observer: null, notice: '', networkLoad: 0, blockLoad: 0, listLoad: 0, historyLoads: new Map()};
 }
 function resetSocialState() {
   social.observer?.disconnect();
@@ -1206,6 +1206,16 @@ async function loadOwnedNetwork(section = null) {
     owner.network.nextCursors[section] = net.nextCursors[section] || null;
   }
 }
+async function loadOwnedBlocks(more = false) {
+  const owner = social, generation = csrfGeneration, serial = ++owner.blockLoad;
+  if (more && !owner.blocksCursor) return;
+  const query = new URLSearchParams({limit: '20'});
+  if (more) query.set('cursor', owner.blocksCursor);
+  const payload = await socialRequest('/api/network/blocks?' + query);
+  if (!socialCurrent(owner, generation) || serial !== owner.blockLoad) return;
+  owner.blocks = more ? mergeSocialRows(owner.blocks, payload.blocks, 'targetUserId') : payload.blocks;
+  owner.blocksCursor = payload.nextCursor || null;
+}
 function socialButton(label, handler, disabled = false) {
   return `<button class="btn btn-ghost btn-sm" ${disabled ? 'disabled' : ''} onclick="${esc(handler)}">${esc(label)}</button>`;
 }
@@ -1218,21 +1228,29 @@ function ownedNetworkHtml() {
       (net[section].map(row => {
         const busy = social.busy.has('network');
         const action = (label, verb) => socialButton(label, `ownedNetworkAction('${section}',${row.id},'${verb}',this)`, busy);
+        const targetUserId = section === 'suggested' ? row.id : row.counterpartUserId;
+        const block = socialButton('Block', `ownedBlockAction(${targetUserId},true,${row.blockVersion || 0},${section === 'connections' ? "'connection'" : "'peer'"},this)`, busy);
         let controls = '';
-        if (section === 'suggested') controls = action('Connect', 'connect');
+        if (section === 'suggested') controls = action('Connect', 'connect') + block;
         else if (section === 'connections') controls = action(row.endorsedByMe ? 'Remove endorsement' : 'Endorse', row.endorsedByMe ? 'unendorse' : 'endorse') +
-          action('Message', 'message') + action('Disconnect', 'disconnect');
-        else if (row.direction === 'incoming') controls = action('Accept', 'accept') + action('Ignore', 'ignore');
-        else if (row.direction === 'outgoing') controls = action('Cancel request', 'cancel');
+          action('Message', 'message') + action('Disconnect', 'disconnect') + block;
+        else if (row.direction === 'incoming') controls = action('Accept', 'accept') + action('Ignore', 'ignore') + block;
+        else if (row.direction === 'outgoing') controls = action('Cancel request', 'cancel') + block;
         return `<div class="card" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
           <div style="flex:1;min-width:120px;overflow-wrap:anywhere"><strong>${esc(row.name)}</strong>
           <div class="muted">${esc(prettyRole(row.role))}${section === 'connections' ? ' · ' + esc(row.endorsements) + ' endorsements' : ''}</div></div>
           <div style="display:flex;flex-wrap:wrap;gap:6px">${controls}</div></div>`;
       }).join('') || '<div class="empty">No entries.</div>') +
       (net.nextCursors[section] ? socialButton('Load more ' + label.toLowerCase(), `ownedNetworkMore('${section}',this)`, social.busy.has('network')) : '')
-    ).join('');
+    ).join('') +
+    `<h2 class="section-title">Blocked accounts</h2>` +
+    (social.blocks.map(row => `<div class="card" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+      <div style="flex:1;min-width:120px;overflow-wrap:anywhere"><strong>${esc(row.name)}</strong></div>
+      <div>${socialButton('Unblock', `ownedBlockAction(${row.targetUserId},false,${row.version},'blocked',this)`, social.busy.has('network'))}</div></div>`).join('') ||
+      '<div class="empty">No blocked accounts.</div>') +
+    (social.blocksCursor ? socialButton('Load more blocked accounts', 'ownedBlocksMore(this)', social.busy.has('network')) : '');
 }
-async function ownedNetworkView() { await loadOwnedNetwork(); return ownedNetworkHtml(); }
+async function ownedNetworkView() { await Promise.all([loadOwnedNetwork(), loadOwnedBlocks()]); return ownedNetworkHtml(); }
 function paintSocial(html, view = state.view) {
   const content = document.getElementById('content');
   if (!content || state.view !== view) return;
@@ -1286,6 +1304,40 @@ async function ownedNetworkAction(section, id, action, button) {
       if (owner.network) paintSocial(ownedNetworkHtml(), 'network');
       else paintSocial(renderError(socialError({status: 503})), 'network');
     }
+  }
+}
+async function ownedBlocksMore(button) {
+  const owner = social, generation = csrfGeneration;
+  if (owner.busy.has('network')) return;
+  owner.busy.add('network');
+  try { await runBusyButton(button, 'Loading…', () => loadOwnedBlocks(true)); }
+  catch (e) { if (socialCurrent(owner, generation)) showSocialNotice(e); }
+  finally {
+    owner.busy.delete('network');
+    if (socialCurrent(owner, generation) && owner.network && state.view === 'network') paintSocial(ownedNetworkHtml(), 'network');
+  }
+}
+async function ownedBlockAction(targetUserId, desired, expectedVersion, context, button) {
+  const owner = social, generation = csrfGeneration;
+  if (owner.mode !== 'v2' || owner.busy.has('network')) return;
+  if (desired && context === 'connection' && !confirm('Block this account? This will end the current connection.')) return;
+  owner.busy.add('network'); owner.notice = '';
+  try {
+    await runBusyButton(button, 'Working…', async () => {
+      await socialRequest('/api/network/blocks/' + targetUserId, {
+        method: 'PUT', body: JSON.stringify({blocked: desired, expectedVersion})
+      });
+      if (socialCurrent(owner, generation)) await Promise.all([loadOwnedNetwork(), loadOwnedBlocks()]);
+    });
+  } catch (e) {
+    if (socialCurrent(owner, generation)) {
+      owner.notice = socialError(e).body.error;
+      try { await Promise.all([loadOwnedNetwork(), loadOwnedBlocks()]); }
+      catch (refreshError) { showSocialNotice(refreshError); }
+    }
+  } finally {
+    owner.busy.delete('network');
+    if (socialCurrent(owner, generation) && owner.network && state.view === 'network') paintSocial(ownedNetworkHtml(), 'network');
   }
 }
 async function loadOwnedConversations(more = false) {

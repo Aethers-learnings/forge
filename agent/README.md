@@ -10,8 +10,9 @@ Start with [STATE](STATE.md) for the latest verified status and [TASKS](TASKS.md
 | Current route inventory and contract | [API_MAP](API_MAP.md), [API_CONTRACT](API_CONTRACT.md) |
 | Security and known limitations | [SECURITY](SECURITY.md), [KNOWN_ISSUES](KNOWN_ISSUES.md) |
 | Approved ownership design and safety gate | [OWNERSHIP_DESIGN](OWNERSHIP_DESIGN.md), [SAFETY_DESIGN](SAFETY_DESIGN.md) |
+| T-107 blocking implementation status | [T107_IMPLEMENTATION](T107_IMPLEMENTATION.md) |
 | Client plans | [WEB_PLAN](WEB_PLAN.md), [MOBILE_PLAN](MOBILE_PLAN.md) |
 | Verification and session history | [TEST_RESULTS](TEST_RESULTS.md), [SESSION_LOG](SESSION_LOG.md) |
 | Local autonomous tooling | [AUTONOMY](AUTONOMY.md) |
 
-The ownership and safety design documents specify future behavior. The current network/conversation handlers still use the legacy shared tables. The additive owned-social migration does not itself switch routes or import legacy ownership. Check [STATE](STATE.md) and the code before describing a design as implemented.
+The ownership and safety design documents contain both implemented and future behavior. Ownership-v2 and the T-107 directed blocking core now have reviewed implementation increments, but the default/production social mode remains legacy and T-107 reporting/reviewer work is still outstanding. Check [STATE](STATE.md), [TASKS](TASKS.md), [T107_IMPLEMENTATION](T107_IMPLEMENTATION.md), and the code before describing any design as production-complete.

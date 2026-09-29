@@ -128,7 +128,8 @@ def create_social_dispatch(app, db, models, require_login, mode):
                 item = {"id": edge["id"], "counterpartUserId": peer_id,
                         "name": peer.name if peer else "Member", "color": peer.color if peer else "",
                         "role": peer.role if peer else "", "direction": "outgoing" if edge["requester_id"] == user.id else "incoming",
-                        "version": edge["version"], "status": edge["state"]}
+                        "version": edge["version"], "status": edge["state"],
+                        "blockVersion": edge.get("block_version", 0)}
                 if name == "connections":
                     status = svc.endorsement_status(user, edge["id"])
                     item.update({"endorsements": status["endorsements"],
@@ -140,7 +141,8 @@ def create_social_dispatch(app, db, models, require_login, mode):
         suggestions = svc.suggestions(user)
         suggestions = [p for p in suggestions if p["id"] > after.get("suggested", 0)]
         selected = suggestions[:limits["suggested"]]
-        result["suggested"] = [{**p, "edgeVersion": p.pop("edge_version")}
+        result["suggested"] = [{**p, "edgeVersion": p.pop("edge_version"),
+                                "blockVersion": p.pop("block_version")}
                                for p in selected]
         if len(suggestions) > len(selected):
             result["nextCursors"]["suggested"] = encode(user, "network:suggested", selected[-1]["id"])
@@ -169,6 +171,36 @@ def create_social_dispatch(app, db, models, require_login, mode):
         status = svc.endorsement_status(user, edge_id)
         return jsonify(id=edge_id, endorsements=status["endorsements"],
                        endorsedByMe=status["endorsedByMe"], version=status["version"])
+
+    @safe
+    def blocks(svc, user):
+        if set(request.args) - {"limit", "cursor"}:
+            raise Invalid("unknown query parameter")
+        after = cursor(request.args["cursor"], user, "blocks") if "cursor" in request.args else None
+        rows, more = svc.own_blocks(user, after=after, limit=page_limit("limit"))
+        output = []
+        for row in rows:
+            peer = db.session.get(models.User, row["blocked_id"])
+            output.append({
+                "targetUserId": row["blocked_id"],
+                "name": peer.name if peer else "Member",
+                "version": row["version"],
+            })
+        response = jsonify(blocks=output,
+                           nextCursor=encode(user, "blocks", rows[-1]["id"])
+                           if more and rows else None)
+        return response
+
+    @safe
+    def set_block(svc, user, target_id):
+        data = body({"blocked", "expectedVersion"})
+        if type(data["blocked"]) is not bool:
+            raise Invalid("invalid desired state")
+        row, created = svc.set_block(
+            user, positive(target_id), data["blocked"],
+            version(data["expectedVersion"]), with_status=True)
+        return jsonify(ok=True, blocked=data["blocked"],
+                       version=row["version"] if row else 0), 201 if created else 200
 
     @safe
     def conversations(svc, user):
@@ -217,6 +249,8 @@ def create_social_dispatch(app, db, models, require_login, mode):
 
     import re
     patterns = [
+        ("GET", re.compile(r"/api/network/blocks"), blocks),
+        ("PUT", re.compile(r"/api/network/blocks/(\d+)"), set_block),
         ("GET", re.compile(r"/api/network"), network),
         ("POST", re.compile(r"/api/network/suggested/(\d+)/connect"), connect),
         ("POST", re.compile(r"/api/network/requests/(\d+)/(\w+)"), transition),

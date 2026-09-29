@@ -27,6 +27,7 @@ from sqlalchemy.pool import NullPool
 
 from migrations import (
     r20260928_02_owned_social_schema as owned_social_schema,
+    r20260929_03_blocking_core as blocking_core,
 )
 
 
@@ -38,6 +39,7 @@ LEDGER_TABLE = "forge_schema_migrations"
 
 MIGRATION_MODULES = (
     owned_social_schema,
+    blocking_core,
 )
 
 REVISION_MODULES = {

@@ -5,12 +5,13 @@ const vm = require('node:vm');
 const {webcrypto} = require('node:crypto');
 const html = fs.readFileSync('static/forge_demo.html', 'utf8');
 const helpers = html.slice(html.indexOf('let csrfToken = null;'), html.indexOf('let toastTimer = null;'));
-const net = () => ({requests: [{id: 1, counterpartUserId: 8, name: 'Same', direction: 'incoming', version: 3}], outgoingRequests: [{id: 2, counterpartUserId: 9, name: 'Same', direction: 'outgoing', version: 4}], suggested: [{id: 10, name: 'Peer', edgeVersion: 6}], connections: [{id: 3, counterpartUserId: 11, name: 'Peer', version: 5, endorsementVersion: 7, endorsedByMe: false, endorsements: 0}], nextCursors: {suggested: 'next'}});
+const net = () => ({requests: [{id: 1, counterpartUserId: 8, name: 'Same', direction: 'incoming', version: 3, blockVersion: 0}], outgoingRequests: [{id: 2, counterpartUserId: 9, name: 'Same', direction: 'outgoing', version: 4, blockVersion: 2}], suggested: [{id: 10, name: 'Peer', edgeVersion: 6, blockVersion: 4}], connections: [{id: 3, counterpartUserId: 11, name: 'Peer', version: 5, endorsementVersion: 7, endorsedByMe: false, endorsements: 0, blockVersion: 0}], nextCursors: {suggested: 'next'}});
+const blocks = () => ({blocks: [{targetUserId: 20, name: 'Blocked Peer', version: 3}], nextCursor: null});
 const message = seq => ({sequence: seq, who: 'them', text: `message ${seq}`, createdAt: '2026-09-29T10:00:00Z'});
 const detail = () => ({id: 'server-slug', name: 'Peer', messages: [message(3), message(4)], hasMore: true, nextCursor: 'older', lastSequence: 4, lastReadSequence: 0, unreadCount: 4, readOnly: false});
 function setup() {
   const calls = [], elements = {'social-notice': {}, content: {setAttribute(key,value){this[key]=value;}}}, state = {user: {id: 1}, view: 'network', msgSlug: null};
-  const context = vm.createContext({state, Headers, URLSearchParams, crypto: webcrypto,
+  const context = vm.createContext({state, Headers, URLSearchParams, crypto: webcrypto, confirm: () => true,
     FormData: class {constructor(form) {this.form = form;} get(key) {return this.form[key];}},
     navigator: {onLine: true}, document: {visibilityState: 'visible', getElementById: id => elements[id], querySelectorAll: () => []},
     esc: v => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'), prettyRole: String,
@@ -24,7 +25,7 @@ function setup() {
       if(url === '/api/social-config') return new Response(JSON.stringify({mode: 'v2'}));
       return context.respond(url, opts);
     },
-    respond: async url => new Response(JSON.stringify(url.startsWith('/api/network') ? net() : detail()))
+    respond: async url => new Response(JSON.stringify(url.startsWith('/api/network/blocks') ? blocks() : url.startsWith('/api/network') ? net() : detail()))
   });
   const run = code => vm.runInContext(code, context);
   run(helpers);
@@ -267,4 +268,34 @@ test('late read response and old observer cannot refill switched account', async
   s.run('setCurrentUser({id:2},true)');
   finish(new Response(JSON.stringify({lastReadSequence:1,unreadCount:1}))); await pending;
   assert.deepEqual(s.posts(), [1]); assert.equal(s.run('social.threads.size'), 0);
+});
+
+
+test('block/unblock uses caller-owned versions and confirms live connection', async()=>{
+  const s=setup(); await s.init(); await s.run('loadOwnedNetwork()'); await s.run('loadOwnedBlocks()');
+  const rendered=s.run('ownedNetworkHtml()'); assert.match(rendered,/Blocked accounts/); assert.match(rendered,/Unblock/);
+  let confirmed=0; s.context.confirm=()=>{confirmed++;return true;};
+  s.context.respond=async(url,opts)=>new Response(JSON.stringify(opts.method==='PUT'?{ok:true,blocked:true,version:1}:url.startsWith('/api/network/blocks')?blocks():net()));
+  await s.run("ownedBlockAction(11,true,0,'connection')");
+  const put=s.calls.find(c=>c.opts.method==='PUT'); assert.equal(confirmed,1); assert.deepEqual(put.body,{blocked:true,expectedVersion:0});
+  s.context.respond=async(url,opts)=>new Response(JSON.stringify(opts.method==='PUT'?{ok:true,blocked:false,version:4}:url.startsWith('/api/network/blocks')?blocks():net()));
+  await s.run("ownedBlockAction(20,false,3,'blocked')"); assert.deepEqual(s.calls.filter(c=>c.opts.method==='PUT').at(-1).body,{blocked:false,expectedVersion:3});
+});
+
+test('stale block refreshes caller version without replay', async()=>{
+  const s=setup(); await s.init(); await s.run('loadOwnedNetwork()'); await s.run('loadOwnedBlocks()');
+  s.context.respond=async(url,opts)=>{
+    if(opts.method==='PUT') return new Response(JSON.stringify({error:'private'}),{status:409});
+    if(url.startsWith('/api/network/blocks')) return new Response(JSON.stringify({blocks:[],nextCursor:null}));
+    const n=net(); n.suggested[0].blockVersion=6; return new Response(JSON.stringify(n));
+  };
+  await s.run("ownedBlockAction(10,true,4,'peer')");
+  assert.equal(s.calls.filter(c=>c.opts.method==='PUT').length,1); assert.equal(s.run('social.network.suggested[0].blockVersion'),6); assert.match(s.run('social.notice'),/state has changed/);
+});
+
+test('account reset clears blocks and late block results stay stale', async()=>{
+  const s=setup(); await s.init(); let finish;
+  s.context.respond=(url)=>url.startsWith('/api/network/blocks')?new Promise(resolve=>{finish=resolve;}):new Response(JSON.stringify(net()));
+  const pending=s.run('loadOwnedBlocks()'); await new Promise(setImmediate); s.run('resetSocialState()'); finish(new Response(JSON.stringify(blocks())));
+  await assert.rejects(pending,e=>e.stale===true); assert.equal(s.run('social.blocks.length'),0); assert.equal(s.run('social.blocksCursor'),null);
 });
