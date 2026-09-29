@@ -59,3 +59,7 @@ resolved and regression-tested.
 The earlier `db.create_all()` bootstrap warning is resolved by migration-only fresh initialization, migrated test fixtures and read-only startup verification. An existing unmanaged/behind-head database now intentionally prevents startup until an operator explicitly verifies, backs up and adopts/upgrades it; no persistent rollout is performed here. Failed fresh initialization may leave an empty file/recovery journal and requires inspection/new disposable path, never forced adoption.
 
 Owned-social ORM/service integration, D-014 cutover, global FK review and T-107 implementation remain open. Verification occurs at startup, not continuously; schema-changing operator commands require stopped application writers. SQLite read-only WAL access may maintain shared-memory read locks but does not mutate source schema/data. The new readiness check does not fix legacy social authorization.
+
+## Issue #22 route boundary status (2026-09-29)
+
+The historical shared social-route findings above apply in default `legacy` mode. Configured `v2` serves an isolated owned graph behind capability negotiation; `maintenance` returns authenticated 503. The static web/WebView client still speaks legacy, social socket/notification delivery and student analytics have not cut over, and T-107 remains mandatory. V2 is controlled API rehearsal, not a production social release. No ownerless legacy data was reassigned or erased.

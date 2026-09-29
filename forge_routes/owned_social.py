@@ -121,6 +121,8 @@ class OwnedSocialService:
     def _peer(self, connection, peer_id, *, discoverable=False):
         peer = _row(connection, select(self.user).where(self.user.c.id == peer_id))
         if not peer or peer["suspended"]:
+            if discoverable:
+                raise NotFound("user unavailable")
             raise OperationUnavailable("operation unavailable")
         if discoverable and not peer["profile_visible"]:
             raise NotFound("user unavailable")
@@ -166,6 +168,26 @@ class OwnedSocialService:
                                "edge_version": edge["version"] if edge else 0})
             return result
 
+    def network_sections(self, actor, *, after=None, limit=None):
+        """Filter to the caller before stable per-section keyset pagination."""
+        after = after or {}
+        limit = limit or {}
+        with self.engine.connect() as connection:
+            user = self._actor(connection, actor)
+            rows = connection.execute(select(self.edge).where(or_(
+                self.edge.c.user_low_id == user["id"],
+                self.edge.c.user_high_id == user["id"])).order_by(self.edge.c.id)).mappings().all()
+            sections = {"requests": [], "outgoingRequests": [], "connections": []}
+            for edge in rows:
+                key = ("connections" if edge["state"] == "accepted" else
+                       "outgoingRequests" if edge["state"] == "pending" and
+                       edge["requester_id"] == user["id"] else
+                       "requests" if edge["state"] == "pending" else None)
+                if key is not None and edge["id"] > after.get(key, 0):
+                    sections[key].append(dict(edge))
+            return {key: (values[:limit.get(key, 50)], len(values) > limit.get(key, 50))
+                    for key, values in sections.items()}
+
     def request(self, actor, target_id, expected_version, *, now=None):
         now = now or _utcnow()
         with self._write() as connection:
@@ -208,7 +230,6 @@ class OwnedSocialService:
             edge = _row(connection, select(self.edge).where(self.edge.c.id == edge_id))
             if not edge or user["id"] not in (edge["user_low_id"], edge["user_high_id"]):
                 raise NotFound("edge unavailable")
-            _version(expected_version, edge["version"])
             roles = {"accept": ("pending", edge["recipient_id"], "accepted"),
                      "ignore": ("pending", edge["recipient_id"], "ignored"),
                      "cancel": ("pending", edge["requester_id"], "cancelled"),
@@ -216,8 +237,10 @@ class OwnedSocialService:
             if action not in roles:
                 raise Invalid("unknown transition")
             source, required_actor, state = roles[action]
-            if edge["state"] != source or (required_actor is not None and
-                                            required_actor != user["id"]):
+            if required_actor is not None and required_actor != user["id"]:
+                raise Forbidden("wrong endpoint")
+            _version(expected_version, edge["version"])
+            if edge["state"] != source:
                 raise OperationUnavailable("operation unavailable")
             version = edge["version"] + 1
             connection.execute(self.edge.update().where(self.edge.c.id == edge_id).values(
@@ -300,6 +323,21 @@ class OwnedSocialService:
                 self.endorsement.c.skill_key == "",
                 self.endorsement.c.revoked_at.is_(None))).mappings()]
 
+    def endorsement_status(self, actor, edge_id):
+        with self.engine.connect() as connection:
+            user = self._actor(connection, actor)
+            edge = _row(connection, select(self.edge).where(self.edge.c.id == edge_id))
+            if not edge or user["id"] not in (edge["user_low_id"], edge["user_high_id"]):
+                raise NotFound("edge unavailable")
+            peer_id = edge["user_high_id"] if user["id"] == edge["user_low_id"] else edge["user_low_id"]
+            row = _row(connection, select(self.endorsement).where(
+                self.endorsement.c.endorser_id == user["id"],
+                self.endorsement.c.recipient_id == peer_id,
+                self.endorsement.c.skill_key == ""))
+            active = bool(row and row["revoked_at"] is None and edge["state"] == "accepted")
+            return {"endorsements": int(active), "endorsedByMe": active,
+                    "version": row["version"] if row else 0}
+
     def _members(self, connection, conversation):
         members = [dict(row) for row in connection.execute(select(self.member).where(
             self.member.c.conversation_id == conversation["id"])).mappings()]
@@ -318,12 +356,12 @@ class OwnedSocialService:
         members = self._members(connection, conversation)
         return user, conversation, next(m for m in members if m["user_id"] == user["id"])
 
-    def open_conversation(self, actor, peer_id, *, now=None):
+    def open_conversation(self, actor, peer_id, *, now=None, with_status=False):
         now = now or _utcnow()
         with self._write() as connection:
             user = self._actor(connection, actor)
             low, high = _pair(user["id"], peer_id)
-            self._peer(connection, peer_id)
+            self._peer(connection, peer_id, discoverable=True)
             edge = self._edge_pair(connection, low, high)
             if not edge or edge["state"] != "accepted":
                 raise OperationUnavailable("operation unavailable")
@@ -331,7 +369,7 @@ class OwnedSocialService:
                 self.conversation.c.user_low_id == low, self.conversation.c.user_high_id == high))
             if conversation:
                 self._members(connection, conversation)
-                return conversation
+                return (conversation, False) if with_status else conversation
             conversation_id = connection.execute(self.conversation.insert().values(
                 public_id=secrets.token_urlsafe(24), user_low_id=low, user_high_id=high,
                 created_by_user_id=user["id"], created_at=now, updated_at=now,
@@ -345,7 +383,7 @@ class OwnedSocialService:
             conversation = _row(connection, select(self.conversation).where(
                 self.conversation.c.id == conversation_id))
             self._members(connection, conversation)
-            return conversation
+            return (conversation, True) if with_status else conversation
 
     def history(self, actor, public_id, *, before=None, limit=50):
         if type(limit) is not int or not 1 <= limit <= 50:
@@ -359,16 +397,18 @@ class OwnedSocialService:
                 statement = statement.where(self.message.c.seq < before)
             messages = [{key: row[key] for key in ("seq", "sender_id", "text", "created_at")}
                         for row in connection.execute(statement.order_by(
-                            self.message.c.seq.desc()).limit(limit)).mappings()]
+                            self.message.c.seq.desc()).limit(limit + 1)).mappings()]
+            has_more = len(messages) > limit
+            messages = messages[:limit]
             unread = connection.execute(select(func.count()).select_from(self.message).where(
                 self.message.c.conversation_id == conversation["id"],
                 self.message.c.sender_id != user["id"],
                 self.message.c.seq > member["last_read_seq"])).scalar_one()
             return {"public_id": public_id, "last_seq": conversation["last_seq"],
                     "last_read_seq": member["last_read_seq"], "unread_count": unread,
-                    "messages": list(reversed(messages))}
+                    "messages": list(reversed(messages)), "has_more": has_more}
 
-    def send(self, actor, public_id, text, client_message_id, *, now=None):
+    def send(self, actor, public_id, text, client_message_id, *, now=None, with_status=False):
         now = now or _utcnow()
         with self._write() as connection:
             user, conversation, _ = self._conversation_for_actor(connection, actor, public_id)
@@ -384,7 +424,7 @@ class OwnedSocialService:
             if prior:
                 if prior["text"] != normalized:
                     raise Conflict("retry key already used")
-                return prior
+                return (prior, False) if with_status else prior
             peer_id = (conversation["user_high_id"] if user["id"] == conversation["user_low_id"]
                        else conversation["user_low_id"])
             edge = self._edge_pair(connection, conversation["user_low_id"], conversation["user_high_id"])
@@ -397,8 +437,35 @@ class OwnedSocialService:
                 client_message_id=client_message_id, text=normalized, created_at=now))
             connection.execute(self.conversation.update().where(
                 self.conversation.c.id == conversation["id"]).values(last_seq=seq, updated_at=now))
-            return _row(connection, select(self.message).where(
+            result = _row(connection, select(self.message).where(
                 self.message.c.conversation_id == conversation["id"], self.message.c.seq == seq))
+            return (result, True) if with_status else result
+
+    def conversation_info(self, actor, public_id):
+        with self.engine.connect() as connection:
+            user, conversation, member = self._conversation_for_actor(connection, actor, public_id)
+            peer_id = (conversation["user_high_id"] if user["id"] == conversation["user_low_id"]
+                       else conversation["user_low_id"])
+            peer = _row(connection, select(self.user).where(self.user.c.id == peer_id))
+            edge = self._edge_pair(connection, conversation["user_low_id"], conversation["user_high_id"])
+            return {"peer_id": peer_id, "name": peer["name"] if peer else "Member",
+                    "color": peer["color"] if peer else "", "read_only": not (
+                        peer and not peer["suspended"] and edge and edge["state"] == "accepted"),
+                    "last_seq": conversation["last_seq"]}
+
+    def list_conversations(self, actor, *, after=None, limit=50):
+        if type(limit) is not int or not 1 <= limit <= 50 or (
+                after is not None and (type(after) is not int or after < 0)):
+            raise Invalid("invalid cursor or limit")
+        with self.engine.connect() as connection:
+            user = self._actor(connection, actor)
+            statement = select(self.conversation.c.public_id, self.conversation.c.id).join(
+                self.member, self.member.c.conversation_id == self.conversation.c.id).where(
+                self.member.c.user_id == user["id"])
+            if after is not None:
+                statement = statement.where(self.conversation.c.id > after)
+            rows = connection.execute(statement.order_by(self.conversation.c.id).limit(limit + 1)).mappings().all()
+            return [dict(row) for row in rows[:limit]], len(rows) > limit
 
     def mark_read(self, actor, public_id, observed_seq, *, now=None):
         now = now or _utcnow()
