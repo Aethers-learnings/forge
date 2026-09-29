@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: **directed blocking core implemented for review; reporting/reviewer work remains outstanding.**
+Status: **directed blocking core implemented and release-review gates passed; reporting/reviewer work remains outstanding.**
 
 This record describes the implementation on `manual/t107-blocking-core`, starting from `master` `0fb2c68261e63a126925165e080f0d684afade07`. It does not authorize production ownership-v2 enablement or merge.
 
@@ -36,16 +36,16 @@ Coverage includes pending cancellation, accepted disconnection, two-direction en
 
 ## Final local gate run before review
 
-After helper cleanup and documentation commits, the user ran the release-gate commands on `manual/t107-blocking-core`:
+After helper cleanup and documentation commits, the user ran the release-review gates on `manual/t107-blocking-core`:
 
 - full Forge pytest suite: **378 passed, 2 skipped, 1538 warnings in 136.49s**;
-- dedicated Chromium owned-social command: **1 skipped** because `playwright.sync_api` is not installed in the active venv; the test module deliberately uses `pytest.importorskip("playwright.sync_api")`;
+- real Chromium owned-social suite after installing `requirements-browser.txt` and Playwright Chromium: **5 passed in 14.67s**;
 - mobile Node suite: **53 passed, 0 failed**;
 - `npm --prefix mobile run lint`: PASS;
 - mobile TypeScript `tsc --noEmit`: PASS;
 - final `git diff --check`: PASS.
 
-The Chromium result is an environment limitation, not a failing browser assertion. Install `requirements-browser.txt` and Chromium, then rerun `tests/test_browser_owned_social.py` before marking the PR ready for review. The PR remains draft until that browser gate is exercised or the gate is explicitly waived by a human reviewer.
+The two full-suite skips are not failures; the dedicated owned-social browser gate was separately exercised with Playwright installed and passed all five Chromium tests. No persistent Forge database was used for browser verification; the browser test module creates a temporary migration-managed SQLite database and local server.
 
 ## Review findings incorporated before PR
 
