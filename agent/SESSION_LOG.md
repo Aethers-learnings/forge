@@ -208,3 +208,18 @@ the sole owner of revision-02 schema creation.
 Started a dedicated branch from master `88b80641b3d35d21af295ff15818c384996691b2` after reading the referenced design, API, security, state, model and test records. Implemented fail-closed process-wide legacy/maintenance/v2 selection, a focused owned-social HTTP dispatcher, signed user/conversation-scoped cursors, bounded projections, retry status metadata and the wrong-endpoint 403 service distinction. No legacy row import, dual write or delivery. Focused owned-social/migration/bootstrap validation: 77 passed, 92 warnings. Browser-enabled full suite, final diff check and PR status are recorded with the final verification. Web/WebView, socket/notification delivery, shared student analytics, persistent rollout/FK/admin-removal review and T-107 remain outstanding.
 
 Final validation: full browser-enabled pytest **370 passed, 1486 warnings**, no skips; `git diff --check` passed. Prepared as a review PR, not merged.
+
+## 2026-09-29 — T-201 ownership-v2 web/WebView client
+
+Started from clean current master `dcea0d9a4dc1570f40c2a0f903411c547e62274c` (merged PR #23), on dedicated `codex/ownership-v2-web-client`. Read required agent records, the shared static product, legacy handlers, owned HTTP/service modules and existing Node/Chromium/pytest harnesses. Added a public no-store projection of the already-captured process mode because legacy toggle/read/send semantics are not safely interchangeable with v2. No new configuration subsystem or authorization semantics.
+
+Implemented owned networking, per-section/list/history paging, real-peer create/reuse, version/desired-state mutations, stable message retries, visible-message reads, generic read-only/errors and account-generation protection in the existing static document. Added executable Node cases, real Chromium owned flows and subprocess configuration checks. Existing tests are preserved. Validation commands/counts are recorded in TEST_RESULTS; initial browser test waits were corrected to observe completed rows/history instead of transient busy-label changes.
+
+All test databases were disposable and migration-managed. The real `instance/forge.db` was never opened, copied, upgraded or modified, and migration history was unchanged. Production remains legacy by default; no v2 enablement, native social work, delivery, analytics, T-107 or persistent rollout/FK/admin-removal work occurred. Preparing a review PR to master; no merge.
+
+
+## 2026-09-29 — PR #24 contiguous read-cursor review fix
+
+Started from PR head `8006aa01f65d307a068555eed16009eb7087440f` on the existing `codex/ownership-v2-web-client` branch and read its posted merge-blocker. Reproduced five failures in the expanded Node suite before the fix. Replaced maximum-visible advancement with a per-thread observed-sequence set and a contiguous scan from the confirmed cursor; loaded own messages are non-blocking, unknown/unobserved incoming gaps block, and submitted cursors are deduplicated while one read is in flight. History refresh/pagination preserve observations, and stale-account/hidden-tab checks remain enforced. No backend contract, default legacy mode, migration, native source or real database access changed.
+
+Chromium now exercises only sequence 3 initially visible, then sequence 1, then sequence 2, asserting POST cursors `[1, 3]`; the existing real-server test requires loading earlier history before read advancement. The new browser fixture initially exposed a few pixels of message 2 due to thread padding; removing padding from the test-only controlled viewport corrected the fixture without relaxing assertions or product CSS. Exact final validation is in TEST_RESULTS. Update the existing PR only; do not merge.

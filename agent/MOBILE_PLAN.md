@@ -61,3 +61,9 @@ The current Expo/WebView application remains during native-mobile parity work. A
 ## Ownership approval and production gate (2026-09-28)
 
 This update supersedes the earlier statements that D-012–D-015 await approval: the user approved all four decisions as proposed. Their target remains unimplemented; current schema, API, authentication and client behavior are unchanged. T-104 design/review is complete and T-201's design dependency is satisfied, with migration/integrity/recovery verification still required. Social networking is **not production-complete** until blocking/reporting is designed, implemented and tested under D-016 / T-107 and [OWNERSHIP_DESIGN section 8](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate). This includes server enforcement, private report handling, explicitly authorized audited moderation, web/WebView and released-native coverage, and security/race/rollback tests. No blanket admin private-message access or irreversible retention policy is approved.
+
+## 2026-09-29 — shared WebView social compatibility
+
+The static product rendered by the existing WebView now supports the explicitly configured ownership-v2 contract, including capability/version headers, paginated networking and history, real-peer conversation creation, retry-key messages, visible-message read state, read-only UI and per-account reset/stale-response guards. Native `fetch` and WebView cookies remain separate; no native social screen, session bridge, transport allowlist or fallback policy changed. Chromium narrow-screen tests verify the shared product, not signed iOS/Android WebViews. Device/session/visibility checks above remain release gates.
+
+Production v2 is not enabled. Native networking/messaging, social socket/notification delivery, student analytics cutover, persistent rollout/FK/admin-removal review and mandatory T-107 blocking/reporting remain outstanding.

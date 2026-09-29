@@ -228,3 +228,9 @@ def test_sql_trace_all_v2_operations_and_capability_before_lookup(client, world,
         event.remove(forge.db.engine, 'before_cursor_execute', trace)
     import re
     assert not any(re.search(r'\b(?:from|into|update|join)\s+(?:network_request|suggested|connection_npc|conversation|message)\b', statement) for statement in sql)
+
+
+def test_v2_public_config(client):
+    response = client.get('/api/social-config')
+    assert response.json == {'mode': 'v2'}
+    assert response.headers['Cache-Control'] == 'no-store'

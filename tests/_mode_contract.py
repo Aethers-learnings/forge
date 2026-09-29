@@ -47,3 +47,16 @@ def test_fixed_mode_and_sql_graph_isolation(client):
             assert OwnedSocialService(forge.db.engine, forge).own_edges(forge.db.session.get(forge.User, a_id)) == []
     finally:
         event.remove(forge.db.engine, 'before_cursor_execute', trace)
+
+
+def test_public_contract_signal_matches_captured_mode(client, app):
+    expected = app.config['FORGE_SOCIAL_MODE']
+    response = client.get('/api/social-config')
+    assert response.status_code == 200
+    assert response.json == {'mode': expected}
+    assert response.headers['Cache-Control'] == 'no-store'
+    app.config['FORGE_SOCIAL_MODE'] = 'v2' if expected != 'v2' else 'legacy'
+    try:
+        assert client.get('/api/social-config').json == {'mode': expected}
+    finally:
+        app.config['FORGE_SOCIAL_MODE'] = expected

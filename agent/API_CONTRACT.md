@@ -108,3 +108,9 @@ This update supersedes the earlier statements that D-012–D-015 await approval:
 | `POST /api/conversations/:slug/read` | `{upToSequence}`; 200 `{lastReadSequence,unreadCount}` | Own monotonic bounded cursor only. |
 
 Unknown body fields, including identity and role claims, fail 400. Cursors are signed, caller scoped, and conversation scoped for history; they never authorize access. No socket, notification, analytics, web/WebView, or T-107 cutover accompanies this contract.
+
+## 2026-09-29 — static-client mode discovery and consumption
+
+Public `GET /api/social-config` returns `200 {"mode":"legacy"|"maintenance"|"v2"}` with `Cache-Control: no-store`. The value is captured from the same startup mode as the social dispatcher; this endpoint reads neither social graph and grants no authorization. It introduces no new flag or configuration service. Default mode remains legacy. The static web/WebView client explicitly selects and pins this contract per account generation, clearing selection and all private cursors/state on session changes. Failed configuration does not assume legacy, and failed social operations never switch contracts.
+
+The v2 client sends `X-Forge-Ownership-Version: 2` and existing CSRF tokens, consumes bounded network/list/history pages, uses real counterpart IDs for create/reuse, and submits only the documented exact version/desired-state/message/read bodies. It retains send retry keys only in account-scoped memory. Rendering a list or fetching history does not mark read; visible message observations trigger the explicit read endpoint. Runtime social authorization and all pre-existing v2 status/body contracts are unchanged. Production v2, delivery, analytics and T-107 are not enabled/completed by this client increment.

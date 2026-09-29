@@ -63,3 +63,9 @@ Owned-social ORM/service integration, D-014 cutover, global FK review and T-107 
 ## Issue #22 route boundary status (2026-09-29)
 
 The historical shared social-route findings above apply in default `legacy` mode. Configured `v2` serves an isolated owned graph behind capability negotiation; `maintenance` returns authenticated 503. The static web/WebView client still speaks legacy, social socket/notification delivery and student analytics have not cut over, and T-107 remains mandatory. V2 is controlled API rehearsal, not a production social release. No ownerless legacy data was reassigned or erased.
+
+## 2026-09-29 — web/WebView client limitation resolved for rehearsal
+
+The earlier statement that the shared static client cannot speak ownership-v2 is superseded: explicit configuration/capability, versions, paging, real conversation creation, retry-key sends, explicit observed reads and account isolation are implemented and regression-tested. Production remains default legacy and is not enabled for v2 by this task. An unconfirmed send's in-memory retry key does not survive a page reload; reconcile history before resubmitting after reload. If IntersectionObserver is unavailable, the client conservatively does not advance read state.
+
+Social socket/notification delivery, student analytics cutover, persistent rollout/recovery, whole-schema FK/admin-removal review, mandatory T-107 blocking/reporting, native social networking/messaging and signed-device WebView verification remain outstanding. This is controlled client rehearsal, not social production completion.

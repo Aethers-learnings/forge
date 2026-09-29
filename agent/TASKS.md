@@ -39,3 +39,7 @@ Status: prioritized, dependency-aware implementation backlog. Classification ide
 ## Issue #22 T-201 increment (2026-09-29)
 
 Ownership-v2 HTTP translation and the process-exclusive legacy/maintenance/v2 gate are implemented for review. T-201 remains open for coordinated web/WebView capability and pagination, post-commit participant-safe socket/notification delivery, student analytics isolation, whole-schema FK/admin-removal review, and persistent rollout/recovery. T-107 remains mandatory before social production completion; no blocking/reporting implementation is included.
+
+## T-201 web/WebView client increment (2026-09-29)
+
+Web/WebView ownership-v2 contract compatibility is implemented for controlled rehearsal: explicit process-mode discovery, capability header, paginated owned graph/history, versioned mutations, create/reuse, send retry keys, observed read state and stale-account protection. Default production configuration remains legacy; this change does not enable v2 or claim social production readiness. T-201 remains unchecked pending socket/notification delivery, student analytics cutover, persistent rollout/recovery and FK/admin-removal review. T-107 is mandatory before social production completion; native networking/messaging remains unimplemented.

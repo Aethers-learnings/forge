@@ -15,6 +15,13 @@ def create_social_dispatch(app, db, models, require_login, mode):
     signer = URLSafeSerializer(app.secret_key, salt="forge-social-cursor-v2")
     service = lambda: OwnedSocialService(db.engine, models)
 
+    @app.get("/api/social-config")
+    def social_config():
+        # Public process configuration only; never an authorization signal.
+        response = jsonify(mode=mode)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     def error(exc):
         if isinstance(exc, PreconditionRequired):
             return jsonify(error="expected version required"), 428
