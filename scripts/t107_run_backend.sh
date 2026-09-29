@@ -13,27 +13,74 @@ if [[ ! -x "$PY" ]]; then
   PY=python3
 fi
 
-# The apply helper is executed as scripts/t107_apply_backend.py, so Python would
-# otherwise put scripts/ (not the repository root) at sys.path[0]. Exporting the
-# root lets it import forge_migrations and the migrations package reliably.
 export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
 
-# A previous interrupted run may have stopped immediately after creating these
-# generated, untracked migration artifacts. Remove only those exact helper-owned
-# files if Git still reports them as untracked; never delete tracked project data.
+# Every file below is owned by this temporary helper. The branch was clean when
+# the helper started, and the user's earlier interrupted work is separately
+# preserved in a git stash. Reset only these known helper targets so a failed
+# run is safely rerunnable; do not touch any other working-tree path.
+tracked_targets=(
+  forge_backend.py
+  forge_migrations.py
+  forge_routes/owned_social.py
+  forge_routes/owned_social_http.py
+  tests/test_owned_social_models.py
+  tests/test_migration_tooling.py
+  tests/_v2_contract.py
+)
+
+echo "Resetting only prior helper-owned partial edits..."
+git restore --source=HEAD --worktree -- "${tracked_targets[@]}"
+
 for generated in \
   migrations/r20260929_03_blocking_core.py \
-  migrations/20260929_03_blocking_core.json
+  migrations/20260929_03_blocking_core.json \
+  tests/test_blocking_core_service.py \
+  tests/test_blocking_core_migration.py
 do
-  if git status --porcelain -- "$generated" | grep -q '^?? '; then
+  if [[ -e "$generated" ]] && git status --porcelain -- "$generated" | grep -q '^?? '; then
     echo "Removing interrupted generated artifact: $generated"
     rm -f -- "$generated"
   fi
 done
 
+# Patch the temporary helper copy, not the tracked helper file. The old helper
+# searched for a single identical assertion, but test_migration_tooling.py has
+# two on purpose: the normal upgrade test should point at revision 03 while a
+# rollback test must continue to expect revision 02. Match the surrounding
+# normal-upgrade context so the rollback assertion remains unchanged.
+TMP_HELPER="$(mktemp -t forge-t107-helper.XXXXXX.py)"
+trap 'rm -f -- "$TMP_HELPER"' EXIT
+
+"$PY" - "$TMP_HELPER" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("scripts/t107_apply_backend.py").read_text()
+old = '''src = replace_once(
+    src,
+    """    assert verified[\\"revision\\"] == owned_social.REVISION\\n""",
+    """    assert verified[\\"revision\\"] == blocking.REVISION\\n""",
+    "verified head assertion",
+)
+'''
+new = '''src = replace_once(
+    src,
+    """    verified = verify_database(engine)\\n\\n    assert verified[\\"revision\\"] == owned_social.REVISION\\n    assert verified[\\"integrity\\"] == \\"ok\\"\\n    assert verified[\\"foreignKeyViolations\\"] == []\\n""",
+    """    verified = verify_database(engine)\\n\\n    assert verified[\\"revision\\"] == blocking.REVISION\\n    assert verified[\\"integrity\\"] == \\"ok\\"\\n    assert verified[\\"foreignKeyViolations\\"] == []\\n""",
+    "verified normal-upgrade head assertion",
+)
+'''
+if source.count(old) != 1:
+    raise SystemExit(
+        f"temporary helper hotfix source mismatch: expected 1 block, found {source.count(old)}"
+    )
+Path(sys.argv[1]).write_text(source.replace(old, new, 1))
+PY
+
 echo "Using $PY"
 echo "Applying T-107 blocking core..."
-"$PY" scripts/t107_apply_backend.py
+"$PY" "$TMP_HELPER"
 
 echo
 echo "Running focused T-107 / owned-social / migration tests..."
