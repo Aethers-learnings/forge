@@ -1,9 +1,10 @@
-"""Notification read routes; creation and realtime delivery stay in the entrypoint."""
+"""Notification read routes with an optional owned-social eligibility projection."""
 
 from flask import Blueprint, jsonify
 
 
-def create_notifications_blueprint(*, db, require_login, notification_model):
+def create_notifications_blueprint(*, db, require_login, notification_model,
+                                   notification_projection=None):
     """Use the existing model and login guard, keeping ownership checks local."""
     blueprint = Blueprint("notifications", __name__)
 
@@ -12,6 +13,8 @@ def create_notifications_blueprint(*, db, require_login, notification_model):
         user, err = require_login()
         if err:
             return err
+        if notification_projection:
+            return jsonify(notification_projection(user))
         notes = (notification_model.query.filter_by(user_id=user.id)
                  .order_by(notification_model.id.desc()).limit(50).all())
         unread = notification_model.query.filter_by(user_id=user.id, read=False).count()
@@ -38,5 +41,11 @@ def create_notifications_blueprint(*, db, require_login, notification_model):
         notification_model.query.filter_by(user_id=user.id, read=False).update({"read": True})
         db.session.commit()
         return jsonify({"ok": True})
+
+    @blueprint.after_request
+    def private_notifications(response):
+        if notification_projection:
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     return blueprint

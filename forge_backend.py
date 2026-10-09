@@ -41,7 +41,7 @@ load_dotenv()
 
 from flask import Flask, abort, jsonify, request, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO, join_room
+from flask_socketio import SocketIO, join_room, disconnect
 from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -51,6 +51,7 @@ from forge_routes.notifications import create_notifications_blueprint
 from forge_routes.onboarding import create_onboarding_blueprint
 from forge_routes.profile import create_profile_blueprint
 from forge_routes.owned_social_http import create_social_dispatch
+from forge_routes.owned_social import OwnedSocialService
 from forge_migrations import (
     is_cli_command_discovery, prepare_application_database,
     register_migration_commands, verify_application_database,
@@ -961,7 +962,22 @@ def _socket_connect():
 def _socket_join(data=None):
     # Kept as a compatibility event for existing clients. Client-supplied
     # identity/role claims are deliberately ignored.
-    return _join_authenticated_socket_rooms()
+    joined = _join_authenticated_socket_rooms()
+    if not joined and app.config["FORGE_SOCIAL_MODE"] == "v2":
+        disconnect()
+    return joined
+
+
+def _retire_account_sockets(user_id):
+    """Narrow single-process moderation hook using Socket.IO's own room map."""
+    if app.config["FORGE_SOCIAL_MODE"] != "v2":
+        return
+    try:
+        participants = list(socketio.server.manager.get_participants("/", f"user:{user_id}"))
+        for sid, _ in participants:
+            socketio.server.disconnect(sid, namespace="/")
+    except Exception:
+        app.logger.warning("Account realtime retirement unavailable")
 
 
 def daily_series(datetimes, days=14):
@@ -2218,11 +2234,16 @@ def serve_profile_image(name):
 
 
 # Keep image storage/serving and their cleanup policy in the entrypoint.
+_owned_notification_projection = (
+    (lambda user, **options: OwnedSocialService(db.engine, __import__(__name__)).notification_state(user, **options))
+    if app.config["FORGE_SOCIAL_MODE"] == "v2" else None
+)
 app.register_blueprint(create_profile_blueprint(
     db=db, require_login=require_login, student_roles=STUDENT_ROLES,
     extract_skills=extract_skills, recalc_completion=recalc_completion,
     notification_model=Notification, coach_message_model=CoachMessage,
     application_model=Application,
+    notification_projection=_owned_notification_projection,
 ))
 
 
@@ -2234,6 +2255,7 @@ app.register_blueprint(create_onboarding_blueprint(
 ))
 app.register_blueprint(create_notifications_blueprint(
     db=db, require_login=require_login, notification_model=Notification,
+    notification_projection=_owned_notification_projection,
 ))
 
 
@@ -2376,6 +2398,7 @@ def admin_user_action(target_id, action):
     if action == "suspend":
         target.suspended = True
         db.session.commit()
+        _retire_account_sockets(target_id)
         push_notification(target.id, "announcement",
                           "Your account has been suspended. Please contact the administrator.")
         return jsonify({"ok": True, "note": f"{target.name} suspended."})
@@ -2386,6 +2409,7 @@ def admin_user_action(target_id, action):
     try:
         db.session.delete(target)
         db.session.commit()
+        _retire_account_sockets(target_id)
         return jsonify({"ok": True, "note": f"{target.name} removed."})
     except Exception:
         db.session.rollback()
@@ -2393,6 +2417,7 @@ def admin_user_action(target_id, action):
         if fresh:
             fresh.suspended = True
             db.session.commit()
+            _retire_account_sockets(target_id)
             return jsonify({"ok": True,
                             "note": f"{target.name} has linked activity — suspended instead."})
         return jsonify({"ok": True, "note": "already removed."})
@@ -2685,7 +2710,8 @@ def seed_demo_command():
 
 
 create_social_dispatch(app, db, __import__(__name__), require_login,
-                       app.config["FORGE_SOCIAL_MODE"])
+                       app.config["FORGE_SOCIAL_MODE"],
+                       emit=lambda *args, **kwargs: socketio.emit(*args, **kwargs))
 
 # Imports used by WSGI and Flask's built-in run/shell fail before serving.
 # Command discovery remains available for explicit migration recovery commands.

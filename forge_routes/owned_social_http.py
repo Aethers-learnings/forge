@@ -10,10 +10,10 @@ from forge_routes.owned_social import (
 )
 
 
-def create_social_dispatch(app, db, models, require_login, mode):
+def create_social_dispatch(app, db, models, require_login, mode, *, emit=None):
     # Captured at registration: a capability header cannot change graph mode.
     signer = URLSafeSerializer(app.secret_key, salt="forge-social-cursor-v2")
-    service = lambda: OwnedSocialService(db.engine, models)
+    service = lambda: OwnedSocialService(db.engine, models, emit=emit)
 
     @app.get("/api/social-config")
     def social_config():

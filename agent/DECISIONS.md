@@ -106,7 +106,7 @@ Approved choice: staged rollout/maintenance and recovery requirements in the [pl
 
 ## D-016: Blocking and reporting are required for production completion
 
-Status: **ACCEPTED requirement — user directed on 2026-09-28**. Detailed implementation design remains outstanding.
+Status: **ACCEPTED requirement — user directed on 2026-09-28**. Core safety design approved; directed blocking merged in PR #27. Reporting/reviewer/policy work remains outstanding.
 
 The user approved D-012–D-015 as proposed and added: “Add blocking/reporting before social networking is considered production-complete.” Their approval is recorded without reopening those four decisions. Ownership/migration progress alone must not mark social networking production-complete; [T-107](TASKS.md) is a mandatory release/completion gate.
 
@@ -115,3 +115,11 @@ Issue #12 introduced the detailed [SAFETY_DESIGN](SAFETY_DESIGN.md). Its core ap
 **2026-09-28 core design approval:** Directed blocks deny pair-wide interaction, cancel pending requests or disconnect accepted edges, revoke active endorsements, and preserve member-only read-only history. Unblock restores nothing automatically and respects the existing cooldown. Authenticated reports may cite only evidence the reporter is authorized to access. Ordinary admins receive no report or private-message access; reviewer evidence access requires an explicit grant and audit. Submission does not automatically sanction the subject. This approval does not settle retention, erasure, appeals/notices, emergency access, reviewer provisioning, anonymous reporting, evidence-window size or rate-limit policy. The remaining detailed schema/API proposals await review where they go beyond the approved core; implementation and tests remain outstanding.
 
 Blocking and reporting must be implemented and tested across the API, web/WebView and any released native social workflows. The [ownership design safety gate](OWNERSHIP_DESIGN.md#8-blocking-and-reporting-production-completion-gate) defines required review/test coverage. The approved block effects and reviewer access boundary are detailed in SAFETY_DESIGN; report schema/routes and deferred policies need their own implementation review. This requirement does not authorize blanket admin access to private conversations, irreversible deletion, a new authentication system, or a production rollout. Classification: MAJOR_REVIEW for the cross-cutting design; implementation follows the approved incremental migration/test process.
+
+## D-017: Implement approved owned-social delivery in the existing transaction service
+
+Status: implemented for Issue #28 (2026-10-09), subject to PR review; incremental realization of D-014/D-016, no new fundamental architecture.
+
+Insert generic Notifications using the same Core connection as the serialized owned mutation, retain connection-local intents only, and deliver after successful commit. Use a short post-commit SQLite reservation for final authorization through best-effort user-room enqueue; failures never retry/roll back the mutation. Keep authorization/projection in the owned service and inject the existing emitter. No queue/service/session registry is introduced.
+
+Use reserved existing Notification type/link values to identify owned edge lifecycle or conversation sequence. Clear unread pair hints on block/terminal transitions and filter empty/invalid/ineligible owned links before list/count/export. Retain generic rows without new schema or deletion policy. The lack of a delivered flag makes suppression conservative for all unread hints; previously delivered packets cannot be recalled. Production enablement and remaining T-201/T-107 gates are unchanged.

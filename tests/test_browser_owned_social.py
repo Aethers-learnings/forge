@@ -230,3 +230,35 @@ def test_owned_read_observer_does_not_skip_visible_later_message(page, browser_s
     page.locator('.message-thread').evaluate('(node) => {node.scrollTop = 1200;}')
     page.wait_for_timeout(200)
     assert reads == [1, 3]
+
+
+def test_minimal_socket_invalidation_authorized_refresh_and_retired_account(page, browser_server):
+    # CDN remains offline in this harness; backend tests exercise real sockets.
+    # Feed the actual browser handlers while observing real HTTP authorization.
+    page.add_init_script("""window.forgeSocketHandlers = {};
+      window.forgeSocketRetired = 0;
+      window.io = () => ({on: (event, fn) => {window.forgeSocketHandlers[event] = fn;},
+        emit: () => {}, disconnect: () => {window.forgeSocketRetired++;}});""")
+    login(page, browser_server)
+    page.locator('.sidebar [data-view=messages]').click()
+    card = page.locator('.conversation-card').first
+    card.wait_for(); card.focus(); page.keyboard.press('Enter')
+    page.locator('.message-thread').wait_for()
+    slug = page.evaluate('state.msgSlug')
+    with page.expect_response(lambda response: response.url.endswith('/api/conversations/' + slug)) as refreshed:
+        page.evaluate("slug => forgeSocketHandlers.new_message({conversationId:slug,lastSequence:1})", slug)
+    assert refreshed.value.status == 200
+    assert refreshed.value.request.headers['x-forge-ownership-version'] == '2'
+    assert refreshed.value.headers['cache-control'] == 'no-store'
+    page.set_viewport_size({'width': 390, 'height': 844})
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    page.evaluate("slug => forgeSocketHandlers.new_message({conversationId:slug,lastSequence:999,text:'SOCKET SECRET',conversation:{messages:[{text:'SOCKET SECRET'}]}})", slug)
+    assert 'SOCKET SECRET' not in page.locator('body').inner_text()
+    page.evaluate("window.oldForgeHandlers = forgeSocketHandlers; setCurrentUser(null,true);")
+    assert page.evaluate('forgeSocketRetired') == 1
+    requests = []
+    page.on('request', lambda request: requests.append(request.url))
+    page.evaluate("slug => oldForgeHandlers.new_message({conversationId:slug,lastSequence:1})", slug)
+    page.evaluate("oldForgeHandlers.notification({text:'SOCKET SECRET'})")
+    page.wait_for_timeout(100)
+    assert requests == [] and page.evaluate('social.threads.size') == 0

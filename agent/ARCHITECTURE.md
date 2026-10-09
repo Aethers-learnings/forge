@@ -1,6 +1,8 @@
 # Architecture
 
-Status: historical discovery baseline followed by dated implementation updates; future-state items are explicitly labelled. For current social ownership evidence and the unapproved target, see the T-104 note below.
+Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+
+Status: historical discovery baseline followed by dated implementation updates; future-state items are explicitly labelled. For the approved ownership target and current increment evidence, see OWNERSHIP_DESIGN and the implementation updates below.
 
 ## Original discovery snapshot (historical)
 
