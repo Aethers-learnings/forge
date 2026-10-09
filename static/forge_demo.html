@@ -1011,12 +1011,12 @@ function clearCsrfState() {
   csrfRequest = null;
   csrfGeneration += 1;
   resetSocialState();
+  if (typeof socket !== 'undefined' && socket) { socket.disconnect(); socket = null; }
 }
 
 function setCurrentUser(user, newSession = false) {
   if (newSession || state.user?.id !== user?.id) {
     clearCsrfState();
-    if (typeof socket !== 'undefined' && socket) { socket.disconnect(); socket = null; }
     state.unreadCount = 0;
   }
   state.user = user;
@@ -1104,7 +1104,14 @@ async function api(path, opts = {}, rawResponse = false) {
     const invalidated = requestGeneration === csrfGeneration && (res.status === 401 || body?.code === 'csrf_failed');
     if (invalidated) {
       if (res.status === 401 && state.user) expireClientSession();
-      else clearCsrfState();
+      else {
+        clearCsrfState();
+        // Recover this account's realtime channel without replaying the failed
+        // mutation. Retired handlers still fail their generation/socket check.
+        if (typeof io === 'function' && typeof initSocket === 'function') {
+          try { initSocket(); } catch (e) { /* HTTP remains the recovery path */ }
+        }
+      }
     }
     throw { status: res.status, body, invalidated };
   }
@@ -1163,7 +1170,7 @@ async function socialRequest(path, opts = {}, raw = false) {
     throw socialError(e);
   }
 }
-async function socialMode() {
+async function socialMode({allowMaintenance = false} = {}) {
   const owner = social, generation = csrfGeneration;
   if (!owner.mode) {
     if (!owner.config) owner.config = socialRequest('/api/social-config').then(config => {
@@ -1173,7 +1180,7 @@ async function socialMode() {
     }).finally(() => { owner.config = null; });
     await owner.config;
   }
-  if (owner.mode === 'maintenance') throw socialError({status: 503});
+  if (owner.mode === 'maintenance' && !allowMaintenance) throw socialError({status: 503});
   return owner.mode;
 }
 function socialNotice() {
@@ -1403,7 +1410,7 @@ function ownedThreadHtml(slug) {
     ${retry ? `<p role="status">Message not confirmed. Retry the same message or discard it before writing another.</p>
       ${socialButton('Retry message', `retryOwnedMessage(${JSON.stringify(slug)},this)`, social.busy.has('send:' + slug) || c.readOnly)}
       ${socialButton('Discard pending message', `discardOwnedMessage(${JSON.stringify(slug)})`, social.busy.has('send:' + slug))}` : ''}
-    <form onsubmit="sendOwnedMessage(event,${arg});return false" class="chat-composer">
+    <form onsubmit="sendOwnedMessage(event,${arg});return false" class="chat-composer" data-conversation-id="${esc(slug)}">
       <input name="text" aria-label="Message" placeholder="Write a message" maxlength="4000" required ${c.readOnly || retry ? 'disabled' : ''}/>
       <button class="btn btn-primary btn-sm" ${c.readOnly || retry ? 'disabled' : ''}>Send</button></form></div>`;
 }
@@ -1622,7 +1629,24 @@ async function refreshOwnedMessage(data) {
     await loadOwnedConversations();
     if (!socialCurrent(owner, generation)) return;
     if (state.view === 'messages') {
-      if (state.msgSlug === data.conversationId) paintSocial(ownedThreadHtml(state.msgSlug), 'messages');
+      if (state.msgSlug === data.conversationId) {
+        // Capture immediately before painting, including typing during HTTP.
+        // A pending navigation may still show another thread's old DOM.
+        const content = document.getElementById('content');
+        const form = content?.querySelector('.chat-composer');
+        const input = form?.dataset.conversationId === data.conversationId ? form.elements.namedItem('text') : null;
+        const draft = input && {text: input.value, focused: document.activeElement === input,
+          start: input.selectionStart, end: input.selectionEnd, direction: input.selectionDirection};
+        paintSocial(ownedThreadHtml(state.msgSlug), 'messages');
+        const refreshed = content?.querySelector('.chat-composer input[name="text"]');
+        if (draft && refreshed) {
+          refreshed.value = draft.text;
+          if (draft.focused && !refreshed.disabled) {
+            refreshed.focus({preventScroll: true});
+            refreshed.setSelectionRange(draft.start, draft.end, draft.direction);
+          }
+        }
+      }
       else if (!state.msgSlug) paintSocial(ownedConversationsHtml(), 'messages');
     }
     toast('Messages updated.');
@@ -1664,7 +1688,7 @@ function initSocket() {
   socket.on('notification', async (note) => {
     if (!current()) return;
     try {
-      const mode = await socialMode();
+      const mode = await socialMode({allowMaintenance: true});
       if (!current()) return;
       if (mode === 'v2') {
         await refreshUnreadCount();
@@ -2415,7 +2439,14 @@ async function renderNotificationsView() {
 
 function routeNotification(note) {
   if (!note || !note.link) return false;
-  let [view, tab] = note.link.split(':');
+  const parts = note.link.split(':');
+  let [view, tab] = parts;
+  if (note.type === 'owned_message') {
+    if (parts.length !== 3 || view !== 'messages' || !/^[A-Za-z0-9_-]+$/.test(tab) ||
+        !/^[1-9]\d*$/.test(parts[2]) || !Number.isSafeInteger(Number(parts[2]))) return false;
+    // Navigation only: ownedMessagesView fetches and authorizes the thread.
+    state.msgSlug = tab;
+  }
   if (view === 'business') view = 'listings';
   const known = ['feed','discover','network','messages','coach','profile','listings','admin','notifications'];
   if (!known.includes(view)) return false;
@@ -2429,8 +2460,10 @@ function routeNotification(note) {
 }
 
 async function openNotification(id) {
-  try { await api(`/api/notifications/${id}/read`, { method: 'POST' }); } catch (e) { /* ignore */ }
+  const generation = csrfGeneration, accountId = state.user?.id;
   const note = (state.notes || []).find(n => n.id === id);
+  try { await api(`/api/notifications/${id}/read`, { method: 'POST' }); } catch (e) { /* ignore */ }
+  if (!state.user || generation !== csrfGeneration || state.user.id !== accountId) return;
   if (!routeNotification(note)) { loadView(); return; }
   state.unreadCount = Math.max(0, state.unreadCount - 1);
   refreshNavBadge();

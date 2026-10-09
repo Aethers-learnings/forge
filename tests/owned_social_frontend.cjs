@@ -10,7 +10,7 @@ const blocks = () => ({blocks: [{targetUserId: 20, name: 'Blocked Peer', version
 const message = seq => ({sequence: seq, who: 'them', text: `message ${seq}`, createdAt: '2026-09-29T10:00:00Z'});
 const detail = () => ({id: 'server-slug', name: 'Peer', messages: [message(3), message(4)], hasMore: true, nextCursor: 'older', lastSequence: 4, lastReadSequence: 0, unreadCount: 4, readOnly: false});
 function setup(withSocket = false) {
-  const calls = [], elements = {'social-notice': {}, content: {setAttribute(key,value){this[key]=value;}}}, state = {user: {id: 1}, view: 'network', msgSlug: null};
+  const calls = [], elements = {'social-notice': {}, content: {querySelector: () => null, setAttribute(key,value){this[key]=value;}}}, state = {user: {id: 1}, view: 'network', msgSlug: null};
   const context = vm.createContext({state, Headers, URLSearchParams, crypto: webcrypto, confirm: () => true,
     FormData: class {constructor(form) {this.form = form;} get(key) {return this.form[key];}},
     navigator: {onLine: true}, document: {visibilityState: 'visible', getElementById: id => elements[id], querySelectorAll: () => []},
@@ -22,7 +22,7 @@ function setup(withSocket = false) {
     fetch: async (url, opts) => {
       calls.push({url, opts, body: opts.body && JSON.parse(opts.body)});
       if(url === '/api/auth/csrf-token') return new Response(JSON.stringify({csrfToken: 'token'}));
-      if(url === '/api/social-config') return new Response(JSON.stringify({mode: 'v2'}));
+      if(url === '/api/social-config') return new Response(JSON.stringify({mode: context.configMode || 'v2'}));
       return context.respond(url, opts);
     },
     respond: async url => new Response(JSON.stringify(url.startsWith('/api/network/blocks') ? blocks() : url.startsWith('/api/network') ? net() : detail()))
@@ -32,14 +32,21 @@ function setup(withSocket = false) {
   if (withSocket) {
     context.handlers = {};
     context.disconnected = 0;
+    context.created = 0;
     context.toasts = [];
     context.loads = 0;
-    context.io = () => ({on: (name, fn) => {context.handlers[name] = fn;},
-      emit: () => {}, disconnect: () => {context.disconnected++;}});
+    context.io = () => {
+      const handlers = {}; context.handlers = handlers; context.created++;
+      return {on: (name, fn) => {handlers[name] = fn;},
+        emit: () => {}, disconnect: () => {context.disconnected++;}};
+    };
     context.toast = text => context.toasts.push(text);
     context.refreshNavBadge = () => {};
+    context.updateNavHighlight = () => {};
     context.loadView = async () => {context.loads++;};
     run(html.slice(html.indexOf('let socket = null;'), html.indexOf('/* ----------------------------------------------------------------- init */')));
+    const notificationStart = html.indexOf('function routeNotification(');
+    run(html.slice(notificationStart, html.indexOf('/* ==================================================================== */', notificationStart)));
   }
   return {run, calls, context, state, elements, init: async () => {await run('socialMode()');}};
 }
@@ -367,4 +374,58 @@ test('legacy sockets retain message/notification refresh semantics',async()=>{
   assert.equal(s.calls.length,0);s.state.unreadCount=0;
   await s.context.handlers.notification({text:'Legacy generic notice'});
   assert.equal(s.state.unreadCount,1);assert.equal(s.context.toasts.at(-1),'Legacy generic notice');
+});
+
+for (const mode of ['legacy', 'v2']) test(`${mode} CSRF rejection replaces socket without replay and rejects retired handlers`, async () => {
+  const s = setup(true); s.context.configMode = mode; await s.init(); s.run('initSocket()');
+  const old = s.context.handlers;
+  s.context.respond = async () => new Response(JSON.stringify({code:'csrf_failed'}), {status:403});
+  await assert.rejects(s.run("api('/mutation', {method:'POST'})"), e => e.status === 403);
+  assert.equal(s.context.created, 2); assert.equal(s.context.disconnected, 1);
+  assert.equal(s.calls.filter(c => c.url === '/mutation').length, 1);
+  const before = s.calls.length;
+  await old.new_message({conversationId:'server-slug',lastSequence:4});
+  await old.notification({text:'Retired notice'}); old.new_comment();
+  assert.equal(s.calls.length, before); assert.equal(s.context.toasts.length, 0);
+  s.context.respond = async () => new Response(JSON.stringify({notifications:[],unreadCount:2}));
+  s.state.unreadCount = 0;
+  await s.context.handlers.notification({text:'Current notice'});
+  assert.equal(s.state.unreadCount, mode === 'v2' ? 2 : 1);
+  assert.equal(s.context.toasts.at(-1), mode === 'v2' ? 'You have a new notification.' : 'Current notice');
+});
+
+test('maintenance accepts ordinary notifications while social reads stay disabled', async () => {
+  const s = setup(true); s.context.configMode = 'maintenance'; s.run('initSocket()');
+  s.state.view = 'notifications'; s.state.unreadCount = 0;
+  await s.context.handlers.notification({type:'announcement',text:'An ordinary announcement',link:'feed'});
+  assert.equal(s.state.unreadCount, 1); assert.equal(s.context.loads, 1);
+  assert.deepEqual(Array.from(s.context.toasts), ['An ordinary announcement']);
+  await assert.rejects(s.run('socialMode()'), e => e.status === 503);
+  assert.ok(!s.calls.some(c => /^\/api\/(network|conversations)/.test(c.url)));
+});
+
+for (const previous of [null, 'another-thread']) test(`owned notification selects its own thread from ${previous}`, async () => {
+  const s = setup(true); await s.init(); s.state.msgSlug = previous;
+  s.state.notes = [{id:9,type:'owned_message',link:'messages:server-slug:4'}];
+  s.context.respond = async () => new Response('{}');
+  await s.run('openNotification(9)');
+  assert.equal(s.state.msgSlug, 'server-slug'); assert.equal(s.state.view, 'messages');
+  assert.equal(s.context.loads, 1);
+});
+
+for (const link of ['messages:bad/slug:1', 'messages:thread:0', 'messages:thread:1:extra', 'network:thread:1'])
+  test(`malformed owned notification cannot select a thread: ${link}`, () => {
+    const s = setup(true); s.state.note = {type:'owned_message',link};
+    assert.equal(s.run('routeNotification(state.note)'), false);
+    assert.equal(s.state.msgSlug, null); assert.equal(s.state.view, 'network');
+  });
+
+test('late notification click cannot navigate a switched account', async () => {
+  const s = setup(true); await s.init(); let finish;
+  s.state.notes = [{id:9,type:'owned_message',link:'messages:old-thread:4'}];
+  s.context.respond = () => new Promise(resolve => {finish = resolve;});
+  const pending = s.run('openNotification(9)'); await new Promise(setImmediate);
+  s.run('setCurrentUser({id:2},true)'); finish(new Response('{}')); await pending;
+  assert.equal(s.state.msgSlug, null); assert.equal(s.context.loads, 0);
+  assert.equal(s.state.view, 'network');
 });
