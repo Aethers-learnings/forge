@@ -331,6 +331,22 @@ class OwnedSocialService:
                 self.edge.c.user_low_id == user["id"],
                 self.edge.c.user_high_id == user["id"]))).mappings()]
 
+    def accepted_connection_dates(self, actor):
+        """Pure analytics projection: caller's current accepted timestamps only.
+
+        Blocking/disconnection already terminalizes the relationship. Do not
+        reinterpret peer eligibility or expose the graph to the dashboard.
+        """
+        with self.engine.connect() as connection:
+            user = self._actor(connection, actor)
+            dates = connection.execute(select(self.edge.c.accepted_at).where(
+                self.edge.c.state == "accepted",
+                or_(self.edge.c.user_low_id == user["id"],
+                    self.edge.c.user_high_id == user["id"]))).scalars().all()
+            if any(date is None for date in dates):
+                raise OperationUnavailable("analytics unavailable")
+            return dates
+
     def own_blocks(self, actor, *, after=None, limit=50):
         if type(limit) is not int or not 1 <= limit <= 50 or (
                 after is not None and (type(after) is not int or after < 0)):

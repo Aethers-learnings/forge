@@ -1,6 +1,6 @@
 # Architecture
 
-Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
 
 Status: historical discovery baseline followed by dated implementation updates; future-state items are explicitly labelled. For the approved ownership target and current increment evidence, see OWNERSHIP_DESIGN and the implementation updates below.
 
@@ -125,3 +125,9 @@ Six ORM classes map the tables created by revision 02; migrations remain the sch
 ## Issue #22 — HTTP social gate (2026-09-29)
 
 Startup config selects exactly one social graph mode. The existing legacy handlers remain registered for default behavior, while a process-fixed request dispatcher intercepts affected paths for maintenance or v2 after the global CSRF guard. V2 performs login and capability negotiation before invoking `OwnedSocialService`; the HTTP translator owns body parsing, signed cursor encoding and viewer-relative serialization, while pair/membership/write authorization remains in the transactional service. No route-level legacy fallback, socket/notification emission, analytics change, client update, or migration was introduced. Production cutover still requires the coordinated gates recorded in TASKS and OWNERSHIP_DESIGN.
+
+## 2026-10-09 — narrow owned analytics read boundary / Issue #30
+
+The existing analytics blueprint now receives the fixed startup mode and, only in v2, a callable projecting `OwnedSocialService.accepted_connection_dates(user)`. The entrypoint supplies its existing engine/model module; the blueprint never imports `forge_backend`, creates a database or receives the whole owned graph. The helper re-resolves the active trusted actor and selects only `network_edge.accepted_at` for accepted rows with that caller as an endpoint. It performs no writes, audit, notification or socket work, and has no admin override. Missing acceptance time fails closed through generic analytics 503.
+
+Legacy alone reads the historical shared request/NPC inputs. Maintenance stops after login, before any graph/metric reads. Mode capture also fixes private no-store response policy for v2/maintenance; request claims and later mutable config cannot switch the provider. Unrelated analytics handlers are unchanged; no migration or architecture replacement.

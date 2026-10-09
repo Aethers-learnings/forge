@@ -1,6 +1,6 @@
 # Forge project state
 
-Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
 
 ## 2026-09-28 — repository navigation cleanup
 
@@ -8,7 +8,7 @@ The root and mobile READMEs now describe the current architecture and checks; [t
 
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
-Last updated: 2026-10-09 (owned service/API/web and directed blocking merged; Issue #28 delivery implemented; T-201 rollout and T-107 reporting/reviewer release gates remain pending)
+Last updated: 2026-10-09 (owned service/API/web, directed blocking and participant-safe delivery merged; Issue #30 student analytics isolation implemented; T-201 rollout/FK/admin-removal and T-107 reporting/reviewer gates remain pending)
 
 ## Verified current state
 
@@ -202,3 +202,11 @@ Resolved the four independently reproduced review findings in the shared web/Web
 ## 2026-10-09 — PR #29 multipart recovery follow-up
 
 The re-review found a remaining CSRF recovery gap in the independent video-upload fetch. JSON and multipart failures now share generation-checked session invalidation: same-account CSRF rejection replaces the realtime socket without replaying the upload, while current 401 responses expire the session without reconnecting. Upload work checks the account generation after token acquisition, HTTP response and error-body parsing; obsolete successes/errors cannot refresh, sign out or disconnect another account. Maintained Node and Chromium regressions cover the repair; evidence is in TEST_RESULTS. Backend delivery, schemas, native source and default legacy mode remain unchanged. PR #29 stays unmerged and broader T-201/T-107 release gates remain open.
+
+## 2026-10-09 — T-201 student analytics isolation / Issue #30
+
+Started from fetched/pulled clean master `3686256c561c36cbc2b7d07864d29d33b7b6999e`, which merged PR #29. The earlier statements that PR #29 awaits merge are historical. On `codex/t201-student-analytics-isolation`, the analytics blueprint captures the startup social mode and receives a narrow owned-service timestamp provider. Default legacy retains global accepted-request + NPC totals and request-creation series; v2 counts only the session caller's currently accepted endpoint edges and uses acceptance dates. Empty v2 has no legacy fallback. Maintenance authenticates then returns generic social 503 without either graph read.
+
+The pure service projection rechecks the actor, returns only acceptance timestamps and fails closed on a missing timestamp. Existing daily/cumulative 14-day format, other T-106 metrics, business/admin dashboards and all active-role access remain unchanged. No client production edits are needed; maintained Node and Chromium cases cover zero counts, optional maintenance failures, mobile/keyboard rendering and late-account responses. Full suite: **442 passed, no failures/skips**; detailed focused/process/mobile evidence is in TEST_RESULTS.
+
+T-201 remains open for whole-schema FK/admin-removal review, persistent rollout/recovery rehearsal and production cutover. T-107 remains open for reporting/reviewer implementation and deferred safety policy. No schema/migration, native source, production v2, legacy default, PR #26 or real `instance/forge.db` change/access.

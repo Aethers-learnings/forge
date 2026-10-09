@@ -2348,6 +2348,10 @@ app.register_blueprint(create_analytics_blueprint(
     approval_queue_item_model=ApprovalQueueItem,
     alumni_verification_model=AlumniVerification,
     event_model=Event,
+    social_mode=app.config["FORGE_SOCIAL_MODE"],
+    owned_connection_dates=(
+        lambda user: OwnedSocialService(db.engine, __import__(__name__)).accepted_connection_dates(user)
+    ) if app.config["FORGE_SOCIAL_MODE"] == "v2" else None,
 ))
 
 

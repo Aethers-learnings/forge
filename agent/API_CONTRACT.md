@@ -1,6 +1,6 @@
 # API contract baseline
 
-Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
 
 Status: stable baseline for the current unversioned Flask API. This document fixes the request and response shapes relied upon by the existing web client and planned incremental clients. It does not introduce API versioning, change route ownership, or resolve the data-model limitations recorded in `KNOWN_ISSUES.md`.
 
@@ -128,3 +128,13 @@ The public Notification remains `{id,type,text,link,read,createdAt}`. Owned link
 Notification persistence shares the business transaction; emit is strictly post-commit and best effort. Each enqueue rechecks both accounts, pair state/block and membership or edge version/recipient. Block/terminal transition clears unread owned links in its transaction; empty owned links remain permanently suppressed, while generic rows remain stored. No notification-delivery flag/schema or historical-deletion policy was added. Already delivered packets cannot be recalled. HTTP/history refresh reauthorizes, and no client mutation intent is replayed by a socket refresh/error. Legacy remains the default; no production v2 rollout.
 
 PR #29 review clarification: the web/WebView consumer selects the conversation in an `owned_message` hint before invoking authorized history loading, even when another conversation was previously selected. It rejects malformed owned hints and stale account callbacks. Ordinary notification delivery remains available while the social mode is maintenance; social operations still return their existing unavailable behavior. Automatic thread invalidations preserve in-progress composer text and selection. CSRF rejection replaces obsolete socket handlers without retrying a mutation. No public response or request shape changes accompany these fixes.
+
+## 2026-10-09 — mode-aware student analytics / Issue #30
+
+`GET /api/analytics/student` retains any active authenticated-role access and successful keys `{profileViews,connections,engagement,peerComparison,topSearchedSkills}`. Only the connection source depends on the process-fixed startup mode; query/header claims and ownership capability cannot choose a graph or redirect the session caller. No new capability requirement.
+
+- **legacy (default):** total = all accepted legacy NetworkRequest rows + all ConnectionNPC rows. Series = existing 14-day cumulative accepted-request creation dates; NPCs contribute only to total. Owned rows are ignored.
+- **v2:** total = all currently accepted network_edge rows where the caller is low/high endpoint. Series = existing cumulative daily buckets over accepted_at, including today and the preceding 13 days. Outside-window accepted edges contribute to total but not the bounded series. Pending/ignored/cancelled/disconnected rows do not contribute; normal blocking terminalizes the edge and unblock restores nothing. Empty owned graph returns total zero and 14 zero buckets, with no legacy access/fallback.
+- **maintenance:** normal authentication (401 missing/deleted, 403 suspended) precedes generic `503 {"error":"social maintenance"}`; neither social graph is read. Business/admin analytics remain available under their existing role rules.
+
+V2 and maintenance student responses are `Cache-Control: no-store`, including errors. Missing accepted_at on a counted owned edge fails closed with `503 {"error":"analytics unavailable"}`; never substitute creation/request time. The service's active-actor recheck can deny with generic 403 after initial auth. Unrelated T-106 metrics and response types remain unchanged.
