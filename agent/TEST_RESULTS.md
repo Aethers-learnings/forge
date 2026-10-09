@@ -1,5 +1,18 @@
 # Test results
 
+## 2026-10-09 — PR #26 API timeout review repair
+
+Starting PR head: `daf0e182b012e4cbdb99481c1c17084c116182b9`; fetched master: `e126d7de9277a20fc9f7d92a62125ab684ad7121` (merged PR #31). Existing project-local mobile dependencies were reused without lockfile changes.
+
+- Before the fix, `node --test tests/api-timeout.test.cjs` (cwd mobile) produced **6 passed, 5 failed**. The established three assertions remained intact. Failures cover early timer cleanup, swallowed body abort, late success after abort, and real fetch stalled after 200/503 headers. The real-server tests have a cleanup watchdog so the defective implementation cannot hang the suite.
+- After the fix, the same focused command produced **11 passed, 0 failed/skipped**. Only the 15-second deadline is accelerated to 250 ms in real-fetch tests; fetch, body consumption, AbortController and localhost transport remain real.
+- `npm test` (cwd mobile): **64 passed, 0 failed/skipped**.
+- `npm run lint`, `./node_modules/.bin/tsc --noEmit`, and `node --check` on the client/test: **passed**, each exit 0.
+- `git diff --check`: **passed**.
+- Current master plus the repaired PR snapshot merges cleanly, including all four project records. Its `npm test` also passes **64 tests**; lint and TypeScript each exit 0. Focused analytics/service/process-mode/frontend integration checks pass **43 tests, 158 existing warnings in 21.76s**. Backend tests use disposable migration-managed fixtures; the full backend/browser suite is not rerun for this mobile-only runtime repair.
+
+Completed malformed success bodies still return null; malformed HTTP errors retain their status and null body; JSON HTTP errors retain their message/status/body without timeout/network flags. Cleanup is verified after successful body consumption, body timeout, network failure and server errors. No established expectation was weakened. No backend, static web, schema, migration, dependency, social default or production-v2 change; no real `instance/forge.db` access. Signed-device iOS/Android/session/background-timer checks remain release work.
+
 ## 2026-09-29 — PR #21 review fixes
 
 - Focused owned-social model/service and migration/bootstrap suite: **74 passed, 92 existing warnings in 32.38s**. Regressions prove the original `expectedVersion:0` same-direction create retry (including concurrent calls) returns the pending edge without a second event; terminal re-request retries likewise stay no-op while older versions conflict. Already-current active and revoked endorsement retries accept the immediately preceding pre-commit version without a version/audit write; missing and older stale versions remain errors. Normal general-endorsement reads return only caller→peer, while disconnect still revokes both directions.

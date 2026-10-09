@@ -1,36 +1,51 @@
+const REQUEST_TIMEOUT_MS = 15000;
 
 function apiUrl(baseUrl, path) {
   return new URL(path, baseUrl).href;
 }
 
-async function parseJson(response) {
+async function parseJson(response, signal) {
   try {
     return await response.json();
-  } catch {
+  } catch (error) {
+    if (signal.aborted) throw error;
     return null;
   }
 }
 
 async function request(baseUrl, path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response;
+  let body;
 
   try {
     response = await fetch(apiUrl(baseUrl, path), {
       credentials: 'include',
       ...options,
+      signal: controller.signal,
       headers: {
         Accept: 'application/json',
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         ...(options.headers || {}),
       },
     });
+    // Fetch may resolve at headers; the deadline also covers body consumption.
+    body = await parseJson(response, controller.signal);
+    if (controller.signal.aborted) throw new Error('Request timed out');
   } catch {
+    if (controller.signal.aborted) {
+      const error = new Error('Forge took too long to respond. Check your connection and try again.');
+      error.network = true;
+      error.timeout = true;
+      throw error;
+    }
     const error = new Error('Forge could not reach the server. Check your connection and try again.');
     error.network = true;
     throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const body = await parseJson(response);
 
   if (!response.ok) {
     const error = new Error(
