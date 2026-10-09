@@ -1,5 +1,13 @@
 # Session log
 
+## 2026-10-09 — PR #26 review repair
+
+The user requested repair and reverification of PR #26 after the two-PR review. Reused the existing review checkout and selected `manual/native-api-timeout` at `daf0e182b012e4cbdb99481c1c17084c116182b9`; preserved prior untracked review evidence. Fetched current master `e126d7de9277a20fc9f7d92a62125ab684ad7121`, which now includes merged analytics PR #31. No rebase, history rewrite or PR merge is part of this repair.
+
+Added eight maintained cases; five reproduced the original early timer cleanup/false-success defect before the repair, including real fetch with stalled 200/503 response bodies. Moved JSON consumption into the deadline-protected try/finally, propagated aborted JSON reading to timeout classification and rejected late successful bodies after abort. Completed malformed JSON and HTTP error status/body/message remain compatible. Updated mobile behavior, state and testing records. Tests use a disposable localhost server; no application database is required or accessed.
+
+The original PR head's full mobile suite, lint, TypeScript and syntax checks pass after repair; current-master integration is verified separately in TEST_RESULTS. Prepare the repaired existing PR for human review and leave it unmerged. Native device/session/lifecycle verification and the existing social release gates remain outstanding.
+
 ## 2026-09-29 — PR #21 review findings
 
 - Read the review and reproduced the same-direction `expectedVersion:0` retry and desired endorsement retry conflicts with new regressions. Corrected no-op retry ordering while retaining missing/stale precondition checks; limited the normal endorsement read projection to the actor's direction.

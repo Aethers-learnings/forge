@@ -16,6 +16,10 @@ Last updated: 2026-09-28 (D-012–D-015 approved; blocking/reporting required fo
 - Roles are `trade`, `grad`, `business`, and `admin`. Admin self-registration is excluded; business listing and alumni-verification approval workflows exist.
 - Issue #9 began on a clean `codex/t-104-ownership-design` branch at `d4a0516`; its changes are documentation-only. Earlier working-tree observations in session records are historical.
 
+## 2026-10-09 — PR #26 API timeout repair
+
+The native API transport's 15-second deadline now includes response-body reading. Body aborts and bodies completing after the deadline return the existing timeout/network error; completed HTTP and malformed-JSON behavior remains stable. Maintained regressions reproduce the reviewed stalled-body defect and cover cleanup and error compatibility. This is a bounded mobile transport increment, prepared for PR review; it does not change backend/social behavior, schema, dependencies, session/CSRF or production rollout gates. See MOBILE_PLAN and TEST_RESULTS for behavior, evidence and outstanding signed-device checks.
+
 ## Current objective
 
 Establish a secure, tested baseline around the existing Flask/web/WebView prototype before feature expansion or migration work.

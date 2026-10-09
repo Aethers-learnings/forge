@@ -2,6 +2,12 @@
 
 Status: T-205 native migration in progress; WebView remains the supported fallback while native workflows are added incrementally.
 
+## 2026-10-09 — PR #26 API request deadline
+
+The native API client applies one 15-second AbortController deadline to fetch and response-body consumption. An aborted body read must reject with the existing timeout message and `network=true`, `timeout=true`; it cannot become a successful null response. Every completion clears the timer. Completed malformed JSON retains the existing null-body behavior, and completed HTTP errors retain their status/body/message. Session/CSRF, server-origin restrictions and mutation semantics are unchanged; the transport never retries a mutation automatically.
+
+Real Node fetch regressions cover immediate 200/503 headers followed by a body that never completes, accelerating only the deadline. Deterministic tests cover cleanup after body completion, body abort, late success after abort, malformed JSON and server errors. React Native currently buffers its XHR response before fetch resolves; the shared helper also protects standards-fetch environments such as Expo web. Signed iOS/Android device tests, including lifecycle/background timer behavior, remain release checks rather than claims made by the Node harness. Validation is in TEST_RESULTS. This increment does not release native social workflows or enable production v2.
+
 ## Verified implementation — T-004
 
 The Expo WebView wrapper, Android back handling, settings and existing error display remain. Approved exact HTTPS origins are required at every server entry point. Missing configuration opens settings and permits no connection. Invalid saved addresses and storage failures are recoverable.
