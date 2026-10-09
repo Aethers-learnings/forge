@@ -50,6 +50,22 @@ function setup(withSocket = false) {
   }
   return {run, calls, context, state, elements, init: async () => {await run('socialMode()');}};
 }
+function setupUpload(mode = 'v2') {
+  const s = setup(true);
+  s.state.unreadCount = 0;
+  s.context.configMode = mode;
+  s.context.FormData = FormData; s.context.Blob = Blob;
+  s.context.uploads = [];
+  const baseFetch = s.context.fetch;
+  s.context.fetch = async (url, opts) => {
+    if (url !== '/api/posts/video') return baseFetch(url, opts);
+    s.context.uploads.push({url, opts});
+    return s.context.uploadResponse();
+  };
+  s.run(html.slice(html.indexOf('async function uploadVideo('), html.indexOf('async function likePost(')));
+  s.upload = () => s.run("uploadVideo({files:[new Blob(['test'], {type:'video/mp4'})]})");
+  return s;
+}
 test('v2 capability and CSRF headers, explicit configuration only', async () => {
   const s=setup(); await s.init(); await s.run('loadOwnedNetwork()');
   assert.equal(s.calls.at(-1).opts.headers.get('X-Forge-Ownership-Version'), '2');
@@ -428,4 +444,71 @@ test('late notification click cannot navigate a switched account', async () => {
   s.run('setCurrentUser({id:2},true)'); finish(new Response('{}')); await pending;
   assert.equal(s.state.msgSlug, null); assert.equal(s.context.loads, 0);
   assert.equal(s.state.view, 'network');
+});
+
+for (const mode of ['legacy', 'v2']) test(`${mode} multipart CSRF recovery replaces realtime without replaying upload`, async () => {
+  const s = setupUpload(mode); await s.init(); s.run('initSocket()');
+  const old = s.context.handlers;
+  s.context.uploadResponse = async () => new Response(JSON.stringify({code:'csrf_failed'}), {status:403});
+  await s.upload();
+  assert.equal(s.context.created, 2); assert.equal(s.context.disconnected, 1);
+  assert.equal(s.context.uploads.length, 1); assert.ok(s.run('socket !== null'));
+  assert.equal(s.run('csrfToken'), null);
+  assert.equal(s.context.uploads[0].opts.headers['X-CSRF-Token'], 'token');
+  assert.ok(s.context.uploads[0].opts.body instanceof FormData);
+  assert.ok(!('Content-Type' in s.context.uploads[0].opts.headers));
+  await old.notification({text:'Retired notice'}); old.new_comment();
+  assert.ok(!s.context.toasts.includes('Retired notice'));
+  s.context.respond = async () => new Response(JSON.stringify({notifications:[],unreadCount:2}));
+  await s.context.handlers.notification({text:'Current notice'});
+  assert.equal(s.state.unreadCount, mode === 'v2' ? 2 : 1);
+  assert.equal(s.context.toasts.at(-1), mode === 'v2' ? 'You have a new notification.' : 'Current notice');
+});
+
+for (const source of ['upload', 'token']) test(`multipart 401 from ${source} expires session without reconnecting`, async () => {
+  const s = setupUpload(); await s.init(); s.run('initSocket()');
+  s.context.uploadResponse = async () => new Response('{}', {status:401});
+  if (source === 'token') {
+    const baseFetch = s.context.fetch;
+    s.context.fetch = (url, opts) => url === '/api/auth/csrf-token' ? new Response('{}', {status:401}) : baseFetch(url, opts);
+  }
+  await s.upload();
+  assert.equal(s.state.user, null); assert.equal(s.context.created, 1);
+  assert.equal(s.context.disconnected, 1); assert.equal(s.run('socket'), null);
+  assert.equal(s.context.uploads.length, source === 'token' ? 0 : 1);
+});
+
+for (const [status, body] of [[403,{code:'csrf_failed'}], [401,{}], [200,{}]])
+  test(`late multipart ${status} cannot affect a switched account`, async () => {
+    const s = setupUpload(); await s.init(); s.run('initSocket()'); let finish;
+    s.context.uploadResponse = () => new Promise(resolve => {finish = resolve;});
+    const pending = s.upload(); await new Promise(setImmediate);
+    s.run('setCurrentUser({id:2,name:"Other"},true); initSocket();');
+    await s.run('getCsrfToken()');
+    finish(new Response(JSON.stringify(body), {status})); await pending;
+    assert.equal(s.state.user.id, 2); assert.equal(s.context.created, 2);
+    assert.equal(s.context.disconnected, 1); assert.equal(s.run('csrfToken'), 'token');
+    assert.ok(s.run('socket !== null')); assert.equal(s.context.loads, 0);
+    assert.equal(s.context.toasts.length, 0);
+  });
+
+test('late multipart error body cannot invalidate a switched account', async () => {
+  const s = setupUpload(); await s.init(); s.run('initSocket()'); let finish;
+  s.context.uploadResponse = async () => ({ok:false,status:403,json:() => new Promise(resolve => {finish = resolve;})});
+  const pending = s.upload(); await new Promise(setImmediate);
+  s.run('setCurrentUser({id:2,name:"Other"},true); initSocket();');
+  await s.run('getCsrfToken()'); finish({code:'csrf_failed'}); await pending;
+  assert.equal(s.context.disconnected, 1); assert.equal(s.context.created, 2);
+  assert.equal(s.run('csrfToken'), 'token'); assert.equal(s.context.toasts.length, 0);
+});
+
+test('account switch during multipart token acquisition prevents upload', async () => {
+  const s = setupUpload(); await s.init(); s.run('initSocket()'); let finish;
+  const baseFetch = s.context.fetch;
+  s.context.fetch = (url, opts) => url === '/api/auth/csrf-token' ? new Promise(resolve => {finish = resolve;}) : baseFetch(url, opts);
+  const pending = s.upload(); await new Promise(setImmediate);
+  s.run('setCurrentUser({id:2,name:"Other"},true); initSocket();');
+  finish(new Response(JSON.stringify({csrfToken:'obsolete'}))); await pending;
+  assert.equal(s.context.uploads.length, 0); assert.equal(s.context.disconnected, 1);
+  assert.equal(s.context.created, 2); assert.equal(s.context.toasts.length, 0);
 });

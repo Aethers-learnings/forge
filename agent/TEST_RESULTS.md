@@ -452,3 +452,17 @@ Starting PR head: `0e9f1a865373ca5119cdde0aa2ff49f71d9a0cd8`; fetched master rem
 | `.review-venv/bin/python -m py_compile tests/test_browser_social_delivery.py`, `node --check tests/owned_social_frontend.cjs`, `git diff --check` | Passed. |
 
 No established assertion was weakened. Chromium invokes actual client handlers through the existing offline transport approach with real same-origin, capability-protected HTTP against disposable migrated servers. Real authenticated Socket.IO clients are exercised separately by the v2 subprocess gate; signed-device WebView/session tests remain release gates. All database work was confined to disposable migration-managed fixtures; no real `instance/forge.db`, native source, schema/migration, backend delivery semantics, default mode or PR #26 change. The PR remains unmerged.
+
+## 2026-10-09 — PR #29 multipart CSRF recovery repair
+
+Starting head: `d73b6938a0ab12c8105026da8c36d8b57f07d47e`. The re-review independently reproduced a remaining video-upload recovery failure in Node (legacy/v2) and Chromium: one socket created, one retired, none present after a current upload CSRF rejection. Nine new maintained Node cases initially failed against the original implementation; the existing 73 passed. They now cover recovery without replay, multipart headers/body, retired callbacks, current token/upload 401 expiry, stale success/401/CSRF/error-body responses and an account change during token acquisition. The post-repair Node run initially exposed an uninitialized unread count in the new legacy test fixture; initializing that fixture to zero resolved it without a product-code change or weakening an assertion.
+
+| Command from `review-t201` | Result |
+| --- | --- |
+| `node tests/owned_social_frontend.cjs` | **82 passed**, no failures/skips. |
+| `PLAYWRIGHT_BROWSERS_PATH=.review-browsers PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 .review-venv/bin/python -m pytest -q --disable-warnings tests/test_browser_social_delivery.py tests/test_browser_owned_social.py tests/test_browser_web_quality.py` | **22 passed in 42.70s**, no failures/skips. Added actual video-handler CSRF recovery, one upload attempt, retired-callback rejection and fresh-handler authorized history refresh. |
+| `PLAYWRIGHT_BROWSERS_PATH=.review-browsers PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 .review-venv/bin/python -m pytest -q --disable-warnings` | **424 passed**, 1634 existing deprecation warnings in **209.64s**, no failures/skips. Includes all maintained browser/backend/web tests, Node wrappers and isolated legacy/maintenance/v2 HTTP/socket contracts. |
+| `node tests/csrf_frontend.cjs`; `node tests/profile_export_frontend.cjs` | Passed; inline scripts compile and existing multipart/CSRF/export flows remain covered. |
+| `git diff --check` | Passed. |
+
+Network permission was required for disposable localhost servers. Browser transport uses the established offline Socket.IO stub with real HTTP; authenticated room delivery remains covered by the separate v2 subprocess contract. Mobile source/dependencies are unchanged from the preceding review's 53 passing mobile tests, lint and TypeScript; those unchanged checks were not repeated for this repair. No real `instance/forge.db`, native source, backend delivery, schema/migration, default mode, production v2 or PR #26 change. Temporary untracked review reproducers were replaced with maintained regressions. PR #29 remains unmerged for human review; broader release gates remain open.

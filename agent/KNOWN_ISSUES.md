@@ -83,3 +83,7 @@ T-201 remains open for student analytics isolation, whole-schema FK/admin-remova
 ## 2026-10-09 — PR #29 review defects resolved
 
 The review reproduced unsent draft loss during message refresh, permanently stale sockets after CSRF rejection, dropped non-social maintenance notifications and ignored conversation IDs in owned message links. These are fixed with focused Node and Chromium regressions, including typing during a delayed refresh, desktop/mobile selection preservation, old-handler rejection after automatic socket replacement, and authorized notification navigation from a previous selection. Draft preservation applies to automatic refresh of the current thread; it does not add persistent drafts across navigation, logout or reload. PR #29 is still awaiting human merge review.
+
+## 2026-10-09 — multipart realtime recovery resolved
+
+Re-review of `d73b693` reproduced a remaining gap: a video-upload CSRF rejection retired realtime without replacing its socket. The multipart path now shares JSON-request security invalidation and automatic same-account socket recovery, without retrying the upload. Current upload/token 401s expire the session; late responses or token work from an obsolete account generation have no effect on the current account. Nine Node cases and one Chromium case extend the maintained regression coverage. Signed-device WebView verification and the existing production release gates remain separate; PR #29 remains unmerged.

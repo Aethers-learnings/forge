@@ -121,3 +121,28 @@ def test_unknown_notification_hint_still_requires_http_history_lookup(page, brow
     assert denied.value.status == 404
     page.get_by_text('This item is unavailable.', exact=True).wait_for()
     assert page.locator('.bubble').count() == 0
+
+
+def test_video_csrf_rejection_recovers_realtime_without_replaying_upload(page, browser_server):
+    slug = open_thread(page, browser_server)
+    page.evaluate('window.retiredHandlers = reviewHandlers;')
+    uploads = []
+    page.on('request', lambda request: uploads.append(request.url)
+            if request.url.endswith('/api/posts/video') else None)
+    page.route('**/api/posts/video', lambda route: route.fulfill(
+        status=403, content_type='application/json', body='{"code":"csrf_failed"}'))
+    page.evaluate("uploadVideo({files:[new File(['test'], 'review.mp4', {type:'video/mp4'})]})")
+    page.unroute('**/api/posts/video')
+    assert page.evaluate('reviewCreated') == 2
+    assert page.evaluate('reviewRetired') == 1
+    assert len(uploads) == 1
+    page.evaluate('getCsrfToken()')
+    page.evaluate('socialMode()')
+    requests = []
+    page.on('request', lambda request: requests.append(request.url))
+    page.evaluate('retiredHandlers.notification({text:"Retired notice"})')
+    page.evaluate('slug => retiredHandlers.new_message({conversationId:slug,lastSequence:55})', slug)
+    assert requests == []
+    page.evaluate('slug => reviewHandlers.new_message({conversationId:slug,lastSequence:55})', slug)
+    assert any(url.endswith('/api/conversations/' + slug) for url in requests)
+    assert len(uploads) == 1

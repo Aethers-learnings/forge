@@ -1028,6 +1028,20 @@ function expireClientSession() {
   if (typeof renderApp === 'function') renderApp();
 }
 
+function invalidateClientSecurity(status, body, generation) {
+  if (generation !== csrfGeneration || (status !== 401 && body?.code !== 'csrf_failed')) return false;
+  if (status === 401 && state.user) expireClientSession();
+  else {
+    clearCsrfState();
+    // Recover this account's realtime channel without replaying the failed
+    // mutation. Retired handlers still fail their generation/socket check.
+    if (typeof io === 'function' && typeof initSocket === 'function') {
+      try { initSocket(); } catch (e) { /* HTTP remains the recovery path */ }
+    }
+  }
+  return true;
+}
+
 async function getCsrfToken() {
   if (!state.user) throw { status: 401, body: { error: 'Sign in before continuing.' } };
   if (csrfToken) return csrfToken;
@@ -1101,18 +1115,7 @@ async function api(path, opts = {}, rawResponse = false) {
   try { body = await res.json(); } catch (e) { /* no body */ }
 
   if (!res.ok) {
-    const invalidated = requestGeneration === csrfGeneration && (res.status === 401 || body?.code === 'csrf_failed');
-    if (invalidated) {
-      if (res.status === 401 && state.user) expireClientSession();
-      else {
-        clearCsrfState();
-        // Recover this account's realtime channel without replaying the failed
-        // mutation. Retired handlers still fail their generation/socket check.
-        if (typeof io === 'function' && typeof initSocket === 'function') {
-          try { initSocket(); } catch (e) { /* HTTP remains the recovery path */ }
-        }
-      }
-    }
+    const invalidated = invalidateClientSecurity(res.status, body, requestGeneration);
     throw { status: res.status, body, invalidated };
   }
 
@@ -2340,6 +2343,7 @@ async function submitPost(ev) {
 async function uploadVideo(input) {
   const file = input.files && input.files[0];
   if (!file) return;
+  const generation = csrfGeneration;
   const status = document.getElementById('video-status');
   if (status) status.textContent = `Uploading ${file.name} (${(file.size/1048576).toFixed(1)} MB) — compressing…`;
   const fd = new FormData();
@@ -2347,15 +2351,19 @@ async function uploadVideo(input) {
   fd.append('caption', `${state.user.name} shared a video`);
   try {
     const headers = await csrfHeaders('POST');
+    if (generation !== csrfGeneration) return;
     const res = await fetch('/api/posts/video', { method: 'POST', body: fd, credentials: 'same-origin', headers });
+    if (generation !== csrfGeneration) return;
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      if (res.status === 401 || body.code === 'csrf_failed') clearCsrfState();
+      if (generation !== csrfGeneration) return;
       throw { status: res.status, body };
     }
     toast('Video processed and posted.');
     loadView();
   } catch (e) {
+    if (generation !== csrfGeneration) return;
+    invalidateClientSecurity(e.status, e.body, generation);
     if (status) status.textContent = '';
     toast((e.body && e.body.error) || 'Video upload failed.');
   }
