@@ -6,7 +6,7 @@ import sys
 
 def test_v2_contract_in_isolated_process():
     environment = {**os.environ, 'FORGE_SOCIAL_MODE': 'v2'}
-    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', 'tests/_v2_contract.py'],
+    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', 'tests/_v2_contract.py', 'tests/_v2_delivery.py'],
                             env=environment, capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
 

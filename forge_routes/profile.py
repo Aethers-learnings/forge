@@ -5,7 +5,8 @@ from flask import Blueprint, jsonify, request
 
 def create_profile_blueprint(*, db, require_login, student_roles, extract_skills,
                              recalc_completion, notification_model,
-                             coach_message_model, application_model):
+                             coach_message_model, application_model,
+                             notification_projection=None):
     """Receive existing dependencies without importing the app entrypoint."""
     blueprint = Blueprint("profile", __name__)
 
@@ -109,9 +110,12 @@ def create_profile_blueprint(*, db, require_login, student_roles, extract_skills
             "talentSought": user.talent_sought,
             "createdAt": user.created_at.isoformat() if user.created_at else None,
         }
-        payload["notifications"] = [n.to_dict() for n in
-                                    notification_model.query.filter_by(user_id=user.id)
-                                    .order_by(notification_model.id).all()]
+        if notification_projection:
+            payload["notifications"] = notification_projection(user, limit=None, ascending=True)["notifications"]
+        else:
+            payload["notifications"] = [n.to_dict() for n in
+                                        notification_model.query.filter_by(user_id=user.id)
+                                        .order_by(notification_model.id).all()]
         payload["coachHistory"] = [m.to_dict() for m in
                                    coach_message_model.query.filter_by(user_id=user.id)
                                    .order_by(coach_message_model.id).all()]
@@ -120,6 +124,8 @@ def create_profile_blueprint(*, db, require_login, student_roles, extract_skills
                                    for a in application_model.query.filter_by(user_id=user.id).all()]
         resp = jsonify(payload)
         resp.headers["Content-Disposition"] = 'attachment; filename="forge-my-data.json"'
+        if notification_projection:
+            resp.headers["Cache-Control"] = "no-store"
         return resp
 
     return blueprint

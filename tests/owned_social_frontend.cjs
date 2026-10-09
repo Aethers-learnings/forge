@@ -9,7 +9,7 @@ const net = () => ({requests: [{id: 1, counterpartUserId: 8, name: 'Same', direc
 const blocks = () => ({blocks: [{targetUserId: 20, name: 'Blocked Peer', version: 3}], nextCursor: null});
 const message = seq => ({sequence: seq, who: 'them', text: `message ${seq}`, createdAt: '2026-09-29T10:00:00Z'});
 const detail = () => ({id: 'server-slug', name: 'Peer', messages: [message(3), message(4)], hasMore: true, nextCursor: 'older', lastSequence: 4, lastReadSequence: 0, unreadCount: 4, readOnly: false});
-function setup() {
+function setup(withSocket = false) {
   const calls = [], elements = {'social-notice': {}, content: {setAttribute(key,value){this[key]=value;}}}, state = {user: {id: 1}, view: 'network', msgSlug: null};
   const context = vm.createContext({state, Headers, URLSearchParams, crypto: webcrypto, confirm: () => true,
     FormData: class {constructor(form) {this.form = form;} get(key) {return this.form[key];}},
@@ -29,6 +29,18 @@ function setup() {
   });
   const run = code => vm.runInContext(code, context);
   run(helpers);
+  if (withSocket) {
+    context.handlers = {};
+    context.disconnected = 0;
+    context.toasts = [];
+    context.loads = 0;
+    context.io = () => ({on: (name, fn) => {context.handlers[name] = fn;},
+      emit: () => {}, disconnect: () => {context.disconnected++;}});
+    context.toast = text => context.toasts.push(text);
+    context.refreshNavBadge = () => {};
+    context.loadView = async () => {context.loads++;};
+    run(html.slice(html.indexOf('let socket = null;'), html.indexOf('/* ----------------------------------------------------------------- init */')));
+  }
   return {run, calls, context, state, elements, init: async () => {await run('socialMode()');}};
 }
 test('v2 capability and CSRF headers, explicit configuration only', async () => {
@@ -298,4 +310,61 @@ test('account reset clears blocks and late block results stay stale', async()=>{
   s.context.respond=(url)=>url.startsWith('/api/network/blocks')?new Promise(resolve=>{finish=resolve;}):new Response(JSON.stringify(net()));
   const pending=s.run('loadOwnedBlocks()'); await new Promise(setImmediate); s.run('resetSocialState()'); finish(new Response(JSON.stringify(blocks())));
   await assert.rejects(pending,e=>e.stale===true); assert.equal(s.run('social.blocks.length'),0); assert.equal(s.run('social.blocksCursor'),null);
+});
+
+test('minimal message packet refetches authorized history and list; socket text is never rendered', async () => {
+  const s = setup(true); await s.init(); s.run('initSocket()');
+  s.context.respond = async url => new Response(JSON.stringify(url.includes('?') ? [detail()] : detail()));
+  s.state.view = 'messages'; s.state.msgSlug = 'server-slug';
+  await s.context.handlers.new_message({conversationId:'server-slug',lastSequence:4});
+  assert.ok(s.calls.some(c => c.url === '/api/conversations/server-slug'));
+  assert.ok(s.calls.some(c => c.url.startsWith('/api/conversations?')));
+  assert.ok(s.elements.content.innerHTML.includes('message 4'));
+  assert.equal(s.calls.filter(c => c.opts.method === 'POST').length, 0);
+  const before = s.calls.length;
+  await s.context.handlers.new_message({conversationId:'server-slug',lastSequence:5,text:'SOCKET SECRET',conversation:{messages:[{text:'SOCKET SECRET'}]}});
+  assert.equal(s.calls.length,before);
+  assert.ok(!s.elements.content.innerHTML.includes('SOCKET SECRET'));
+  assert.ok(!s.context.toasts.join(' ').includes('SOCKET SECRET'));
+});
+for (const status of [403,404,409,503]) test(`socket refresh ${status} never replays intent or exposes packet text`, async () => {
+  const s = setup(true); await s.init(); s.run('initSocket()');
+  s.context.respond = async () => new Response(JSON.stringify({error:'private block detail'}), {status});
+  await s.context.handlers.new_message({conversationId:'server-slug',lastSequence:4});
+  assert.equal(s.calls.filter(c => c.opts.method === 'POST').length,0);
+  assert.equal(s.run('social.threads.size'),0);
+  assert.ok(!s.context.toasts.join(' ').includes('private'));
+});
+for (const reset of ['setCurrentUser({id:2},true)','setCurrentUser(null,true)','clearCsrfState()']) test(`old socket generation ignored after ${reset}`, async () => {
+  const s=setup(true);await s.init();s.run('initSocket()');const old=s.context.handlers;
+  s.run(reset); const before=s.calls.length;
+  await old.new_message({conversationId:'server-slug',lastSequence:4});
+  await old.notification({text:'SOCKET SECRET'});
+  assert.equal(s.calls.length,before);assert.equal(s.run('social.threads.size'),0);
+  assert.equal(s.context.toasts.length,0);
+  if(reset.startsWith('setCurrentUser')) assert.equal(s.context.disconnected,1);
+});
+test('switch during socket HTTP refresh drops late authorized text',async()=>{
+  const s=setup(true);await s.init();s.run('initSocket()');let finish;
+  s.context.respond=()=>new Promise(resolve=>{finish=resolve;});
+  const pending=s.context.handlers.new_message({conversationId:'server-slug',lastSequence:4});
+  await new Promise(setImmediate);s.run('setCurrentUser({id:2},true)');
+  finish(new Response(JSON.stringify(detail())));await pending;
+  assert.equal(s.run('social.threads.size'),0);assert.equal(s.context.toasts.length,0);
+});
+test('v2 notification refetches exact unread state and ignores socket wording',async()=>{
+  const s=setup(true);await s.init();s.run('initSocket()');
+  s.context.respond=async()=>new Response(JSON.stringify({notifications:[],unreadCount:2}));
+  await s.context.handlers.notification({text:'SOCKET SECRET',link:'messages:forged'});
+  assert.equal(s.state.unreadCount,2);assert.equal(s.context.loads,1);
+  assert.ok(s.calls.some(c=>c.url==='/api/notifications'));
+  assert.deepEqual(Array.from(s.context.toasts),['You have a new notification.']);
+});
+test('legacy sockets retain message/notification refresh semantics',async()=>{
+  const s=setup(true);s.run("social.mode='legacy';initSocket()");
+  await s.context.handlers.new_message({conversationId:'ayesha',conversation:{name:'Legacy contact',messages:[{text:'Never render this packet body'}]}});
+  assert.deepEqual(Array.from(s.context.toasts),['New message from Legacy contact']);
+  assert.equal(s.calls.length,0);s.state.unreadCount=0;
+  await s.context.handlers.notification({text:'Legacy generic notice'});
+  assert.equal(s.state.unreadCount,1);assert.equal(s.context.toasts.at(-1),'Legacy generic notice');
 });

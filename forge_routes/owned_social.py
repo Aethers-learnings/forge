@@ -1,4 +1,4 @@
-"""Internal ownership-v2 persistence service; no route or delivery cutover.
+"""Ownership-v2 persistence and participant-authorized contact delivery.
 
 The caller supplies a trusted authenticated User object, never an actor ID from
 request data. Every mutation obtains SQLite's write reservation before reading
@@ -8,11 +8,18 @@ authorization or state. Results are detached dictionaries returned after commit.
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import secrets
+import logging
 
 from sqlalchemy import and_, func, or_, select
 
 
 COOLDOWN = timedelta(hours=24)
+SOCIAL_NOTIFICATIONS = {
+    "owned_request": "You have a connection request.",
+    "owned_accepted": "Your connection request was accepted.",
+    "owned_message": "You have a new message.",
+}
+logger = logging.getLogger(__name__)
 
 
 class SocialError(Exception):
@@ -79,13 +86,13 @@ def _row(connection, statement):
 
 
 class OwnedSocialService:
-    """The sole future write boundary for migration-owned social rows.
+    """The serialized write and delivery boundary for migration-owned social rows.
 
     Pass the existing Flask-SQLAlchemy engine and application model module.
     This module does not import the app (including when it runs as __main__).
     """
 
-    def __init__(self, engine, models):
+    def __init__(self, engine, models, *, emit=None):
         if engine.url.get_backend_name() != "sqlite":
             raise ValueError("owned social write serialization requires SQLite")
         self.engine = engine
@@ -99,10 +106,15 @@ class OwnedSocialService:
         self.event = models.OwnershipEvent.__table__
         self.block = models.UserBlock.__table__
         self.block_event = models.BlockEvent.__table__
+        self.notification = models.Notification.__table__
+        self.emit = emit
 
     @contextmanager
     def _write(self):
+        intents = []
         with self.engine.connect() as connection:
+            # Connection-local only, cleared before returning it to the pool.
+            connection.info["owned_social_delivery"] = intents
             try:
                 connection.exec_driver_sql("BEGIN IMMEDIATE")
                 yield connection
@@ -110,6 +122,145 @@ class OwnedSocialService:
             except BaseException:
                 connection.rollback()
                 raise
+            finally:
+                connection.info.pop("owned_social_delivery", None)
+        # This line is unreachable on mutation/notification/commit failure.
+        # Socket failures cannot change the already committed domain result.
+        if self.emit and intents:
+            self._deliver(intents)
+
+    def _notify(self, connection, recipient_id, kind, link, now):
+        note_id = connection.execute(self.notification.insert().values(
+            user_id=recipient_id, type=kind, text=SOCIAL_NOTIFICATIONS[kind],
+            link=link, read=False, created_at=now)).inserted_primary_key[0]
+        connection.info.setdefault("owned_social_delivery", []).append(
+            {"note_id": note_id, "recipients": (recipient_id,)})
+
+    def _active_pair(self, connection, low, high):
+        users = connection.execute(select(self.user.c.id).where(
+            self.user.c.id.in_((low, high)), self.user.c.suspended.is_(False))).scalars().all()
+        return set(users) == {low, high} and not self._pair_blocked(connection, low, high)
+
+    def _contact_conversation(self, connection, conversation):
+        if not conversation or not self._active_pair(
+                connection, conversation["user_low_id"], conversation["user_high_id"]):
+            return False
+        edge = self._edge_pair(connection, conversation["user_low_id"], conversation["user_high_id"])
+        if not edge or edge["state"] != "accepted":
+            return False
+        try:
+            self._members(connection, conversation)
+        except OperationUnavailable:
+            return False
+        return True
+
+    def _notification_visible(self, connection, note):
+        if note["type"] not in SOCIAL_NOTIFICATIONS:
+            return True
+        # Links identify migration-owned records only; they never grant access.
+        parts = (note["link"] or "").split(":")
+        if len(parts) != 3 or not parts[2].isdecimal() or int(parts[2]) < 1:
+            return False
+        version = int(parts[2])
+        if note["type"] == "owned_message":
+            if parts[0] != "messages":
+                return False
+            conversation = _row(connection, select(self.conversation).where(
+                self.conversation.c.public_id == parts[1]))
+            if not self._contact_conversation(connection, conversation):
+                return False
+            # Do not select a message body for notification authorization.
+            sender = connection.execute(select(self.message.c.sender_id).where(
+                self.message.c.conversation_id == conversation["id"],
+                self.message.c.seq == version)).scalar_one_or_none()
+            return sender in (conversation["user_low_id"], conversation["user_high_id"]) and (
+                note["user_id"] in (conversation["user_low_id"], conversation["user_high_id"])
+                and note["user_id"] != sender)
+        if parts[0] != "network" or not parts[1].isdecimal():
+            return False
+        edge = _row(connection, select(self.edge).where(self.edge.c.id == int(parts[1])))
+        if not edge or edge["version"] != version or not self._active_pair(
+                connection, edge["user_low_id"], edge["user_high_id"]):
+            return False
+        if note["type"] == "owned_request":
+            return edge["state"] == "pending" and note["user_id"] == edge["recipient_id"]
+        return edge["state"] == "accepted" and note["user_id"] == edge["requester_id"]
+
+    @staticmethod
+    def _note_dict(note):
+        return {"id": note["id"], "type": note["type"], "text": note["text"],
+                "link": note["link"], "read": note["read"],
+                "createdAt": note["created_at"].isoformat()}
+
+    def notification_state(self, actor, *, limit=50, ascending=False):
+        """Filter before the display limit/count, also used by v2 export.
+
+        Historical rows remain stored. Empty owned links are permanent
+        suppression markers: unblocking/reconnecting cannot restore contact.
+        """
+        with self.engine.connect() as connection:
+            user = self._actor(connection, actor)
+            statement = select(self.notification).where(self.notification.c.user_id == user["id"])
+            statement = statement.order_by(self.notification.c.id if ascending else self.notification.c.id.desc())
+            visible = [dict(row) for row in connection.execute(statement).mappings()
+                       if self._notification_visible(connection, row)]
+            return {"notifications": [self._note_dict(row) for row in
+                                      (visible if limit is None else visible[:limit])],
+                    "unreadCount": sum(not row["read"] for row in visible)}
+
+    def _suppress_contact(self, connection, low, high):
+        # The schema has no delivered flag. Conservatively retire every unread
+        # owned contact hint for this pair, preserving its generic durable row.
+        edge = self._edge_pair(connection, low, high)
+        conversation = _row(connection, select(self.conversation).where(
+            self.conversation.c.user_low_id == low, self.conversation.c.user_high_id == high))
+        links = []
+        if edge:
+            links.append(self.notification.c.link.startswith(f"network:{edge['id']}:", autoescape=True))
+        if conversation:
+            links.append(self.notification.c.link.startswith(f"messages:{conversation['public_id']}:", autoescape=True))
+        if links:
+            connection.execute(self.notification.update().where(
+                self.notification.c.user_id.in_((low, high)),
+                self.notification.c.type.in_(SOCIAL_NOTIFICATIONS),
+                self.notification.c.read.is_(False), or_(*links)).values(link=""))
+
+    def _delivery_packet(self, connection, intent, recipient_id):
+        if "note_id" in intent:
+            note = _row(connection, select(self.notification).where(
+                self.notification.c.id == intent["note_id"],
+                self.notification.c.user_id == recipient_id))
+            if note and self._notification_visible(connection, note):
+                return "notification", self._note_dict(note)
+            return None
+        conversation = _row(connection, select(self.conversation).where(
+            self.conversation.c.id == intent["conversation_id"]))
+        if (not self._contact_conversation(connection, conversation) or
+                recipient_id not in (conversation["user_low_id"], conversation["user_high_id"])):
+            return None
+        sequence = connection.execute(select(self.message.c.seq).where(
+            self.message.c.conversation_id == conversation["id"],
+            self.message.c.seq == intent["sequence"])).scalar_one_or_none()
+        if sequence is not None:
+            return "new_message", {"conversationId": conversation["public_id"], "lastSequence": sequence}
+        return None
+
+    def _deliver(self, intents):
+        for intent in intents:
+            for recipient_id in intent["recipients"]:
+                try:
+                    with self.engine.connect() as connection:
+                        # Serialize the final eligibility check AND enqueue
+                        # against block/suspension commits. No business writes
+                        # occur here; the short reservation is rolled back.
+                        connection.exec_driver_sql("BEGIN IMMEDIATE")
+                        packet = self._delivery_packet(connection, intent, recipient_id)
+                        if packet:
+                            self.emit(*packet, room=f"user:{recipient_id}")
+                except Exception:
+                    # Never log exception/payload contents, and never retry
+                    # the mutation. HTTP state is the recovery path.
+                    logger.warning("Owned social realtime delivery unavailable")
 
     def _actor(self, connection, actor):
         # A trusted User instance is the service boundary; never accept a raw ID.
@@ -281,6 +432,7 @@ class OwnedSocialService:
                         unblocked_at=None if desired else now))
             if desired:
                 low, high = _pair(user["id"], target_id)
+                self._suppress_contact(connection, low, high)
                 edge = self._edge_pair(connection, low, high)
                 if edge and edge["state"] in ("pending", "accepted"):
                     edge_state = "cancelled" if edge["state"] == "pending" else "disconnected"
@@ -346,6 +498,7 @@ class OwnedSocialService:
                     changed_by_user_id=user["id"])).inserted_primary_key[0]
             self._event(connection, user["id"], "network_edge_id", edge_id,
                         version, "requested", previous, "pending", now)
+            self._notify(connection, target_id, "owned_request", f"network:{edge_id}:{version}", now)
             return _row(connection, select(self.edge).where(self.edge.c.id == edge_id))
 
     def transition(self, actor, edge_id, action, expected_version, *, now=None):
@@ -366,6 +519,7 @@ class OwnedSocialService:
                 raise Forbidden("wrong endpoint")
             if action == "accept":
                 self._ensure_pair_available(connection, edge["user_low_id"], edge["user_high_id"])
+                self._peer(connection, edge["requester_id"])
             _version(expected_version, edge["version"])
             if edge["state"] != source:
                 raise OperationUnavailable("operation unavailable")
@@ -377,6 +531,11 @@ class OwnedSocialService:
                 changed_by_user_id=user["id"]))
             self._event(connection, user["id"], "network_edge_id", edge_id,
                         version, state, edge["state"], state, now)
+            if action == "accept":
+                self._notify(connection, edge["requester_id"], "owned_accepted",
+                             f"network:{edge_id}:{version}", now)
+            if action in ("ignore", "cancel", "disconnect"):
+                self._suppress_contact(connection, edge["user_low_id"], edge["user_high_id"])
             if action == "disconnect":
                 endorsements = connection.execute(select(self.endorsement).where(
                     self.endorsement.c.network_edge_id == edge_id,
@@ -571,6 +730,10 @@ class OwnedSocialService:
                 client_message_id=client_message_id, text=normalized, created_at=now))
             connection.execute(self.conversation.update().where(
                 self.conversation.c.id == conversation["id"]).values(last_seq=seq, updated_at=now))
+            self._notify(connection, peer_id, "owned_message", f"messages:{public_id}:{seq}", now)
+            connection.info.setdefault("owned_social_delivery", []).append({
+                "conversation_id": conversation["id"], "sequence": seq,
+                "recipients": (user["id"], peer_id)})
             result = _row(connection, select(self.message).where(
                 self.message.c.conversation_id == conversation["id"], self.message.c.seq == seq))
             return (result, True) if with_status else result

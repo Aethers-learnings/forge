@@ -1610,45 +1610,86 @@ function barChart(items, color) {
 /* --------------------------------------------------------------- socket */
 let socket = null;
 
+async function refreshOwnedMessage(data) {
+  if (!data || Object.keys(data).sort().join(',') !== 'conversationId,lastSequence' ||
+      typeof data.conversationId !== 'string' || !data.conversationId ||
+      !Number.isSafeInteger(data.lastSequence) || data.lastSequence < 1) return;
+  const owner = social, generation = csrfGeneration;
+  try {
+    // The packet is only a hint. HTTP authorizes membership and supplies text.
+    await loadOwnedHistory(data.conversationId);
+    if (!socialCurrent(owner, generation)) return;
+    await loadOwnedConversations();
+    if (!socialCurrent(owner, generation)) return;
+    if (state.view === 'messages') {
+      if (state.msgSlug === data.conversationId) paintSocial(ownedThreadHtml(state.msgSlug), 'messages');
+      else if (!state.msgSlug) paintSocial(ownedConversationsHtml(), 'messages');
+    }
+    toast('Messages updated.');
+  } catch (e) {
+    if (socialCurrent(owner, generation)) showSocialNotice(e);
+  }
+}
+
 function initSocket() {
   if (socket || !state.user) return;
   socket = io();
   const activeSocket = socket;
+  const accountId = state.user.id, generation = csrfGeneration;
+  const current = () => socket === activeSocket && state.user?.id === accountId && csrfGeneration === generation;
   socket.on('connect', () => {
-    if (socket !== activeSocket || !state.user) return;
+    if (!current()) return;
     socket.emit('join');
   });
   socket.on('new_comment', () => {
-    if (socket !== activeSocket || !state.user) return;
+    if (!current()) return;
     toast('New comment on a post');
     if (state.view === 'feed') loadView();
   });
-  socket.on('new_message', (data) => {
-    if (socket !== activeSocket || !state.user) return;
+  socket.on('new_message', async (data) => {
+    if (!current()) return;
+    try {
+      const mode = await socialMode();
+      if (!current()) return;
+      if (mode === 'v2') { await refreshOwnedMessage(data); return; }
+    } catch (e) { if (current()) showSocialNotice(e); return; }
     toast('New message from ' + (data.conversation ? data.conversation.name : 'a contact'));
     if (state.view === 'messages') loadView();
   });
   socket.on('job_match', (data) => {
-    if (socket !== activeSocket || !state.user) return;
+    if (!current()) return;
     toast('New opportunity: ' + data.title);
     if (state.view === 'discover' && state.discoverTab === 'opportunities') loadView();
   });
-  socket.on('notification', (note) => {
-    if (socket !== activeSocket || !state.user) return;
+  socket.on('notification', async (note) => {
+    if (!current()) return;
+    try {
+      const mode = await socialMode();
+      if (!current()) return;
+      if (mode === 'v2') {
+        await refreshUnreadCount();
+        if (!current()) return;
+        toast('You have a new notification.');
+        if (['notifications', 'network'].includes(state.view)) loadView();
+        return;
+      }
+    } catch (e) { if (current()) showSocialNotice(e); return; }
     state.unreadCount += 1;
     toast(note.text);
     refreshNavBadge();
     if (state.view === 'notifications') loadView();
   });
   socket.on('new_applicant', () => {
-    if (socket !== activeSocket || !state.user) return;
+    if (!current()) return;
     if (state.view === 'listings' && state.businessTab === 'analytics') loadView();
   });
 }
 
 async function refreshUnreadCount() {
+  const generation = csrfGeneration, accountId = state.user?.id;
   try {
     const res = await api('/api/notifications');
+    if (generation !== csrfGeneration || state.user?.id !== accountId) return;
     state.unreadCount = res.unreadCount;
     refreshNavBadge();
   } catch (e) { /* ignore */ }

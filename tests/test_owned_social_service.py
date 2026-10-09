@@ -454,7 +454,7 @@ def test_suspended_peer_endorsement_hidden_without_revocation(social):
             service.endorsement.c.id == endorsement["id"])).scalar_one() is None
 
 
-def test_service_has_no_delivery_or_notification_side_effects(social, monkeypatch):
+def test_service_persists_generic_notifications_without_legacy_delivery(social, monkeypatch):
     service, (a, b, _, _) = social
     def forbidden_delivery(*args, **kwargs):
         raise AssertionError("service must not emit or notify")
@@ -468,7 +468,8 @@ def test_service_has_no_delivery_or_notification_side_effects(social, monkeypatc
     service.transition(b, edge["id"], "disconnect", 2)
     with service.engine.connect() as connection:
         assert connection.execute(select(text("count(*)")).select_from(
-            forge.Notification.__table__)).scalar_one() == 0
+            forge.Notification.__table__)).scalar_one() == 3
+    assert service.notification_state(b)["notifications"] == []  # disconnected contact suppressed
 
 
 def test_reconnection_reuses_history_and_no_synthetic_reply(social):
