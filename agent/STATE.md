@@ -1,6 +1,6 @@
 # Forge project state
 
-Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged blocking, PR #29 merged participant-safe delivery, and PR #31 merged student analytics isolation. Issue #32 completes the disposable whole-schema FK audit and hardens admin removal with physical preflight and fail-closed suspension, including unreferenced accounts while FK-off writers remain unsafe. Legacy remains the default; production v2 is not enabled. T-201 remains open for reviewed global-FK enablement, persistent rollout/recovery and production cutover; T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve historical scope.
 
 ## 2026-09-28 — repository navigation cleanup
 
@@ -8,7 +8,7 @@ The root and mobile READMEs now describe the current architecture and checks; [t
 
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
-Last updated: 2026-10-09 (owned service/API/web, directed blocking and participant-safe delivery merged; Issue #30 student analytics isolation implemented; T-201 rollout/FK/admin-removal and T-107 reporting/reviewer gates remain pending)
+Last updated: 2026-10-09 (Issue #32 FK/admin safety gate implemented for review; global enforcement, persistent recovery/cutover and T-107 reporting/reviewers remain pending)
 
 ## Verified current state
 
@@ -214,3 +214,11 @@ Started from fetched/pulled clean master `3686256c561c36cbc2b7d07864d29d33b7b699
 The pure service projection rechecks the actor, returns only acceptance timestamps and fails closed on a missing timestamp. Existing daily/cumulative 14-day format, other T-106 metrics, business/admin dashboards and all active-role access remain unchanged. No client production edits are needed; maintained Node and Chromium cases cover zero counts, optional maintenance failures, mobile/keyboard rendering and late-account responses. Full suite: **442 passed, no failures/skips**; detailed focused/process/mobile evidence is in TEST_RESULTS.
 
 T-201 remains open for whole-schema FK/admin-removal review, persistent rollout/recovery rehearsal and production cutover. T-107 remains open for reporting/reviewer implementation and deferred safety policy. No schema/migration, native source, production v2, legacy default, PR #26 or real `instance/forge.db` change/access.
+
+## 2026-10-09 — T-201 FK/admin safety gate / Issue #32
+
+[FK_ADMIN_REVIEW](FK_ADMIN_REVIEW.md) records generated migration-HEAD evidence: 31 application tables, 42 FKs, 28 user references, 22 explicit RESTRICT and 20 default NO ACTION. Application enforcement remains OFF. Disposable OFF experiments reproduce orphaning by the former admin DELETE; ON experiments reject all referenced parent deletes. Fresh schema/full valid fixtures/demo seed pass FK-check; no intrinsic clean-schema blocker was found, with persistent integrity unexamined.
+
+Removal now reserves BEGIN IMMEDIATE, reauthorizes the admin, reflects actual user FKs and commits suspension without modifying children. Even clean accounts suspend because an independent FK-off writer can insert a stale ID after a locked delete; safe hard deletion stays gated. Commit-failure cleanup rolls back physical SQLite as well as SQLAlchemy state. Target devices retire in every mode; unsuspend and auth/CSRF safeguards remain. No permanent deletion/retention decision was made.
+
+T-201 remains unchecked for reviewed global FK enablement, persistent copy/recovery rehearsal and production cutover; T-107 reporting/reviewers/deferred policy remains mandatory. No global enforcement, frozen migration, child/history cleanup, default-mode, native or production-v2 changes. The real instance/forge.db was never accessed. Validation is in TEST_RESULTS.

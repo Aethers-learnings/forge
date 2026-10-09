@@ -1,6 +1,6 @@
 # API map
 
-Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged blocking, PR #29 merged participant-safe delivery, and PR #31 merged student analytics isolation. Issue #32 completes the disposable whole-schema FK audit and hardens admin removal with physical preflight and fail-closed suspension, including unreferenced accounts while FK-off writers remain unsafe. Legacy remains the default; production v2 is not enabled. T-201 remains open for reviewed global-FK enablement, persistent rollout/recovery and production cutover; T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve historical scope.
 
 Status: route inventory for the current Flask prototype. All JSON routes return 401 through `require_login()` unless marked public/session-aware. No version prefix exists. Authenticated unsafe `/api/` requests are protected by the session-bound CSRF token plus same-origin Origin/Referer validation added in T-003.
 
@@ -93,7 +93,7 @@ Status: route inventory for the current Flask prototype. All JSON routes return 
 | GET `/api/analytics/business` | Business or admin | For a business, returns metrics for opportunities and listings it owns. For an admin, returns the same hiring-funnel metrics platform-wide. `applications` is application-row count; `impressions` is the cumulative count of student opportunity-board reads against linked listings; `rate` is rounded applications ÷ impressions, or `—` when impressions are zero. `profileViews` is views of the business profile for businesses and all recorded profile views for admins. Applicant skills and demographics count application rows (so one applicant applying to multiple opportunities contributes once per application). |
 | GET `/api/analytics/admin` | Admin | Returns platform counts, queues, registration series, and content totals. `mau` is users whose `last_seen` is within the trailing 30 days; `pendingApprovals` is pending listing approvals + alumni verifications + unapproved business accounts; registration and content figures are all-time rows, with soft-removed posts excluded from posts/videos and flagged content limited to active posts. |
 | GET `/api/admin/users` | Admin | Returns administrative view of all users. |
-| POST `/api/admin/users/:id/:action` | Admin | `approve-business`, `suspend`, `unsuspend`, or `remove` (fallback suspension on delete failure). |
+| POST `/api/admin/users/:id/:action` | Admin | `approve-business`, `suspend`, `unsuspend`, or `remove` (physical FK preflight; fail-closed suspension while FK-off writers prevent safe deletion). |
 | POST `/api/admin/announce` | Admin | Persists/sends an announcement to all or a role audience. |
 
 ## Static and realtime
@@ -134,3 +134,7 @@ The notification blueprint receives a v2-only service projection for list/unread
 ## 2026-10-09 — student analytics graph coordination / Issue #30
 
 Entrypoint -> analytics blueprint with captured startup mode and v2-only accepted-date callable -> pure owned-service actor/endpoint query -> existing `daily_series`/`cumulative` -> unchanged student JSON. No owned graph is exposed to the route, no entrypoint import cycle and no fallback. Maintenance returns `503 {"error":"social maintenance"}` immediately after normal login. Business/admin analytics are outside this gate. Analytics keeps its any-active-authenticated-role access; its stable shape needs no capability negotiation or browser graph-selection logic.
+
+## 2026-10-09 — admin removal safety / Issue #32
+
+`POST /api/admin/users/:id/remove` retains the admin/session/CSRF boundary, but uses `forge_integrity.preflight_admin_remove` under a reserved SQLite write transaction. Actual physical FK references yield generic linked-activity suspension. Clean users also suspend while FK-off writers make hard deletion unsafe. No child-row/identity detail is returned. Successful suspension retires only target sockets in every mode; unsuspend remains available. Missing target 404, protected admin 400, wrong actor 403, transaction/preflight/commit failure generic 503. No new endpoint or global enforcement change. See API_CONTRACT and FK_ADMIN_REVIEW.

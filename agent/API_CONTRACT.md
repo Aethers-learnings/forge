@@ -1,6 +1,6 @@
 # API contract baseline
 
-Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged blocking, PR #29 merged participant-safe delivery, and PR #31 merged student analytics isolation. Issue #32 completes the disposable whole-schema FK audit and hardens admin removal with physical preflight and fail-closed suspension, including unreferenced accounts while FK-off writers remain unsafe. Legacy remains the default; production v2 is not enabled. T-201 remains open for reviewed global-FK enablement, persistent rollout/recovery and production cutover; T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve historical scope.
 
 Status: stable baseline for the current unversioned Flask API. This document fixes the request and response shapes relied upon by the existing web client and planned incremental clients. It does not introduce API versioning, change route ownership, or resolve the data-model limitations recorded in `KNOWN_ISSUES.md`.
 
@@ -138,3 +138,9 @@ PR #29 review clarification: the web/WebView consumer selects the conversation i
 - **maintenance:** normal authentication (401 missing/deleted, 403 suspended) precedes generic `503 {"error":"social maintenance"}`; neither social graph is read. Business/admin analytics remain available under their existing role rules.
 
 V2 and maintenance student responses are `Cache-Control: no-store`, including errors. Missing accepted_at on a counted owned edge fails closed with `503 {"error":"analytics unavailable"}`; never substitute creation/request time. The service's active-actor recheck can deny with generic 403 after initial auth. Unrelated T-106 metrics and response types remain unchanged.
+
+## 2026-10-09 — clarified admin remove safety / Issue #32
+
+`POST /api/admin/users/:id/remove` requires an active admin session and ordinary unsafe-method CSRF/origin headers, with no body required. Under BEGIN IMMEDIATE it rechecks active-admin authority and protects admin targets. A real FK reference returns `200 {"ok":true,"note":"<name> has linked activity — suspended instead."}`; the user is suspended and all referenced rows remain unchanged. An unreferenced account returns `200 {"ok":true,"note":"<name> suspended instead."}` for now: FK-off competing writers prevent a safe hard-delete guarantee. This is the authorized non-destructive failure mode, not a new erasure/retention policy. No successful hard deletion is claimed.
+
+Missing target returns JSON 404; an admin target returns 400; wrong/inactive actor fails authentication/403. Reservation/preflight/update/commit errors return `503 {"error":"operation unavailable"}` after rollback, without linked-table details. Effective committed suspension retires only target sockets in all modes. Removal is repeatable and `unsuspend` retains its existing restore contract. No capability header is required for moderation. Safe clean-user hard deletion remains gated on a separately verified writer boundary; global FKs were not enabled. See FK_ADMIN_REVIEW.
