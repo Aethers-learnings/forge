@@ -1,5 +1,9 @@
 # Engineering records
 
+## Start here
+
+Read [AGENTS.md](../AGENTS.md), [STATE](STATE.md), and [TASKS](TASKS.md) first. Everything else is reference material; consult it only when a task points to it. [TEST_RESULTS](TEST_RESULTS.md) and [SESSION_LOG](SESSION_LOG.md) are append-only logs written by `agent_runtime`; they are large, so do not read them in full.
+
 Start with [STATE](STATE.md) for the latest verified status and [TASKS](TASKS.md) for unfinished work. Dated sections in these files preserve earlier evidence; the latest update and the actual code take precedence over historical snapshots.
 
 | Need | Record |
