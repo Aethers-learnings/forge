@@ -1,9 +1,11 @@
-"""Analytics dashboards with unchanged T-106 metrics and scope."""
+"""Analytics dashboards with process-fixed social ownership and T-106 metrics."""
 
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
+
+from forge_routes.owned_social import Forbidden, OperationUnavailable
 
 
 def create_analytics_blueprint(*, require_login, daily_series, cumulative,
@@ -12,18 +14,42 @@ def create_analytics_blueprint(*, require_login, daily_series, cumulative,
                                skill_search_model, connection_npc_model,
                                opportunity_model, business_listing_model,
                                application_model, approval_queue_item_model,
-                               alumni_verification_model, event_model):
+                               alumni_verification_model, event_model,
+                               social_mode, owned_connection_dates=None):
     """Use existing models and policies without importing the app entrypoint."""
     blueprint = Blueprint("analytics", __name__)
+    if social_mode not in ("legacy", "maintenance", "v2"):
+        raise ValueError("invalid analytics social mode")
+    if social_mode == "v2" and owned_connection_dates is None:
+        raise ValueError("owned connection analytics provider required")
+
+    @blueprint.after_request
+    def private_student_analytics(response):
+        if social_mode != "legacy" and request.endpoint == "analytics.student_analytics":
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     @blueprint.get("/api/analytics/student")
     def student_analytics():
         user, err = require_login()
         if err:
             return err
+        if social_mode == "maintenance":
+            return jsonify(error="social maintenance"), 503
+        if social_mode == "v2":
+            try:
+                connection_dates = owned_connection_dates(user)
+            except Forbidden:
+                return jsonify(error="forbidden"), 403
+            except OperationUnavailable:
+                return jsonify(error="analytics unavailable"), 503
+            connection_total = len(connection_dates)
+        else:
+            accepted = network_request_model.query.filter_by(status="accepted") \
+                .order_by(network_request_model.created_at).all()
+            connection_dates = [r.created_at for r in accepted]
+            connection_total = len(accepted) + connection_npc_model.query.count()
         views = profile_view_model.query.filter_by(viewed_user_id=user.id).all()
-        accepted = network_request_model.query.filter_by(status="accepted") \
-            .order_by(network_request_model.created_at).all()
         my_posts = post_model.query.filter(post_model.author_name == user.name,
                                           post_model.removed.is_(False)).all()
         likes_received = sum(p.base_likes + like_model.query.filter_by(post_id=p.id).count()
@@ -44,8 +70,8 @@ def create_analytics_blueprint(*, require_login, daily_series, cumulative,
         return jsonify({
             "profileViews": {"total": len(views),
                              "series": daily_series([v.created_at for v in views])},
-            "connections": {"total": len(accepted) + connection_npc_model.query.count(),
-                            "series": cumulative(daily_series([r.created_at for r in accepted]))},
+            "connections": {"total": connection_total,
+                            "series": cumulative(daily_series(connection_dates))},
             "engagement": {"posts": len(my_posts), "likes": likes_received,
                            "comments": comments_received},
             "peerComparison": {"me": user.completion, "programmeAvg": programme_avg,
