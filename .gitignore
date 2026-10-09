@@ -23,7 +23,8 @@ node_modules/
 android/app/build/
 android/build/
 android/.gradle/
-android/local.properties      # contains a local absolute SDK path, machine-specific
+# contains a local absolute SDK path, machine-specific
+android/local.properties
 android/*.iml
 ios/App/Pods/
 .~lock.*#
