@@ -1,6 +1,6 @@
 # Data model
 
-Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged blocking, PR #29 merged participant-safe delivery, and PR #31 merged student analytics isolation. Issue #32 completes the disposable whole-schema FK audit and hardens admin removal with physical preflight and fail-closed suspension, including unreferenced accounts while FK-off writers remain unsafe. Legacy remains the default; production v2 is not enabled. T-201 remains open for reviewed global-FK enablement, persistent rollout/recovery and production cutover; T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve historical scope.
 
 Status: the discovery tables below are historical. Current ORM mappings are in `forge_backend.py`; frozen baseline and ordered migrations own schema creation, with fail-closed startup verification. Default persistent path is `instance/forge.db`; this increment never accessed it.
 
@@ -108,3 +108,9 @@ Supersedes the historical create-all startup notes: fresh schema now comes solel
 ## Issue #18 ORM and service mapping (2026-09-29)
 
 Six `forge_backend.py` ORM mappings represent the already-migrated `network_edge`, `endorsement`, `direct_conversation`, `conversation_member`, `direct_message` and `ownership_event` tables. The focused internal service uses these mappings without creating schema, importing legacy social rows, adding cascade deletion or storing endorsement aggregates. Its normal general-endorsement read projection is caller-to-peer only; disconnect still revokes active endorsements in both directions. Migration history and global FK policy are unchanged. The earlier migration-only status above is historical.
+
+## 2026-10-09 — physical whole-schema FK evidence / Issue #32
+
+The canonical generated [FK_ADMIN_REVIEW](FK_ADMIN_REVIEW.md) supersedes historical FK guesses: HEAD `20260929_03_blocking_core` has 31 application tables (32 including migration ledger), 42 physical constraints, 28 references to user.id, 22 explicit RESTRICT and 20 default NO ACTION. The direct-message author binding is a composite FK to conversation membership, not a separate user FK. Nullability does not imply SET NULL. All populated parent references block deletion with enforcement ON; normal app connections remain OFF.
+
+Migration-managed initialization, full valid FK fixtures and demo seed are clean; intentional orphans are detected by FK-check and migration/startup verification. No schema or frozen revision changed. User removal now preserves identity via serialized physical preflight/suspension even when no row currently references it, because stale FK-off writers can outlive a hard-delete transaction. No related row/file cleanup, nullable reference clearing or guessed display-name ownership. Persistent data was not examined; approved reconciliation/retention remains separate.

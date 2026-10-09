@@ -52,6 +52,7 @@ from forge_routes.onboarding import create_onboarding_blueprint
 from forge_routes.profile import create_profile_blueprint
 from forge_routes.owned_social_http import create_social_dispatch
 from forge_routes.owned_social import OwnedSocialService
+from forge_integrity import preflight_admin_remove
 from forge_migrations import (
     is_cli_command_discovery, prepare_application_database,
     register_migration_commands, verify_application_database,
@@ -970,8 +971,6 @@ def _socket_join(data=None):
 
 def _retire_account_sockets(user_id):
     """Narrow single-process moderation hook using Socket.IO's own room map."""
-    if app.config["FORGE_SOCIAL_MODE"] != "v2":
-        return
     try:
         participants = list(socketio.server.manager.get_participants("/", f"user:{user_id}"))
         for sid, _ in participants:
@@ -2377,9 +2376,11 @@ def admin_list_users():
 
 @app.post("/api/admin/users/<int:target_id>/<string:action>")
 def admin_user_action(target_id, action):
-    """approve-business | suspend | unsuspend | remove. 'remove' hard-deletes
-    where possible and falls back to suspension when the account has linked
-    activity that would break foreign keys."""
+    """approve-business | suspend | unsuspend | remove.
+
+    Removal uses physical FK preflight and fails closed to suspension while
+    FK-off writers make hard deletion unsafe, including for clean accounts.
+    """
     user, err = require_login()
     if err:
         return err
@@ -2387,6 +2388,21 @@ def admin_user_action(target_id, action):
         return jsonify({"error": "admin only"}), 403
     if action not in ("approve-business", "suspend", "unsuspend", "remove"):
         return jsonify({"error": "unknown action"}), 400
+    if action == "remove":
+        actor_id = user.id
+        # Release require_login's ORM read transaction before reserving the
+        # independent write connection; reauthorize under that reservation.
+        db.session.rollback()
+        try:
+            result = preflight_admin_remove(db.engine, User.__table__, actor_id, target_id)
+        except Exception:
+            # Do not log SQL/parameters, child contents or exception messages.
+            app.logger.warning("admin removal transaction failed")
+            return jsonify({"error": "operation unavailable"}), 503
+        if "error" in result:
+            return jsonify({"error": result["error"]}), result["status"]
+        _retire_account_sockets(target_id)
+        return jsonify(result)
     target = User.query.get_or_404(target_id)
     if target.role == "admin" and action in ("suspend", "remove"):
         return jsonify({"error": "admin accounts can't be actioned here"}), 400
@@ -2410,21 +2426,6 @@ def admin_user_action(target_id, action):
         target.suspended = False
         db.session.commit()
         return jsonify({"ok": True, "note": f"{target.name} restored."})
-    try:
-        db.session.delete(target)
-        db.session.commit()
-        _retire_account_sockets(target_id)
-        return jsonify({"ok": True, "note": f"{target.name} removed."})
-    except Exception:
-        db.session.rollback()
-        fresh = User.query.get(target_id)
-        if fresh:
-            fresh.suspended = True
-            db.session.commit()
-            _retire_account_sockets(target_id)
-            return jsonify({"ok": True,
-                            "note": f"{target.name} has linked activity — suspended instead."})
-        return jsonify({"ok": True, "note": "already removed."})
 
 
 @app.post("/api/admin/announce")
