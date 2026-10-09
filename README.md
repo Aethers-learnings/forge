@@ -80,6 +80,7 @@ npx tsc --noEmit
 | `forge_backend.py` | Flask app, shared models/security, remaining routes, Socket.IO, server entry point |
 | `forge_routes/` | Incrementally extracted onboarding, profile, notification, and analytics routes |
 | `forge_migrations.py`, `migrations/` | Explicit SQLite migration commands and revisions; no automatic social cutover |
+| `forge_integrity.py` | SQLite foreign-key diagnostics and fail-closed admin-removal integrity checks |
 | `static/` | Same-origin web client and PWA assets |
 | `mobile/` | Expo native workflows and WebView fallback; [mobile guide](mobile/README.md) |
 | `tests/` | Backend and web regression tests |
