@@ -466,3 +466,32 @@ Starting head: `d73b6938a0ab12c8105026da8c36d8b57f07d47e`. The re-review indepen
 | `git diff --check` | Passed. |
 
 Network permission was required for disposable localhost servers. Browser transport uses the established offline Socket.IO stub with real HTTP; authenticated room delivery remains covered by the separate v2 subprocess contract. Mobile source/dependencies are unchanged from the preceding review's 53 passing mobile tests, lint and TypeScript; those unchanged checks were not repeated for this repair. No real `instance/forge.db`, native source, backend delivery, schema/migration, default mode, production v2 or PR #26 change. Temporary untracked review reproducers were replaced with maintained regressions. PR #29 remains unmerged for human review; broader release gates remain open.
+
+## 2026-10-09 — Issue #30 student analytics ownership isolation
+
+Starting clean fetched/pulled master: `3686256c561c36cbc2b7d07864d29d33b7b6999e` (merged PR #29). Branch `codex/t201-student-analytics-isolation`. Existing project-local `.venv-delivery` dependencies and Playwright 1.55/Chromium 140 were reused without dependency changes. All database fixtures are disposable and migration-managed; the real `instance/forge.db` was never accessed, inspected, copied, hashed or modified.
+
+| Validation | Result |
+| --- | --- |
+| `.venv-delivery/bin/python -m pytest -q --disable-warnings tests/test_analytics_routes.py tests/test_owned_social_analytics.py tests/test_analytics_modes_subprocess.py tests/test_analytics_frontend.py` (final with workspace TMPDIR/basetemp) | **43 passed, 158 existing warnings in 22.91s**: 28 unchanged legacy baseline cases, 10 pure service cases, 4 process/startup gates, one Node wrapper. |
+| Broad focused analytics/service/blocking/mode/auth/CSRF/socket/model/migration/bootstrap run (same interpreter; files named below) | **208 passed, 675 warnings in 128.25s**. This preceded adding the actual unknown-mode startup case, which passed in the final focused/full run. |
+| `FORGE_SOCIAL_MODE=legacy ... pytest -q --disable-warnings tests/_analytics_contract.py` | **6 passed, 10 warnings in 1.43s**. |
+| `FORGE_SOCIAL_MODE=maintenance ... pytest -q --disable-warnings tests/_analytics_contract.py` | **6 passed, 10 warnings in 1.33s**. |
+| `FORGE_SOCIAL_MODE=v2 ... pytest -q --disable-warnings tests/_analytics_contract.py` | **16 passed, 28 warnings in 4.23s**. |
+| `node tests/analytics_frontend.cjs` | **5 passed, 0 failed/skipped**: stable/zero rendering, optional maintenance and stale responses during HTTP/JSON completion. |
+| `node tests/owned_social_frontend.cjs` | **82 passed, 0 failed/skipped**. |
+| `node tests/csrf_frontend.cjs`; `node tests/profile_export_frontend.cjs` | Passed, including inline script compilation. |
+| Browser-enabled `... pytest -q --disable-warnings tests/test_browser_analytics.py` | **3 passed in 8.84s**, real Chromium with desktop/mobile 390px, keyboard navigation, owned count 1/empty count 0 despite demo rows, optional maintenance profile controls. |
+| `TMPDIR=/home/pablo/Documents/Programming/04-Projects/forge/test-results/runtime-tmp PLAYWRIGHT_BROWSERS_PATH=.playwright-delivery PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 .venv-delivery/bin/python -m pytest -q --disable-warnings --basetemp=test-results/pytest-analytics-full` | **442 passed, 1674 existing deprecation warnings in 236.97s; 0 failed/skipped**. Includes all **25 Chromium** cases, Node wrappers and existing v2 HTTP/socket plus new analytics mode subprocesses. |
+| `npm --prefix mobile test` | **53 passed, 0 failed/skipped**; rerun, not reused evidence. |
+| `npm --prefix mobile run lint`; `./node_modules/.bin/tsc --noEmit` (cwd mobile) | Passed, exit 0. |
+| `.venv-delivery/bin/python -m py_compile` on all 3 changed production modules and 5 new Python tests | Passed. |
+| `git diff --check`; business/admin handler AST comparison to starting HEAD | Passed; both unrelated handlers exactly unchanged. |
+
+Broad focused files: `test_analytics_routes`, `test_owned_social_analytics`, `test_analytics_modes_subprocess`, `test_analytics_frontend`, `test_owned_social_service`, `test_blocking_core_service`, `test_owned_social_http_subprocess`, `test_authz_regressions`, `test_csrf_security`, `test_socket_security`, `test_owned_social_models`, `test_database_bootstrap`, `test_migration_tooling`, `test_blocking_core_migration` (all under tests/, .py).
+
+Before implementation, all **10** new service cases failed on the absent helper and the process wrapper reproduced maintenance returning 200 and v2 returning the legacy total 23. Existing legacy tests/expectations were not changed or weakened. Independent mode contracts test matching-name A/B/C/admin totals 1/2/2/1, request timestamps 30 days before acceptance, acceptance at day 0/13/14, pending/ignored/cancelled/disconnected/block/unblock, empty owned with 23 legacy connections, forged identity/mode/capability, all four authenticated roles and missing-timestamp generic failure. The helper's trace contains SELECTs only, with zero audit/notification/write/emission.
+
+Inspected actual route SQL under each process mode: legacy selects accepted `network_request` ordered by created_at and counts `connection_npc`; v2 selects only `network_edge.accepted_at WHERE state = ? AND (user_low_id = ? OR user_high_id = ?)`; maintenance has no social query. Assertions cover all five forbidden legacy tables and all owned graph tables, rather than result checks alone.
+
+Initial browser sandbox run could not create localhost sockets; rerunning with authorized network/process permission passed. Initial mobile sandbox run could not execute Expo config subprocesses; authorized rerun passed all 53. No test was skipped or weakened to accommodate permissions. Chromium maintenance rendering uses a controlled 503 response; actual maintenance auth/no-graph/business/admin behavior is tested in its independent backend process. Signed-device WebView/native-session tests remain release work. No schema/migration/native/default-mode/production-v2/PR #26 changes.

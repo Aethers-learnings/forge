@@ -1,6 +1,6 @@
 # Known issues
 
-Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+Current implementation (2026-10-09): PR #27 merged directed blocking and PR #29 merged participant-safe delivery. Issue #30 implements student analytics ownership isolation for controlled v2 rehearsal. Legacy remains the default; production v2 is not enabled. T-201 whole-schema FK/admin-removal, persistent rollout/recovery and production cutover gates, plus T-107 reporting/reviewer/policy gates, remain open. Dated entries below preserve their historical scope.
 
 ## Verified defects / limitations
 
@@ -13,7 +13,7 @@ Current implementation (2026-10-09): PR #27 merged the directed blocking core. O
 - CV upload accepts raw text and marks a CV as uploaded; it does not persist an original document or perform actual file upload/extraction.
 - Opportunity visibility is not filtered to approved/live BusinessListings; `/api/opportunities` returns all `Opportunity` rows.
 - The hard-delete admin user action attempts deletion without an explicit retention/cascade policy, then silently falls back to suspension on foreign-key failure.
-- An automated Flask/Node regression suite now exists; see `TEST_RESULTS.md`. Reversible schema migration tooling remains outstanding under T-201.
+- An automated Flask/Node/Chromium regression suite and reversible migration tooling exist; see `TEST_RESULTS.md`. Whole-schema FK/admin-removal review, persistent rollout/recovery rehearsal and production cutover remain outstanding under T-201.
 - Mobile has native authentication/profile/feed/opportunity/notification workflows plus WebView fallback; native networking/messaging is not implemented and remains blocked on approved ownership/migration work.
 
 ## Recommendations (not verified behavior)
@@ -87,3 +87,9 @@ The review reproduced unsent draft loss during message refresh, permanently stal
 ## 2026-10-09 — multipart realtime recovery resolved
 
 Re-review of `d73b693` reproduced a remaining gap: a video-upload CSRF rejection retired realtime without replacing its socket. The multipart path now shares JSON-request security invalidation and automatic same-account socket recovery, without retrying the upload. Current upload/token 401s expire the session; late responses or token work from an obsolete account generation have no effect on the current account. Nine Node cases and one Chromium case extend the maintained regression coverage. Signed-device WebView verification and the existing production release gates remain separate; PR #29 remains unmerged.
+
+## 2026-10-09 — student analytics ownership boundary resolved / Issue #30
+
+PR #29 is merged in starting master `3686256`; preceding unmerged statements are dated history. V2 student connection totals and series now use only the caller's currently accepted owned edges and accepted_at dates. Legacy's shared metric intentionally remains unchanged. Maintenance returns authenticated generic 503 without either graph read. SQL and A/B/C/admin tests prove no fallback/union/foreign graph. Missing acceptance time fails closed with generic analytics 503; remediation of corrupt persistent state is operator/recovery work, never an automatic repair or substitute date.
+
+Other student metrics retain T-106 behavior, including display-name post attribution; those separate limitations are not resolved here. No client changes or schema blocker was needed for this gate. T-201 remains open for whole-schema FK/admin-removal review, persistent rollout/recovery and production cutover. T-107 remains open for reporting/receipts, reviewer grants/queues/evidence/audit/transitions and deferred category/rate/evidence-window, provisioning, retention/erasure/legal hold, appeals/notices, emergency and anonymous-report policy. Native social and signed-device WebView checks remain separate. Production remains default legacy; no v2 enablement or PR #26 work.
