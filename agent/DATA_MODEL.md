@@ -1,6 +1,8 @@
 # Data model
 
-Status: verified SQLAlchemy schema in `forge_backend.py`. SQLite database path: `instance/forge.db`. Schema creation is inline via `db.create_all()`; no migration history was found.
+Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+
+Status: the discovery tables below are historical. Current ORM mappings are in `forge_backend.py`; frozen baseline and ordered migrations own schema creation, with fail-closed startup verification. Default persistent path is `instance/forge.db`; this increment never accessed it.
 
 ## Identity and profile
 

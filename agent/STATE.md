@@ -1,12 +1,14 @@
 # Forge project state
 
+Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+
 ## 2026-09-28 — repository navigation cleanup
 
 The root and mobile READMEs now describe the current architecture and checks; [the engineering records index](README.md) provides a starting point for decisions and status. Expo's unused starter reset command was removed, the starter Explore content became a Forge About screen at the same route, generated profile-image test directories are ignored, and TypeScript recognizes the existing CSS imports. No backend, schema, or social behavior changed. T-107 and T-201 gates remain as described below.
 
 Phase: IMPLEMENTATION_1 — security containment and regression baseline
 
-Last updated: 2026-09-28 (D-012–D-015 approved; blocking/reporting required for social production completion; implementation and release checks remain pending)
+Last updated: 2026-10-09 (owned service/API/web and directed blocking merged; Issue #28 delivery implemented; T-201 rollout and T-107 reporting/reviewer release gates remain pending)
 
 ## Verified current state
 
@@ -184,3 +186,11 @@ The shared static web/WebView product now consumes ownership-v2 networking and m
 Implemented: incoming/outgoing requests, exact optimistic versions and desired endorsements, per-section and conversation cursors, real-peer conversation create/reuse, bounded ordered history, stable user-driven message retries, contiguous observed-message read advancement (unloaded/unobserved incoming gaps stop progress; loaded own messages do not), generic read-only/error UI, and account-generation isolation. Session changes clear all social state and retire the old socket; late responses cannot restore it. No native networking/messaging or WebView authentication/transport change.
 
 T-201 remains open: social socket/notification delivery, student analytics cutover, persistent rollout/recovery and whole-schema FK/admin-removal review are outstanding. T-107 blocking/reporting remains mandatory before social production completion. Native social networking/messaging and signed-device verification remain outstanding. See TEST_RESULTS for executable evidence.
+
+## 2026-10-09 — Issue #28 participant-safe ownership-v2 delivery
+
+Started from clean fetched/pulled master `876819abd0505b1964c21aa2a68e12ccf676ab27` (merged PR #27) on `codex/t201-social-delivery`. The existing owned service now inserts generic request/accept/message Notification rows inside the same `BEGIN IMMEDIATE` business transaction. Connection-local delivery intents run after commit; each packet rechecks active endpoints, pair/block state and relevant membership/version under a short SQLite reservation through enqueue. Only authenticated user rooms receive delivery; role/admin status grants no private override. Socket failure leaves committed domain and Notification rows intact; HTTP refresh is recovery.
+
+Message invalidation is exactly `{conversationId,lastSequence}` for both participants/devices; only the other member gets a persistent message notification. Request creation notifies its recipient, acceptance its original requester. Retries/no-ops/denials add nothing. Blocking/terminal transitions retire unread owned navigation hints transactionally without deleting rows. Notification list/count/export projection authorizes existing type/link references and fails closed; unblock/reconnect cannot restore retired contact. Moderation retires target sockets using the existing single-process room manager, with active-account checks on reconnect/join and no global cookie revocation.
+
+Web/WebView re-fetches authorized history/list state for minimal invalidations, takes v2 notification wording/counts from HTTP, drops old-account/generation packets and retires sockets on account changes. Legacy and maintenance are preserved; production v2 was not enabled. PR #26, native social, migration/schema/default configuration, and the real `instance/forge.db` were not used or changed. T-201 remains open for analytics, persistent rollout/recovery, whole-schema FK/admin-removal review and cutover; T-107 remains open for reporting/reviewers and policy gates. See TEST_RESULTS for exact evidence.

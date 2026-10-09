@@ -1,5 +1,7 @@
 # API map
 
+Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+
 Status: route inventory for the current Flask prototype. All JSON routes return 401 through `require_login()` unless marked public/session-aware. No version prefix exists. Authenticated unsafe `/api/` requests are protected by the session-bound CSRF token plus same-origin Origin/Referer validation added in T-003.
 
 ## Auth and session
@@ -122,3 +124,9 @@ This update supersedes the earlier statements that D-012–D-015 await approval:
 ## Issue #22 — exclusive social route modes (2026-09-29)
 
 The seven networking/conversation paths above retain their historical behavior only in default `legacy` mode. `maintenance` authenticates (and applies existing CSRF to unsafe methods) before a generic social 503 without graph access. `v2` intercepts the same paths plus `POST /api/conversations` and `POST /api/conversations/:slug/read`, requires ownership capability 2 after auth/CSRF, and delegates to `forge_routes/owned_social_http.py` and `OwnedSocialService`. No legacy social table is a fallback. The exact v2 bodies, projections, limits, cursors, and status codes are in API_CONTRACT. Student analytics remains on shared legacy connection counts pending coordinated cutover; v2 is API rehearsal only, not a deployable user-facing mode.
+
+## 2026-10-09 — owned-social durable/realtime flow (Issue #28)
+
+`owned_social_http.py` injects the existing Socket.IO emitter into `OwnedSocialService` only on the owned path. Service mutation -> transactional Notification insert plus connection-local intent -> successful commit/connection close -> best-effort delivery. Service authorization stays central: a brief post-commit `BEGIN IMMEDIATE` reservation spans final eligibility check and enqueue so block/suspension cannot commit between them. Emission reads message sequence/sender identity only, never message text; user rooms only.
+
+The notification blueprint receives a v2-only service projection for list/unread count. Profile export uses that same projection, preventing an alternate suppressed-contact link surface. Legacy route behavior/dependencies remain intact. Account moderation calls the existing room manager to disconnect only the suspended/deleted target after commit; invalid v2 rejoins disconnect their client. No global session registry or auth replacement.

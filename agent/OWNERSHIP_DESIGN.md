@@ -1,6 +1,6 @@
 # T-104: networking and conversation ownership
 
-Status: **DESIGN APPROVED — D-012–D-015 accepted by the user as proposed on 2026-09-28.** Originally submitted 2026-09-26 and merged in PR #10. T-104 design/review is complete; ownership implementation is not. T-201’s design-approval dependency is satisfied; its migration/integrity/recovery gates remain. Blocking/reporting is an additional mandatory production-completion gate (section 8, D-016, T-107).
+Status: **DESIGN APPROVED — D-012–D-015 accepted by the user as proposed on 2026-09-28.** Originally submitted 2026-09-26 and merged in PR #10. T-104 design/review is complete; ownership service/API/web rehearsal, directed blocking (PR #27), and participant-safe delivery (Issue #28) are implemented. Production ownership rollout is not complete. T-201’s design-approval dependency is satisfied; its migration/integrity/recovery gates remain. Blocking/reporting is an additional mandatory production-completion gate (section 8, D-016, T-107).
 
 Evidence base: commit `d4a0516c3d053010a4a9c1a21208ff4f0021c5ee`. Read with [ARCHITECTURE](ARCHITECTURE.md), [API_CONTRACT](API_CONTRACT.md), [API_MAP](API_MAP.md), [SECURITY](SECURITY.md), [DATA_MODEL](DATA_MODEL.md), and accepted D-012–D-015 in [DECISIONS](DECISIONS.md). Names below identify source symbols, not new implemented classes. All target tables, constraints, endpoints, statuses, client changes, and migration commands below describe the approved future design, not implemented behavior. References below to the original proposal/review alternatives preserve the design rationale; the recommendations in D-012–D-015 have now been approved. Separate retention, import and migration-execution gates remain.
 
@@ -239,7 +239,7 @@ The original design PR did not approve or implement these decisions. The user su
 
 ## 8. Blocking and reporting production-completion gate
 
-**Required by the user on 2026-09-28; not implemented.** Social networking must not be described as production-complete or pass its production-readiness gate until both blocking and reporting have a reviewed design, working implementation, client coverage and security regression evidence. Controlled implementation/rehearsal may proceed under D-015; ownership-only success does not waive this gate. Track this work as T-107 and D-016.
+**Required by the user on 2026-09-28; directed blocking core is merged (PR #27). Reporting/reviewer work remains unimplemented.** Social networking must not be described as production-complete or pass its production-readiness gate until both blocking and reporting have a reviewed design, working implementation, client coverage and security regression evidence. Controlled implementation/rehearsal may proceed under D-015; ownership-only success does not waive this gate. Track this work as T-107 and D-016.
 
 The requirement is approved. The following are implementation acceptance requirements and design questions to resolve explicitly, not silently added production semantics or an already-approved seventh table/API:
 

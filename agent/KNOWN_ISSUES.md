@@ -1,10 +1,12 @@
 # Known issues
 
+Current implementation (2026-10-09): PR #27 merged the directed blocking core. Ownership-v2 service/API/web rehearsal and Issue #28 participant-safe delivery are implemented; legacy remains the default and production v2 is not enabled. T-201 rollout/analytics/FK gates and T-107 reporting/reviewer/policy gates remain open. Dated entries below preserve their historical scope.
+
 ## Verified defects / limitations
 
 - Historical P0 findings (secret configuration, Socket.IO room identity/CORS, mobile transport, and CSRF) have implementation resolutions recorded in `SECURITY.md`; release-device checks remain separate. They must not be confused with the still-open social row-ownership defects below.
 - Production operators must set `FORGE_ENV=production` and supply a unique `FORGE_SECRET_KEY` of at least 32 characters. Non-production processes receive an ephemeral random signing key, so their sessions do not survive a restart; this is intentional and unsuitable for multi-process production deployment.
-- Network, suggestion, connection, and conversation tables are seeded/shared demo state rather than per-user relationships. Any logged-in user can view or mutate the same rows.
+- Default legacy network, suggestion, connection and conversation tables are shared demo state. Controlled v2 uses its separate authorized owned graph; legacy remains unsuitable for real private social data.
 - `Conversation` and `Message` do not identify participants; message sender is stored only as `me`/`them`. This cannot support secure multi-user messaging.
 - `Comment`, `Post`, and `Testimonial` persist display names rather than author foreign keys, limiting ownership enforcement, renames, deletion, and auditing.
 - Posts have no timestamp, author user ID, or feed membership policy beyond the role string; content moderation is a boolean flag/soft removal only.
@@ -69,3 +71,11 @@ The historical shared social-route findings above apply in default `legacy` mode
 The earlier statement that the shared static client cannot speak ownership-v2 is superseded: explicit configuration/capability, versions, paging, real conversation creation, retry-key sends, explicit observed reads and account isolation are implemented and regression-tested. Production remains default legacy and is not enabled for v2 by this task. An unconfirmed send's in-memory retry key does not survive a page reload; reconcile history before resubmitting after reload. If IntersectionObserver is unavailable, the client conservatively does not advance read state.
 
 Social socket/notification delivery, student analytics cutover, persistent rollout/recovery, whole-schema FK/admin-removal review, mandatory T-107 blocking/reporting, native social networking/messaging and signed-device WebView verification remain outstanding. This is controlled client rehearsal, not social production completion.
+
+## 2026-10-09 — delivery boundary resolved for controlled rehearsal
+
+PR #27's directed blocking core is merged; it is not outstanding implementation. Issue #28 adds atomic generic persistent notifications, reauthorized post-commit user-room delivery, minimal invalidation HTTP refresh, unread contact suppression and narrow moderation socket retirement. No schema blocker remains for suppression: reserved type/link references plus permanent empty unread hints implement the approved boundary without deleting Notification rows.
+
+Limitations: Socket.IO delivery is best effort with no durable packet queue/replay; HTTP state is recovery. SQLite's brief reservation spans each enqueue in the current single-process architecture. Notification projection scans the caller's rows to authorize before count/limit; larger-volume optimization remains future profiling work. An unread notification is conservatively suppressed even if its packet was previously seen; no delivered/undelivered tracking field exists. Already queued/delivered packets cannot be recalled; cookie copies are not globally revoked. Native notifications retain their public shape, but native social and signed-device WebView/session verification remain separate.
+
+T-201 remains open for student analytics isolation, whole-schema FK/admin-removal review, persistent rollout/recovery and production cutover. T-107 remains open for reporting/receipts, reviewer grants/queue/evidence/audit/transitions, and separately approved retention/erasure/legal hold/appeals/notices/emergency/anonymous/category/rate/evidence-window policies. No production v2 enablement, PR #26 change or real-database access occurred.
